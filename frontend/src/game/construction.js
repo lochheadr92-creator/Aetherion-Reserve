@@ -72,25 +72,94 @@ export function isPowered(state, x, y) {
 }
 
 // ---------- fences ----------
-export function placeFence(state, x, y, d, tier) {
+
+// Per-segment validation (no funds/research check — those are done once per action)
+export function canPlaceFenceSegment(state, x, y, d, tier) {
   if (!inMap(x, y)) return { ok: false, reason: 'Out of bounds' };
+  const nx = d === 'E' ? x + 1 : x, ny = d === 'S' ? y + 1 : y;
+  if (!inMap(nx, ny)) return { ok: false, reason: 'Map boundary already contains' };
+  const existing = state.fences[edgeKey(x, y, d)];
+  if (existing && existing.tier === tier && !existing.gate) return { ok: false, reason: 'Fence already here' };
+  const occ = buildOccupancy(state);
+  if (occ[idx(x, y)] && occ[idx(nx, ny)] && occ[idx(x, y)] === occ[idx(nx, ny)]) return { ok: false, reason: 'Inside a structure' };
+  return { ok: true };
+}
+
+export function placeFence(state, x, y, d, tier) {
   const def = FENCES[tier];
   if (!def) return { ok: false, reason: 'Unknown fence tier' };
   if (def.locked && !hasResearch(state, def.locked)) return { ok: false, reason: `Requires research: ${def.name}` };
-  const key = edgeKey(x, y, d);
-  const existing = state.fences[key];
-  if (existing && existing.tier === tier && !existing.gate) return { ok: false, reason: 'Fence already here' };
-  // neighbour must exist (no fences on outer map edge needed)
-  const nx = d === 'E' ? x + 1 : x, ny = d === 'S' ? y + 1 : y;
-  if (!inMap(nx, ny)) return { ok: false, reason: 'Map boundary already contains' };
-  const occ = buildOccupancy(state);
-  if (occ[idx(x, y)] && occ[idx(nx, ny)] && occ[idx(x, y)] === occ[idx(nx, ny)]) return { ok: false, reason: 'Inside a structure' };
+  const chk = canPlaceFenceSegment(state, x, y, d, tier);
+  if (!chk.ok) return chk;
   const pay = spend(state, def.cost, 'construction', `${def.name} segment`);
   if (!pay.ok) return pay;
+  const key = edgeKey(x, y, d);
+  const existing = state.fences[key];
   if (existing) earn(state, FENCES[existing.tier].cost * 0.5, 'grants', 'Fence replacement salvage');
   state.fences[key] = { tier, hp: def.hp, gate: false };
   state._encDirty = true;
   return { ok: true };
+}
+
+// Straight fence line between two lattice corners (vertices are tile corners, 0..MAP_SIZE).
+// Constrained to the dominant drag axis so a drag always yields one clean straight wall.
+export function fenceLineEdges(v0, v1) {
+  if (!v0 || !v1) return [];
+  const dx = v1.vx - v0.vx, dy = v1.vy - v0.vy;
+  const edges = [];
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    // horizontal wall: S edges of tile row (vy - 1)
+    const vy = Math.max(1, Math.min(MAP_SIZE - 1, v0.vy));
+    const a = Math.min(v0.vx, v1.vx), b = Math.max(v0.vx, v1.vx);
+    for (let vx = a; vx < b; vx++) {
+      if (vx >= 0 && vx <= MAP_SIZE - 1) edges.push({ x: vx, y: vy - 1, d: 'S' });
+    }
+  } else {
+    // vertical wall: E edges of tile column (vx - 1)
+    const vx = Math.max(1, Math.min(MAP_SIZE - 1, v0.vx));
+    const a = Math.min(v0.vy, v1.vy), b = Math.max(v0.vy, v1.vy);
+    for (let vy = a; vy < b; vy++) {
+      if (vy >= 0 && vy <= MAP_SIZE - 1) edges.push({ x: vx - 1, y: vy, d: 'E' });
+    }
+  }
+  return edges;
+}
+
+export function placeFenceLine(state, v0, v1, tier) {
+  const def = FENCES[tier];
+  if (!def) return { ok: false, reason: 'Unknown fence tier' };
+  if (def.locked && !hasResearch(state, def.locked)) return { ok: false, reason: `Requires research: ${def.name}` };
+  const edges = fenceLineEdges(v0, v1);
+  const placeable = edges.filter((e) => canPlaceFenceSegment(state, e.x, e.y, e.d, tier).ok);
+  if (!placeable.length) return { ok: false, reason: 'No placeable segments along that line' };
+  const total = def.cost * placeable.length;
+  const pay = spend(state, total, 'construction', `${def.name} × ${placeable.length}`);
+  if (!pay.ok) return pay;
+  for (const e of placeable) {
+    const key = edgeKey(e.x, e.y, e.d);
+    const existing = state.fences[key];
+    if (existing) earn(state, FENCES[existing.tier].cost * 0.5, 'grants', 'Fence replacement salvage');
+    state.fences[key] = { tier, hp: def.hp, gate: false };
+  }
+  state._encDirty = true;
+  return { ok: true, msg: `${def.name} × ${placeable.length} placed (−◈${total})` };
+}
+
+export function removeFenceLine(state, v0, v1) {
+  const edges = fenceLineEdges(v0, v1);
+  let count = 0, refund = 0;
+  for (const e of edges) {
+    const key = edgeKey(e.x, e.y, e.d);
+    const f = state.fences[key];
+    if (!f) continue;
+    refund += FENCES[f.tier].cost * 0.5;
+    delete state.fences[key];
+    count++;
+  }
+  if (!count) return { ok: false, reason: 'No fence segments along that line' };
+  earn(state, refund, 'grants', `Fence salvage × ${count}`);
+  state._encDirty = true;
+  return { ok: true, msg: `Removed ${count} segment${count > 1 ? 's' : ''} (+◈${Math.round(refund)} salvage)` };
 }
 
 export function removeFence(state, x, y, d) {

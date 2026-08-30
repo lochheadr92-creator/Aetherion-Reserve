@@ -35,6 +35,7 @@ export class GameRenderer {
     this.state = null;
     this.hover = null; // {x,y}
     this.hoverEdge = null; // {x,y,d}
+    this.fenceLinePreview = null; // { mode, edges: [{x,y,d,ok}], count, cost }
     this.tool = { mode: 'select' };
     this.selection = null; // {kind, id?, x?, y?, d?}
     this.overlay = null; // 'habitat' | 'power' | 'view' | null
@@ -104,6 +105,14 @@ export class GameRenderer {
       }
     }
     return best || { x: 0, y: 0, d: 'E' };
+  }
+
+  // Nearest lattice corner (tile vertex, 0..MAP_SIZE) — anchor points for fence lines
+  vertexFromPointer(sx, sy) {
+    const t = this.screenToTile(sx, sy);
+    const vx = Math.max(0, Math.min(MAP_SIZE, Math.round(t.fx)));
+    const vy = Math.max(0, Math.min(MAP_SIZE, Math.round(t.fy)));
+    return { vx, vy };
   }
 
   // ---------- terrain offscreen ----------
@@ -562,7 +571,34 @@ export class GameRenderer {
       ctx.fillStyle = PALETTE.blueprintFill; ctx.fill();
       ctx.strokeStyle = PALETTE.blueprint; ctx.stroke();
     } else if (t.mode === 'fence' || t.mode === 'gate' || t.mode === 'fenceRemove') {
-      if (this.hoverEdge) {
+      const lp = this.fenceLinePreview;
+      if (lp && lp.edges.length) {
+        // drag-line preview: one straight wall, valid segments bright, blocked ones dim
+        for (const ed of lp.edges) {
+          const { a, b } = this.fenceCorners(ed.x, ed.y, ed.d);
+          ctx.strokeStyle = ed.ok
+            ? (lp.mode === 'fenceRemove' ? PALETTE.invalid : PALETTE.valid)
+            : 'rgba(127,147,173,0.45)';
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+        // running total label near the end of the line
+        const last = lp.edges[lp.edges.length - 1];
+        const { a, b } = this.fenceCorners(last.x, last.y, last.d);
+        const label = lp.mode === 'fenceRemove'
+          ? `remove ${lp.count}`
+          : `${lp.count} seg · ◈${lp.cost}`;
+        const fs = 12 / this.cam.zoom;
+        ctx.font = `600 ${fs}px "IBM Plex Mono", monospace`;
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 26 / this.cam.zoom;
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(5,7,11,0.85)';
+        ctx.fillRect(mx - tw / 2 - 6 / this.cam.zoom, my - fs * 1.1, tw + 12 / this.cam.zoom, fs * 1.7);
+        ctx.fillStyle = lp.mode === 'fenceRemove' ? '#FF4D6D' : '#2DE2E6';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, mx, my + fs * 0.25);
+        ctx.textAlign = 'left';
+      } else if (this.hoverEdge) {
         const { a, b } = this.fenceCorners(this.hoverEdge.x, this.hoverEdge.y, this.hoverEdge.d);
         ctx.strokeStyle = t.mode === 'fenceRemove' ? PALETTE.invalid : PALETTE.valid;
         ctx.lineWidth = 3;

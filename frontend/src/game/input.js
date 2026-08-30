@@ -1,13 +1,13 @@
 // ---- Input: camera pan/zoom, tool application, selection ----
 import { idx, inMap } from './state';
 import { applyHeightTool, applyPaint, applyWater, applyVeg, applyPath } from './terrain';
-import { placeFence, removeFence, toggleGate, canPlaceBuilding, placeBuilding, demolishBuilding, repairFence } from './construction';
+import { placeFence, removeFence, toggleGate, canPlaceBuilding, placeBuilding, demolishBuilding, repairFence, canPlaceFenceSegment, fenceLineEdges, placeFenceLine, removeFenceLine } from './construction';
 import { enclosureAt } from './enclosures';
 import { addCreature } from './creatures';
 import { speciesById } from './data/species';
 import { spend } from './economy';
 import { walkableForCreature } from './pathfind';
-import { MAP_SIZE } from './constants';
+import { MAP_SIZE, FENCES } from './constants';
 
 export class InputController {
   constructor(canvas, renderer, getState, cb = {}) {
@@ -18,12 +18,15 @@ export class InputController {
     this.dragging = false;
     this.panning = false;
     this.lastApplied = null;
+    this.lineStart = null; // fence drag-line anchor vertex {vx, vy}
     this.attach();
   }
 
   setTool(tool) {
     this.renderer.tool = tool;
+    this.renderer.fenceLinePreview = null;
     this.lastApplied = null;
+    this.lineStart = null;
     if (this.cb.onToolChange) this.cb.onToolChange(tool);
   }
 
@@ -65,6 +68,14 @@ export class InputController {
       return;
     }
     if (e.button === 0) {
+      const mode = this.renderer.tool.mode;
+      if (mode === 'fence' || mode === 'fenceRemove') {
+        // start a drag-line: anchor on the nearest tile corner; commit on mouseup
+        this.dragging = true;
+        this.lineStart = this.renderer.vertexFromPointer(sx, sy);
+        this.updateFenceLinePreview(sx, sy);
+        return;
+      }
       this.dragging = true;
       this.applyTool(sx, sy, true);
     }
@@ -93,14 +104,64 @@ export class InputController {
       const enc = enclosureAt(state, t.x, t.y);
       this.renderer.tool._previewOk = !!enc && walkableForCreature(state, t.x, t.y, true);
     }
-    if (this.dragging) this.applyTool(sx, sy, false);
+    if (this.dragging) {
+      if (this.lineStart && (mode === 'fence' || mode === 'fenceRemove')) this.updateFenceLinePreview(sx, sy);
+      else this.applyTool(sx, sy, false);
+    }
   };
 
-  onUp = () => {
+  onUp = (e) => {
+    if (this.lineStart && this.dragging) {
+      const rect = this.canvas.getBoundingClientRect();
+      this.commitFenceLine(e.clientX - rect.left, e.clientY - rect.top);
+    }
     this.dragging = false;
     this.panning = false;
     this.lastApplied = null;
   };
+
+  // ---------- fence drag-line ----------
+  updateFenceLinePreview(sx, sy) {
+    const state = this.getState();
+    const r = this.renderer;
+    if (!state || !this.lineStart) return;
+    const mode = r.tool.mode;
+    const tier = r.tool.fenceTier || 1;
+    const def = FENCES[tier];
+    const v1 = r.vertexFromPointer(sx, sy);
+    const edges = fenceLineEdges(this.lineStart, v1);
+    let count = 0;
+    const annotated = edges.map((ed) => {
+      const ok = mode === 'fence'
+        ? canPlaceFenceSegment(state, ed.x, ed.y, ed.d, tier).ok
+        : !!state.fences[`${ed.x},${ed.y},${ed.d}`];
+      if (ok) count++;
+      return { ...ed, ok };
+    });
+    r.fenceLinePreview = { mode, edges: annotated, count, cost: mode === 'fence' ? count * def.cost : 0 };
+  }
+
+  commitFenceLine(sx, sy) {
+    const state = this.getState();
+    const r = this.renderer;
+    const mode = r.tool.mode;
+    const v0 = this.lineStart;
+    const v1 = r.vertexFromPointer(sx, sy);
+    this.lineStart = null;
+    r.fenceLinePreview = null;
+    if (!state || !v0) return;
+    const dragged = v0.vx !== v1.vx || v0.vy !== v1.vy;
+    if (!dragged) {
+      // simple click → single segment under the pointer (fine-tuning)
+      const ed = r.edgeFromPointer(sx, sy);
+      if (!ed) return;
+      if (mode === 'fence') this.report(placeFence(state, ed.x, ed.y, ed.d, r.tool.fenceTier || 1), true);
+      else this.report(removeFence(state, ed.x, ed.y, ed.d), true);
+      return;
+    }
+    if (mode === 'fence') this.report(placeFenceLine(state, v0, v1, r.tool.fenceTier || 1));
+    else this.report(removeFenceLine(state, v0, v1));
+  }
 
   report(res, quiet = false) {
     if (this.cb.onToolResult && res && (!res.ok || !quiet)) this.cb.onToolResult(res);
@@ -115,7 +176,7 @@ export class InputController {
     const t = r.screenToTile(sx, sy);
     const brush = r.brushSize;
 
-    const throttleKey = ['fence', 'gate', 'fenceRemove'].includes(mode)
+    const throttleKey = mode === 'gate'
       ? (r.hoverEdge ? `${r.hoverEdge.x},${r.hoverEdge.y},${r.hoverEdge.d}` : null)
       : `${t.x},${t.y}`;
     if (!isClick && throttleKey === this.lastApplied) return;
@@ -139,14 +200,6 @@ export class InputController {
         this.report(applyPath(state, true, t.x, t.y), true); return;
       case 'pathRemove':
         this.report(applyPath(state, false, t.x, t.y), true); return;
-      case 'fence': {
-        const e = r.hoverEdge; if (!e) return;
-        this.report(placeFence(state, e.x, e.y, e.d, r.tool.fenceTier || 1), true); return;
-      }
-      case 'fenceRemove': {
-        const e = r.hoverEdge; if (!e) return;
-        this.report(removeFence(state, e.x, e.y, e.d), true); return;
-      }
       case 'gate': {
         if (!isClick) return;
         const e = r.hoverEdge; if (!e) return;

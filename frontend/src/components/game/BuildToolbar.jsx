@@ -135,7 +135,7 @@ function FencesSection({ s, is, setTool }) {
         return (
           <ToolButton key={f.tier} testId={`fence-tier-${f.tier}`} disabled={locked} active={is('fence', { fenceTier: f.tier })}
             onClick={() => setTool({ mode: 'fence', fenceTier: f.tier })}
-            title={locked ? `Requires research: ${f.name}` : `${f.name} — ◈${f.cost}/segment · Security T${f.security}`}>
+            title={locked ? `Requires research: ${f.name}` : `${f.name} — ◈${f.cost}/segment · Security T${f.security} · Drag to draw a straight wall`}>
             <Fence size={16} style={{ color: f.color }} />
             <span>{f.name.replace(' Barrier', '').replace(' Containment', '')}</span>
             <span className="mono text-[var(--text-3)]">{locked ? <Lock size={9} className="inline" /> : `◈${f.cost}`}</span>
@@ -145,9 +145,12 @@ function FencesSection({ s, is, setTool }) {
       <ToolButton testId="tool-gate" active={is('gate')} onClick={() => setTool({ mode: 'gate' })} title={`Toggle access gate on a fence segment — ◈${COSTS.gate}`}>
         <DoorClosed size={16} /><span>Gate</span><span className="mono text-[var(--text-3)]">◈{COSTS.gate}</span>
       </ToolButton>
-      <ToolButton testId="tool-fence-remove" active={is('fenceRemove')} onClick={() => setTool({ mode: 'fenceRemove' })} title="Remove fence (50% refund)">
+      <ToolButton testId="tool-fence-remove" active={is('fenceRemove')} onClick={() => setTool({ mode: 'fenceRemove' })} title="Remove fence — drag along a wall (50% refund)">
         <Eraser size={16} /><span>Remove</span>
       </ToolButton>
+      <div data-testid="fence-drag-hint" className="w-full mono text-[9px] tracking-[0.12em] text-[var(--text-3)] pt-0.5">
+        DRAG TO DRAW A STRAIGHT WALL · CLICK FOR A SINGLE SEGMENT
+      </div>
     </div>
   );
 }

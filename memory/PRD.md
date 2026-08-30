@@ -71,3 +71,10 @@ emberoot (fungal ground terraforming)
 - Controlled mutators in game/state.js: setTimeControls(state,{paused,speed}) and setTicketPrice(state,price) — controller.setPaused/setSpeed and FinanceScreen slider now route through them; no direct state mutation from UI/bridge code.
 - Stable React keys: FinanceScreen chart Cell key=d.day, guest feed key=f.id (guests.js now assigns id: state.nextId++ to _guestFeed entries); TutorialOverlay STEPS have id fields, dots key=st.id.
 - Regression: /app/tests/{visual_v2,scenario_discovery,smoke_game}.py all pass; testing agent iteration_3.json 100% backend + frontend. Testing-agent backend suite kept at /app/tests/backend_api_test.py.
+
+## Fence UX rework (v1.3)
+- Drag-to-line fence construction: mousedown anchors nearest lattice corner (renderer.vertexFromPointer), drag shows straight-line preview (renderer.fenceLinePreview: green=placeable, dim=blocked, red=remove) with live "N seg · ◈cost" label; mouseup commits. Diagonal drags snap to dominant axis. Plain click still places/removes one segment (edgeFromPointer).
+- construction.js: canPlaceFenceSegment (validation only), fenceLineEdges(v0,v1) (lattice corners -> edge list; horizontal=S edges row vy-1, vertical=E edges col vx-1), placeFenceLine (single spend for all placeable segments), removeFenceLine (bulk salvage).
+- input.js: lineStart anchor; fence/fenceRemove intercepted in onDown/onMove/onUp; gate remains click-only; applyTool fence cases removed.
+- Toast on line commit ("Basic Barrier × 8 placed (−◈400)"); hint in Fences tab (fence-drag-hint testid); tutorial containment step updated.
+- Test: /app/tests/fence_drag_test.py (8 assertions, all pass); smoke_game.py still green.

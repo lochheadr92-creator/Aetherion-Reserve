@@ -21,8 +21,8 @@ const STEPS = [
     id: 'containment',
     icon: Fence,
     title: 'Build containment',
-    body: 'Use FENCES to enclose an area completely — any gap and it is not an enclosure. Add a GATE so keepers can enter. Place a feeder and (for some species) a shelter inside. PATHS connect everything for your guests.',
-    tip: 'Click a fenced area with the Select tool to see its full analysis: terrain composition, water coverage, security rating.',
+    body: 'Use FENCES to enclose an area completely — any gap and it is not an enclosure. Click and DRAG to draw a straight wall in one stroke; a single click places one segment. Add a GATE so keepers can enter. Place a feeder and (for some species) a shelter inside. PATHS connect everything for your guests.',
+    tip: 'Drag four walls to box in an area, then click it with the Select tool to see its full analysis: terrain composition, water coverage, security rating.',
   },
   {
     id: 'acquisition',

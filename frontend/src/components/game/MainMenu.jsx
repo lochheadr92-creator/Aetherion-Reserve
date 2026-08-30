@@ -137,7 +137,7 @@ export default function MainMenu({ onStart, onLoad }) {
         </div>
 
         <div className="col-span-2">
-          <div className="nl-panel h-full flex flex-col overflow-hidden">
+          <div className="nl-panel h-full max-h-[76vh] flex flex-col overflow-hidden">
             <div className="nl-panel-header px-4 py-3 flex items-center gap-2">
               <FolderOpen size={14} className="text-[var(--text-3)]" />
               <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">ARCHIVED FACILITIES</span>

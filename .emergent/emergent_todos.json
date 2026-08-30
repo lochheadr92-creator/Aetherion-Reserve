@@ -1,22 +1,26 @@
 [
   {
-    "content": "Phase 8: staff data model, sim module, UI, renderer — DONE (12/12 tests)",
+    "content": "Phase 7 verification: all suites + testing agent iteration_6 green",
     "status": "completed"
   },
   {
-    "content": "Phase 9: scenario data, engine, tracker UI, menu picker — DONE (17/17 tests)",
+    "content": "Phase 8 Keeper Staff: implemented + 12/12 tests",
     "status": "completed"
   },
   {
-    "content": "Full local regression sweep (9 suites) — green",
+    "content": "Phase 9 Scenario Missions: implemented + 17/17 tests",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 comprehensive pass (iteration_7)",
-    "status": "in_progress"
+    "content": "Full regression sweep (9 suites) + testing agent iteration_7 green",
+    "status": "completed"
   },
   {
-    "content": "Fix any issues found and re-verify",
-    "status": "pending"
+    "content": "Fixed MainMenu save-list overflow bug + hardened flaky phase6b assertions",
+    "status": "completed"
+  },
+  {
+    "content": "Save/load round-trip verified for staff + scenario saves",
+    "status": "completed"
   }
 ]

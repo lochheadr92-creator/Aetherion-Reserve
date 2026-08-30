@@ -1,7 +1,7 @@
 # plan.md (Updated)
 
 ## 1) Objectives
-- Deliver a complete **First Playable** desktop creature-containment/park-management game (**React + Canvas isometric**, **FastAPI**, **MongoDB save slots**).
+- Deliver a complete, playable **First Playable** desktop creature-containment/park-management game (**React + Canvas isometric**, **FastAPI**, **MongoDB save slots**).
 - Prove the **core fantasy** end-to-end:
   - Deterministic sim (fixed timestep) decoupled from render
   - Terrain sculpt/paint/water/veg with undo + costs
@@ -11,6 +11,7 @@
   - Guests + viewing tension + economy + research
 - Ensure **explainability** (why numbers change) and **overlays** (habitat/visibility/view ranges/power).
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
+- **Current objective (top priority):** **hold** for user review with a confirmed green regression baseline; do not start new features until approved.
 
 ## 2) Implementation Steps
 
@@ -82,38 +83,68 @@
 
 ---
 
-### Phase 3 — Stabilization + Proving Scenarios + Polish 🔄 IN PROGRESS
+### Phase 3 — Stabilization + Proving Scenarios + Polish ✅ COMPLETE
 **Goal:** ensure causal correctness, explainability, robustness, and fun first 5–10 minutes.
 
-1. **Automated proving scenarios** (implement as scripts + manual checklist):
-   - Terrain modification persists through save/reload.
-   - Rocky/cliff species dissatisfied on flat grassland → improves with elevation/rock.
-   - Semi-aquatic species unsatisfied with drinking-only water; deep-water requirement verified.
-   - Unknown species reveals preference via behaviour; discoveries update Species DB.
-   - Compatible cohabitation stable; incompatible cohabitation causes stress with readable explanation.
-   - Social species alone → welfare drops; add group → welfare recovers.
-   - Viewing visibility responds to distance/cover; guests react.
-   - Guest needs (food/drink/restroom) affect satisfaction and spending with reasons.
-   - Bad park loses money; good park profits; ticket price impacts guest rate.
-   - Save/load preserves entire park + discoveries.
-2. Tighten AI state transitions and reduce micromanagement:
-   - Ensure evidence events are frequent enough (but not trivial) across species.
-   - Remove any remaining “dead ends” (e.g., guests stuck when paths disconnected).
-3. Expand overlays/tooltips:
-   - Ensure every key number has a breakdown (welfare, satisfaction, finances, security).
-4. Edge-case robustness:
-   - Placement snapping and recovery from invalid placements.
-   - Terrain edit blocking reasons, fence/enclosure edge correctness on slopes.
-5. Visual identity polish (Night-Lab OS):
-   - Final pass on readability, panel density, discovery toast treatment.
-6. Performance profiling:
-   - Target: 100+ creatures, 500–2,000 guests visible; introduce guest LOD/aggregation if needed.
+**Workstream: Post-Refactor Verification & Code Quality Completion** ✅ COMPLETE
+A large React UI refactor (splitting monolithic components such as `GameScreen.jsx`, `InspectPanel.jsx`, `BuildToolbar.jsx` into smaller components/hooks) was applied. This phase verified the refactor did not break runtime behavior and completed remaining Code Quality Report items.
 
-**End of Phase 3:** run testing agent + fix loop until all proving scenarios pass.
+#### Phase 3A — Post-Refactor Verification (UI health check) ✅ COMPLETE
+**Outcome:**
+- Frontend compilation verified (esbuild clean; only non-blocking warnings).
+- Game boots successfully: main route mounts, **Canvas renders**, key panels open/close, tools interact with canvas.
+
+#### Phase 3B — Complete remaining Code Quality Report items (must-fix) ✅ COMPLETE
+**Backend: add Python type hints**
+- File: `/app/backend/server.py`
+- Added return types to all **7** functions:
+  - `root() -> Dict[str, str]`
+  - `list_saves() -> List[Dict[str, Any]]`
+  - `get_save(save_id: str) -> Dict[str, Any]`
+  - `create_save(payload: SaveCreate) -> Dict[str, Any]`
+  - `update_save(save_id: str, payload: SaveCreate) -> Dict[str, Any]`
+  - `delete_save(save_id: str) -> Dict[str, str]`
+  - `shutdown_db_client() -> None`
+
+**Frontend sim bridge: fix direct state mutations**
+- File: `/app/frontend/src/game/controller.js`
+- Removed direct mutations in `setPaused` and `setSpeed`.
+- Added controlled mutator in `/app/frontend/src/game/state.js`:
+  - `setTimeControls(state, { paused, speed })`
+- Controller now calls `setTimeControls(...)` and emits UI refresh.
+
+**React: replace array-index keys with stable unique identifiers**
+- File: `/app/frontend/src/components/game/FinanceScreen.jsx`
+  - Chart bar cells now key by stable day string (`key={d.day}`)
+  - Guest feed uses stable `id` via `state.nextId++` in guests feed items (`key={f.id}`)
+  - Ticket price slider now uses controlled `setTicketPrice(state, value)` mutator from `state.js`
+- File: `/app/frontend/src/components/game/TutorialOverlay.jsx`
+  - `STEPS` now has stable `id` fields and uses `key={st.id}` for step dots
+  - Added `aria-label` to step dot buttons
+
+**Exit criteria:** met. No remaining index-key patterns found under `/app/frontend/src/components/game/`.
+
+#### Phase 3C — Regression test pass (automated + testing agent) ✅ COMPLETE
+**Automated tests:**
+- `/app/tests/visual_v2.py` ✅ pass
+- `/app/tests/scenario_discovery.py` ✅ pass
+- `/app/tests/smoke_game.py` ✅ pass
+
+**Testing agent:**
+- `/app/test_reports/iteration_3.json` ✅ pass
+  - Backend: **100% (10/10)**
+  - Frontend: **100%**
+  - No console errors
+  - No React key warnings
+  - Verified time controls + hotkeys + finance slider + save/load
+
+#### Phase 3D — STOP for user review ⏸️ CURRENT
+Per user instruction: stop after verification/fixes/testing and hand off for review. No P1 features started.
 
 ---
 
-### Phase 4 — Post-v1 Expansion (after delivery)
+### Phase 4 — Post-v1 Expansion (after delivery) 💤 BACKLOG (Not Started)
+> NOTE: per user direction, do **not** start until after review.
 - Escapes/emergencies depth: readable failure causes + response units.
 - Expeditions depth: multi-step field ops, timelines, outcomes.
 - Contracts beyond tutorial directives.
@@ -121,11 +152,12 @@
 - Additional overlays (guest heatmaps), accessibility improvements (key rebinding), content packs via data pipeline.
 
 ## 3) Next Actions (immediate)
-1. Run **testing_agent_v3** for a comprehensive end-to-end pass across proving scenarios.
-2. Convert remaining proving scenarios into Playwright scripts (extend /app/tests) where feasible.
-3. Fix-loop on any failures found (AI stuck states, placement edge cases, discovery pacing, UI clarity).
-4. Performance check at higher scales (spawn stress test: 100 creatures / 1000 guests).
-5. Final UX pass: tooltips, masked unknown wording, early onboarding friction.
+1. **STOP — User review**
+   - User to play the game and validate UX/functionality.
+2. If user approves, pick **one** next workstream:
+   - **P1:** Escapes, Emergencies, and Security Teams
+   - **P1:** Expeditions, Contract Board, and Night Tours
+   - Or other priorities user selects.
 
 ## 4) Success Criteria
 - **Core fantasy works:** player starts ignorant, observes, discovers, adapts habitat, profits.
@@ -133,5 +165,7 @@
 - **Unknown biology enforced:** UI cannot infer undiscovered traits (including from habitat cause text).
 - **No fake systems:** every UI metric corresponds to actual sim causes.
 - **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns + recent-cause reasoning.
-- **Performance:** smooth at target scale; creatures get richest sim budget; guests simplified if needed.
+- **Refactor-safe:** frontend compiles; panels/tools work; no runtime console errors.
+- **Code quality compliance:** `server.py` type hints added; controller time controls no longer direct-mutate; React stable keys used; ticket price uses controlled mutator.
+- **Automated verification:** tests + testing agent pass (iteration_3 baseline).
 - **First 10 minutes fun:** build first enclosure, acquire first creature, see a discovery, guests react, money moves—without friction.

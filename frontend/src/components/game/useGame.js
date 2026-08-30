@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { on } from '@/game/controller';
 
-// re-render subscription to the sim's UI refresh pulse
+// Re-render subscription to the sim's UI refresh pulse.
+// Returns a monotonically increasing counter usable as a useMemo dependency.
 export function useGameTick() {
-  const [, setN] = useState(0);
+  const [n, setN] = useState(0);
   useEffect(() => {
-    const off1 = on('uiRefresh', () => setN((n) => n + 1));
-    const off2 = on('alert', () => setN((n) => n + 1));
+    const off1 = on('uiRefresh', () => setN((v) => v + 1));
+    const off2 = on('alert', () => setN((v) => v + 1));
     return () => { off1(); off2(); };
   }, []);
+  return n;
 }

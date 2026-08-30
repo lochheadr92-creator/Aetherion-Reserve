@@ -1,54 +1,26 @@
 [
   {
-    "content": "Backend: MongoDB save-slot CRUD API (/api/saves)",
+    "content": "Verify frontend compiles after bulk refactor (esbuild + supervisor logs)",
     "status": "completed"
   },
   {
-    "content": "Engine: constants, palette, species/buildings/research data (15 species, data-driven)",
+    "content": "Boot game via screenshot tool, fix any import/prop errors",
     "status": "completed"
   },
   {
-    "content": "Engine: authoritative state, terrain sculpt/paint/water/veg tools with costs+undo",
+    "content": "Add Python type hints to all functions in server.py",
     "status": "completed"
   },
   {
-    "content": "Engine: fences/gates, enclosure detection, habitat evaluation with explainable factors",
+    "content": "Fix direct state mutations in controller.js (lines 60-61)",
     "status": "completed"
   },
   {
-    "content": "Engine: creature AI (needs, state machine, pathfinding), knowledge/discovery system",
+    "content": "Replace array-index React keys with stable IDs in FinanceScreen.jsx and TutorialOverlay.jsx",
     "status": "completed"
   },
   {
-    "content": "Engine: guests, viewing visibility, economy, research, park rating, alerts, objectives",
-    "status": "completed"
-  },
-  {
-    "content": "Engine: canvas isometric renderer + input (pan/zoom/tools/selection/overlays)",
-    "status": "completed"
-  },
-  {
-    "content": "UI: index.css tokens, App shell, MainMenu, HUD, BuildToolbar, InspectPanel",
-    "status": "completed"
-  },
-  {
-    "content": "UI: SpeciesDatabase, Research, Finances, Acquisition, Objectives, Alerts screens",
-    "status": "completed"
-  },
-  {
-    "content": "Save/Load wired frontend<->backend, New Game (Management/Sandbox)",
-    "status": "completed"
-  },
-  {
-    "content": "POC smoke test: terrain/fences/enclosure/creature/save-load all PASS",
-    "status": "completed"
-  },
-  {
-    "content": "Scenario test: discovery loop, guests, economy in management mode",
-    "status": "completed"
-  },
-  {
-    "content": "End-to-end testing via testing_agent_v3 + fix all issues",
+    "content": "Run full regression test (testing agent, frontend + backend)",
     "status": "completed"
   }
 ]

@@ -1,0 +1,48 @@
+{
+  "summary": "Regression test completed successfully after React UI refactor and code-quality fixes. All backend APIs, frontend UI components, time controls (setTimeControls mutator), ticket price slider (setTicketPrice mutator), keyboard hotkeys, and save/load functionality working correctly. No React key warnings or console errors detected.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: GET /api/ health endpoint returns ok",
+    "Backend: GET /api/saves lists saves (no state field, sorted by updated_at desc)",
+    "Backend: POST /api/saves creates save with UUID id, returns SaveMeta without state",
+    "Backend: GET /api/saves/{id} returns full save with state",
+    "Backend: PUT /api/saves/{id} updates save; 404 for unknown id",
+    "Backend: DELETE /api/saves/{id} deletes; 404 for unknown id",
+    "Frontend: Main menu loads, facility name input works, mode selection works",
+    "Frontend: BEGIN OPERATIONS button starts game with canvas rendering",
+    "Frontend: Tutorial overlay appears on first run, game pauses during tutorial",
+    "Frontend: Tutorial step navigation works (6 steps), step dots clickable",
+    "Frontend: Tutorial finish button closes overlay and unpauses game (window.__game.state.paused === false)",
+    "Frontend: HUD pause button works via setTimeControls mutator (CRITICAL regression check passed)",
+    "Frontend: HUD speed buttons (1x, 3x) work via setTimeControls mutator (CRITICAL regression check passed)",
+    "Frontend: Keyboard hotkey SPACE toggles pause via useHotkeys",
+    "Frontend: Keyboard hotkeys 1 and 3 set speed via useHotkeys",
+    "Frontend: Finances modal opens and displays income/expenses/net-today",
+    "Frontend: Ticket price slider updates UI and state via setTicketPrice mutator (CRITICAL regression check passed)",
+    "Frontend: Ticket price clamped correctly (10-60 range)",
+    "Frontend: No React key warnings in console (FinanceScreen.jsx and TutorialOverlay.jsx fixes verified)",
+    "Frontend: Build toolbar tabs all present and clickable (Terrain/Ground/Water/Flora/Paths/Fences/Habitat/Facilities)",
+    "Frontend: Save game button works, state persisted to backend",
+    "Frontend: Load game from Archived Facilities restores state correctly",
+    "Frontend: No console errors during any test flow"
+  ],
+  "test_report_links": [
+    "/app/backend_test.py"
+  ],
+  "success_percentage": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (all critical regression checks passed)"
+  },
+  "action_item_for_main_agent": "",
+  "updated_files": [],
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false
+}

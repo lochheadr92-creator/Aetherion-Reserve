@@ -4,36 +4,42 @@ import { game } from '@/game/controller';
 
 const STEPS = [
   {
+    id: 'welcome',
     icon: Compass,
     title: 'Welcome to the Aetherion Initiative',
     body: 'You run a containment facility for organisms humanity does not yet understand. Your job: build the worlds they need, learn how they live, keep them contained — and keep the lights on.',
     tip: 'Camera: hold the RIGHT mouse button to pan. Scroll to zoom. SPACE pauses time; 1 and 3 set speed.',
   },
   {
+    id: 'terrain',
     icon: Mountain,
     title: 'Shape the land',
     body: 'The toolbar (bottom-left) is your construction kit. Under TERRAIN you can raise, lower, flatten and smooth the ground. GROUND paints substrates like rock, sand or wetland. WATER and FLORA complete the ecosystem.',
     tip: 'Every edit costs money and can be undone with Ctrl+Z. Habitats are built, not decorated — terrain genuinely matters to creatures.',
   },
   {
+    id: 'containment',
     icon: Fence,
     title: 'Build containment',
     body: 'Use FENCES to enclose an area completely — any gap and it is not an enclosure. Add a GATE so keepers can enter. Place a feeder and (for some species) a shelter inside. PATHS connect everything for your guests.',
     tip: 'Click a fenced area with the Select tool to see its full analysis: terrain composition, water coverage, security rating.',
   },
   {
+    id: 'acquisition',
     icon: Rocket,
     title: 'Acquire the unknown',
     body: 'FIELD OPS (top bar) recovers creatures from survey zones. After purchase, click inside an enclosure to release them. Start with the Skitterling — the only species we fully understand.',
     tip: 'Most species arrive with UNKNOWN biology. You will not be told what they need. That is the point.',
   },
   {
+    id: 'discovery',
     icon: Eye,
     title: 'Observe. Hypothesise. Discover.',
     body: 'Creatures reveal their needs through behaviour: swimming, climbing, hiding, socialising. Evidence accumulates into FIELD HYPOTHESES, then BIOLOGICAL BREAKTHROUGHS. The Species Database tracks everything you have learned — and everything you have not.',
     tip: 'Low welfare with an "unclear cause"? Watch the creature. Or fund a Field Study in the Research screen.',
   },
   {
+    id: 'operations',
     icon: Target,
     title: 'Run the park',
     body: 'Build the Administration Nexus and paths so guests arrive. Viewing platforms only earn their keep if creatures are actually visible. Storms and nightfall change everything — guests flee storms, and bioluminescent species shine after dark.',
@@ -82,8 +88,9 @@ export default function TutorialOverlay({ onClose, firstTime }) {
           </div>
           <div className="flex items-center justify-between mt-6">
             <div className="flex gap-1.5">
-              {STEPS.map((_, i) => (
-                <button key={i} onClick={() => setStep(i)}
+              {STEPS.map((st, i) => (
+                <button key={st.id} onClick={() => setStep(i)}
+                  aria-label={`Go to step ${i + 1}: ${st.title}`}
                   className="w-2 h-2 rounded-full transition-colors"
                   style={{ background: i === step ? 'var(--accent-cyan)' : 'var(--line-2)' }} />
               ))}

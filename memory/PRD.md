@@ -64,3 +64,10 @@ emberoot (fungal ground terraforming)
 ## Known scope (post-v1 backlog)
 - Expedition timers/map, contracts beyond tutorial directives, weather/incidents, staff entities,
   escape emergencies beyond recall (capture teams/drones), more overlays (guest heatmap), key rebinding
+
+## Code Quality Pass (v1.2 — post-refactor)
+- React UI refactor verified: GameScreen/InspectPanel/BuildToolbar split into components + hooks (components/game/hooks/), compiles clean, game boots.
+- server.py: type hints on all 7 route/lifecycle functions (100% coverage).
+- Controlled mutators in game/state.js: setTimeControls(state,{paused,speed}) and setTicketPrice(state,price) — controller.setPaused/setSpeed and FinanceScreen slider now route through them; no direct state mutation from UI/bridge code.
+- Stable React keys: FinanceScreen chart Cell key=d.day, guest feed key=f.id (guests.js now assigns id: state.nextId++ to _guestFeed entries); TutorialOverlay STEPS have id fields, dots key=st.id.
+- Regression: /app/tests/{visual_v2,scenario_discovery,smoke_game}.py all pass; testing agent iteration_3.json 100% backend + frontend. Testing-agent backend suite kept at /app/tests/backend_api_test.py.

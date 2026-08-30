@@ -99,7 +99,7 @@ function addOpinion(state, g, text, positive) {
   g.satisfaction = Math.max(0, Math.min(1, g.satisfaction + (positive ? 0.08 : -0.1)));
   // sample opinions into a park-wide feed
   state._guestFeed = state._guestFeed || [];
-  state._guestFeed.unshift({ text, positive, arch: g.archetype, tick: state.tick });
+  state._guestFeed.unshift({ id: state.nextId++, text, positive, arch: g.archetype, tick: state.tick });
   if (state._guestFeed.length > 12) state._guestFeed.length = 12;
 }
 

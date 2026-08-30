@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { game } from '@/game/controller';
+import { setTicketPrice } from '@/game/state';
 import { useGameTick } from '@/components/game/useGame';
 import { fmtMoney } from '@/game/constants';
 import { parkValue } from '@/game/economy';
@@ -52,7 +53,7 @@ export default function FinanceScreen({ onClose }) {
               <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1">ENTRY TICKET PRICE</div>
               <div className="flex items-center gap-2">
                 <input type="range" min="10" max="60" step="5" value={s.ticketPrice}
-                  onChange={(e) => { s.ticketPrice = +e.target.value; }}
+                  onChange={(e) => { setTicketPrice(s, e.target.value); }}
                   className="flex-1 accent-[#2DE2E6]" data-testid="ticket-price-slider" />
                 <span className="mono text-xs w-14 text-right" data-testid="ticket-price-value">{fmtMoney(s.ticketPrice)}</span>
               </div>
@@ -74,8 +75,8 @@ export default function FinanceScreen({ onClose }) {
                       <Tooltip contentStyle={{ background: '#0C121B', border: '1px solid #1B2A3D', borderRadius: 8, fontSize: 12 }} labelStyle={{ color: '#B7C4D6' }} cursor={{ fill: 'rgba(45,226,230,0.06)' }} />
                       <ReferenceLine y={0} stroke="#24384F" />
                       <Bar dataKey="net" radius={[3, 3, 0, 0]}>
-                        {chart.map((d, i) => (
-                          <Cell key={i} fill={d.net >= 0 ? '#3EE28A' : '#FF4D6D'} />
+                        {chart.map((d) => (
+                          <Cell key={d.day} fill={d.net >= 0 ? '#3EE28A' : '#FF4D6D'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -87,8 +88,8 @@ export default function FinanceScreen({ onClose }) {
               <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-2">GUEST COMMS INTERCEPTS</div>
               <div className="space-y-1.5">
                 {feed.length === 0 && <div className="text-xs text-[var(--text-3)]">No guest chatter yet — open the park by acquiring creatures and building viewing platforms.</div>}
-                {feed.map((f, i) => (
-                  <div key={i} className="flex items-start gap-2 text-[12px]">
+                {feed.map((f) => (
+                  <div key={f.id ?? `${f.tick}-${f.text}`} className="flex items-start gap-2 text-[12px]">
                     <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: f.positive ? 'var(--success)' : 'var(--danger)' }} />
                     <span className="text-[var(--text-2)]">“{f.text}”</span>
                     <span className="mono text-[9px] text-[var(--text-3)] ml-auto shrink-0 uppercase">{f.arch}</span>

@@ -1,19 +1,19 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
-import { game, on } from '@/game/controller';
 import GameCanvas from '@/components/game/GameCanvas';
 import HudBar from '@/components/game/HudBar';
 import BuildToolbar from '@/components/game/BuildToolbar';
 import InspectPanel from '@/components/game/InspectPanel';
 import ObjectivesPanel from '@/components/game/ObjectivesPanel';
-import SpeciesDatabase from '@/components/game/SpeciesDatabase';
-import ResearchScreen from '@/components/game/ResearchScreen';
-import FinanceScreen from '@/components/game/FinanceScreen';
-import AcquisitionScreen from '@/components/game/AcquisitionScreen';
 import OverlayToggles from '@/components/game/OverlayToggles';
 import TutorialOverlay from '@/components/game/TutorialOverlay';
-import { undoTerrain } from '@/game/terrain';
+import GameModals from '@/components/game/GameModals';
 import { useGameTick } from '@/components/game/useGame';
+import { useGameAlerts } from '@/components/game/hooks/useGameAlerts';
+import { useHotkeys } from '@/components/game/hooks/useHotkeys';
+import { useNavigateTarget } from '@/components/game/hooks/useNavigateTarget';
+
+const firstRun = () => !localStorage.getItem('aetherion_tutorial_done');
 
 export default function GameScreen({ onExit }) {
   useGameTick();
@@ -23,13 +23,23 @@ export default function GameScreen({ onExit }) {
   const [modal, setModal] = useState(null); // 'db' | 'research' | 'finances' | 'fieldops'
   const [dbSpecies, setDbSpecies] = useState(null);
   const [activeTool, setActiveTool] = useState({ mode: 'select' });
-  const [tutorialOpen, setTutorialOpen] = useState(() => !localStorage.getItem('aetherion_tutorial_done'));
-  const [tutorialFirstTime] = useState(() => !localStorage.getItem('aetherion_tutorial_done'));
+  const [tutorialOpen, setTutorialOpen] = useState(firstRun);
+  const [tutorialFirstTime] = useState(firstRun);
 
   const setTool = useCallback((tool) => {
     if (inputRef.current) inputRef.current.setTool(tool);
     setActiveTool(tool);
-  }, []);
+  }, [inputRef, setActiveTool]);
+
+  const clearSelection = useCallback(() => {
+    setSelection(null);
+    if (rendererRef.current) rendererRef.current.selection = null;
+  }, [rendererRef, setSelection]);
+
+  const closeModal = useCallback(() => {
+    setModal(null);
+    setDbSpecies(null);
+  }, [setModal, setDbSpecies]);
 
   const handleToolResult = useCallback((res) => {
     if (!res) return;
@@ -37,81 +47,23 @@ export default function GameScreen({ onExit }) {
     else if (res.ok && res.msg) toast.success(res.msg, { duration: 2200 });
   }, []);
 
-  const navigateTo = useCallback((target) => {
-    if (!target || !rendererRef.current) return;
-    const s = game.state;
-    if (target.kind === 'creature') {
-      const c = s.creatures.find((q) => q.id === target.id);
-      if (c) {
-        rendererRef.current.centerOn(c.x, c.y);
-        rendererRef.current.selection = { kind: 'creature', id: c.id };
-        setSelection({ kind: 'creature', id: c.id });
-      }
-    } else if (target.kind === 'tile') {
-      rendererRef.current.centerOn(target.x, target.y);
-    } else if (target.kind === 'species') {
-      setDbSpecies(target.id);
-      setModal('db');
-    } else if (target.kind === 'research') setModal('research');
-    else if (target.kind === 'finances') setModal('finances');
-    else if (target.kind === 'objectives') { /* objectives always visible */ }
-  }, []);
-
-  // toast pipeline for sim alerts
-  useEffect(() => {
-    return on('alert', (a) => {
-      const opts = { duration: a.type === 'breakthrough' ? 7000 : 4500 };
-      if (a.type === 'breakthrough') {
-        toast.custom((t) => (
-          <div
-            data-testid="toast-breakthrough"
-            className="nl-panel nl-scan px-4 py-3 w-[360px] cursor-pointer"
-            style={{ borderColor: 'rgba(45,226,230,0.5)', boxShadow: '0 0 0 1px rgba(45,226,230,0.25), 0 0 24px rgba(45,226,230,0.15)' }}
-            onClick={() => { navigateTo(a.target); toast.dismiss(t); }}
-          >
-            <div className="mono text-[10px] tracking-[0.2em] text-[var(--accent-cyan)]">{a.title}</div>
-            <div className="text-sm mt-1 text-[var(--text-1)]">{a.msg}</div>
-          </div>
-        ), opts);
-      } else if (a.type === 'danger') {
-        toast.custom((t) => (
-          <div data-testid="toast-danger" className="nl-panel px-4 py-3 w-[360px] cursor-pointer" style={{ borderColor: 'rgba(255,77,109,0.6)' }}
-            onClick={() => { navigateTo(a.target); toast.dismiss(t); }}>
-            <div className="mono text-[10px] tracking-[0.2em] text-[var(--danger)]">{a.title}</div>
-            <div className="text-sm mt-1 text-[var(--text-1)]">{a.msg}</div>
-          </div>
-        ), opts);
-      } else if (a.type === 'warning') {
-        toast.warning(`${a.title}: ${a.msg}`, opts);
-      } else if (a.type === 'success') {
-        toast.success(`${a.title}: ${a.msg}`, opts);
-      } else {
-        toast.info(`${a.title}: ${a.msg}`, opts);
-      }
-    });
-  }, [navigateTo]);
-
-  // keyboard shortcuts
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      const s = game.state;
-      if (!s) return;
-      if (e.code === 'Space') { e.preventDefault(); game.setPaused(!s.paused); }
-      else if (e.key === '1') game.setSpeed(1);
-      else if (e.key === '3') game.setSpeed(3);
-      else if (e.key === 'Escape') { setTool({ mode: 'select' }); setSelection(null); if (rendererRef.current) rendererRef.current.selection = null; setModal(null); }
-      else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); const r = undoTerrain(s); if (r.ok) toast.info('Terrain change undone'); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [setTool]);
+  const navigateTo = useNavigateTarget({ rendererRef, setSelection, setModal, setDbSpecies });
+  useGameAlerts(navigateTo);
+  useHotkeys({ setTool, clearSelection, closeModal });
 
   const buyCreature = useCallback((speciesId) => {
     setModal(null);
     setTool({ mode: 'place_creature', speciesId });
     toast.info('Transfer crate ready — click inside a fenced enclosure to release the creature.', { duration: 5000 });
-  }, [setTool]);
+  }, [setTool, setModal]);
+
+  const openSpecies = useCallback((sid) => {
+    setDbSpecies(sid);
+    setModal('db');
+  }, [setDbSpecies, setModal]);
+
+  const openHelp = useCallback(() => setTutorialOpen(true), [setTutorialOpen]);
+  const closeHelp = useCallback(() => setTutorialOpen(false), [setTutorialOpen]);
 
   return (
     <div className="relative w-full h-full" data-testid="game-screen">
@@ -119,34 +71,23 @@ export default function GameScreen({ onExit }) {
         <GameCanvas onSelect={setSelection} onToolResult={handleToolResult} rendererRef={rendererRef} inputRef={inputRef} />
       </div>
 
-      <HudBar
-        onOpenModal={setModal}
-        onExit={onExit}
-        onNavigate={navigateTo}
-        onHelp={() => setTutorialOpen(true)}
-      />
-
+      <HudBar onOpenModal={setModal} onExit={onExit} onNavigate={navigateTo} onHelp={openHelp} />
       <ObjectivesPanel />
-
       <OverlayToggles rendererRef={rendererRef} />
-
       <BuildToolbar activeTool={activeTool} setTool={setTool} />
 
       {selection && (
         <InspectPanel
           selection={selection}
-          onClose={() => { setSelection(null); if (rendererRef.current) rendererRef.current.selection = null; }}
+          onClose={clearSelection}
           onNavigate={navigateTo}
-          onOpenSpecies={(sid) => { setDbSpecies(sid); setModal('db'); }}
+          onOpenSpecies={openSpecies}
         />
       )}
 
-      {modal === 'db' && <SpeciesDatabase initialSpecies={dbSpecies} onClose={() => { setModal(null); setDbSpecies(null); }} />}
-      {modal === 'research' && <ResearchScreen onClose={() => setModal(null)} />}
-      {modal === 'finances' && <FinanceScreen onClose={() => setModal(null)} />}
-      {modal === 'fieldops' && <AcquisitionScreen onClose={() => setModal(null)} onBuy={buyCreature} />}
+      <GameModals modal={modal} dbSpecies={dbSpecies} onClose={closeModal} onBuy={buyCreature} />
 
-      {tutorialOpen && <TutorialOverlay firstTime={tutorialFirstTime} onClose={() => setTutorialOpen(false)} />}
+      {tutorialOpen && <TutorialOverlay firstTime={tutorialFirstTime} onClose={closeHelp} />}
     </div>
   );
 }

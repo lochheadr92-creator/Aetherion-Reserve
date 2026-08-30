@@ -148,3 +148,20 @@ export function deserialize(data) {
 }
 
 export function hasResearch(state, id) { return !id || state.research.completed.includes(id); }
+
+// ---------- controlled state mutators ----------
+// All out-of-sim writes to the authoritative state go through these functions
+// (never mutate state fields directly from UI/bridge code).
+export function setTimeControls(state, { paused, speed } = {}) {
+  if (typeof paused === 'boolean') state.paused = paused;
+  if (typeof speed === 'number' && speed > 0) {
+    state.speed = speed;
+    state.paused = false;
+  }
+}
+
+export function setTicketPrice(state, price) {
+  const p = Number(price);
+  if (!Number.isFinite(p)) return;
+  state.ticketPrice = Math.max(10, Math.min(60, p));
+}

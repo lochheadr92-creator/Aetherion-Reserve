@@ -1,7 +1,7 @@
 // ---- Game controller: owns the state object + fixed-timestep loop; bridge to React ----
 import axios from 'axios';
 import { TICK_MS } from './constants';
-import { createNewGame, serialize, deserialize, emit, on } from './state';
+import { createNewGame, serialize, deserialize, emit, on, setTimeControls } from './state';
 import { tickOnce, initObjectives } from './sim';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
@@ -57,8 +57,17 @@ class GameController {
     this.loop = null; this.uiTimer = null;
   }
 
-  setPaused(p) { if (this.state) { this.state.paused = p; emit('uiRefresh', {}); } }
-  setSpeed(s) { if (this.state) { this.state.speed = s; this.state.paused = false; emit('uiRefresh', {}); } }
+  setPaused(p) {
+    if (!this.state) return;
+    setTimeControls(this.state, { paused: p });
+    emit('uiRefresh', {});
+  }
+
+  setSpeed(s) {
+    if (!this.state) return;
+    setTimeControls(this.state, { speed: s });
+    emit('uiRefresh', {});
+  }
 
   // ---------- persistence ----------
   async listSaves() {

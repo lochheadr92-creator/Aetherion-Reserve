@@ -22,6 +22,10 @@ export const RESEARCH = {
     desc: 'Reveals one unknown attribute for every species currently in the park.',
     effect: { revealOnComplete: true },
   },
+  bio_breeding: {
+    id: 'bio_breeding', cat: 'Biology', name: 'Husbandry Program', cost: 3600, time: 120, requires: ['bio_obs1'],
+    desc: 'Breeding protocols. Thriving, compatible pairs of the same species will produce offspring naturally.',
+  },
   env_flora: {
     id: 'env_flora', cat: 'Environment', name: 'Exotic Flora Cultivation', cost: 1500, time: 60,
     desc: 'Unlocks Fungal Ground and Aetheric Soil substrates, Spore Pillars and Aether Fronds.',
@@ -44,6 +48,18 @@ export const RESEARCH = {
     id: 'cont_insulated', cat: 'Containment', name: 'Insulated Containment', cost: 5200, time: 140, requires: ['cont_heavy'],
     requiresEvidence: { speciesId: 'voltari', note: 'Requires observed electrical interference (house a Voltari Archling).' },
     desc: 'Non-conductive lattice barriers immune to energivore interference. Unlocks Tier 4 fencing and Energy Conduits.',
+  },
+  sec_thermal: {
+    id: 'sec_thermal', cat: 'Containment', name: 'Thermal Optics', cost: 2800, time: 100, requires: ['cont_reinforced'],
+    desc: 'Thermal imaging feeds on every platform. Cloaked organisms remain visible to guests and keepers.',
+  },
+  cont_foundations: {
+    id: 'cont_foundations', cat: 'Containment', name: 'Subterranean Foundations', cost: 3600, time: 120, requires: ['cont_reinforced'],
+    desc: 'Deep-set barrier footings across the reserve. Blocks burrowing escape attempts entirely.',
+  },
+  sec_surge: {
+    id: 'sec_surge', cat: 'Containment', name: 'Surge Dampeners', cost: 3000, time: 110, requires: ['cont_reinforced'],
+    desc: 'Hardened relay circuitry. Power Relays become immune to energivore surge discharges.',
   },
   fac_tower: {
     id: 'fac_tower', cat: 'Facilities', name: 'Observation Tower', cost: 1800, time: 70,

@@ -1,12 +1,13 @@
-import { X } from 'lucide-react';
+import { X, MoonStar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { game } from '@/game/controller';
-import { setTicketPrice } from '@/game/state';
+import { setTicketPrice, setPolicy } from '@/game/state';
+import { Switch } from '@/components/ui/switch';
 import { useGameTick } from '@/components/game/useGame';
 import { fmtMoney } from '@/game/constants';
 import { parkValue } from '@/game/economy';
 
-const INCOME_LABELS = { tickets: 'Entry tickets', food: 'Food sales', drink: 'Drink sales', gift: 'Curio sales', grants: 'Grants & salvage' };
+const INCOME_LABELS = { tickets: 'Entry tickets', tours: 'Night tour premiums', food: 'Food sales', drink: 'Drink sales', gift: 'Curio sales', grants: 'Grants & salvage' };
 const EXPENSE_LABELS = { upkeep: 'Facility upkeep', feed: 'Creature feed', construction: 'Construction', terrain: 'Terraforming', acquisition: 'Acquisitions', research: 'Research', response: 'Emergency response' };
 
 export default function FinanceScreen({ onClose }) {
@@ -58,6 +59,23 @@ export default function FinanceScreen({ onClose }) {
                 <span className="mono text-xs w-14 text-right" data-testid="ticket-price-value">{fmtMoney(s.ticketPrice)}</span>
               </div>
               <div className="text-[10px] text-[var(--text-3)] mt-1">Higher prices earn more per guest but slow arrivals.</div>
+            </div>
+            <div className="pt-3 rounded-lg border border-[var(--line)] bg-[var(--panel-2)] p-3 mt-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <MoonStar size={14} className="text-[var(--accent-cyan)]" />
+                  <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-2)]">NIGHT TOURS</span>
+                </div>
+                <Switch
+                  data-testid="night-tours-toggle"
+                  checked={!!s.policies?.nightTours}
+                  onCheckedChange={(v) => setPolicy(s, 'nightTours', v)}
+                />
+              </div>
+              <div className="text-[10px] text-[var(--text-3)] mt-1.5 leading-snug">
+                Keep the gates open after dark at a +75% admission premium. Guests expect bioluminescent
+                exhibits — house glowing species or expect refund demands.
+              </div>
             </div>
           </div>
 

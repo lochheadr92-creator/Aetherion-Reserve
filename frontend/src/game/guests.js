@@ -55,23 +55,33 @@ function pathTilesAdjacentTo(state, b) {
 export function spawnGuests(state) {
   const hasAdmin = state.buildings.some((b) => b.type === 'admin');
   if (!hasAdmin || state.creatures.length === 0) return;
+  // emergencies close the gates — nobody walks into a containment breach
+  if (state.creatures.some((c) => c.escaped)) return;
   const cap = 110;
   if (state.guests.length >= cap) return;
-  const appealSum = state.creatures.reduce((s, c) => s + speciesById(c.speciesId).appeal, 0);
+  const appealSum = state.creatures.reduce((s, c) => {
+    const base = speciesById(c.speciesId).appeal;
+    return s + (c.juvenile ? base * 1.4 : base);
+  }, 0);
   let rate = 0.25 + Math.min(1.2, appealSum / 150) + state.rating.overall * 0.8;
   if (hasResearch(state, 'fac_marketing')) rate *= 1.4;
   // weather and time of day govern arrivals (storms nearly stop them)
-  rate *= spawnWeatherMult(state);
-  // ticket price sensitivity
+  let wm = spawnWeatherMult(state);
+  const night = getDayPhase(state.tick).phase === 'night';
+  const nightTour = night && state.policies?.nightTours && !isStorm(state);
+  if (nightTour) wm = Math.max(wm, 0.85); // tours keep the gate busy after dark
+  rate *= wm;
+  const price = nightTour ? Math.round(state.ticketPrice * 1.75) : state.ticketPrice;
+  // ticket price sensitivity (night crowds accept the premium)
   rate *= Math.max(0.3, 1.4 - state.ticketPrice / 60);
   const n = Math.floor(rate) + (rnd() < rate % 1 ? 1 : 0);
   for (let k = 0; k < n && state.guests.length < cap; k++) {
     const arch = ARCHETYPES[Math.floor(rnd() * ARCHETYPES.length)];
-    earn(state, state.ticketPrice, 'tickets', null);
+    earn(state, price, nightTour ? 'tours' : 'tickets', null);
     state.stats.guestsTotal++;
     state.guests.push({
       id: state.nextId++, x: state.entrance.x + 0.5, y: state.entrance.y + 0.5,
-      path: [], target: null, dwell: 0, archetype: arch.key,
+      path: [], target: null, dwell: 0, archetype: arch.key, nightTour: !!nightTour,
       needs: { hunger: 0.6 + rnd() * 0.4, thirst: 0.6 + rnd() * 0.4, restroom: 0.7 + rnd() * 0.3, fun: 0.2 },
       satisfaction: 0.6, opinions: [], ticksInPark: 0, leaving: false, seen: 0,
     });
@@ -84,7 +94,7 @@ export function tickGuestMovement(state, g) {
     const t = g.path[0];
     const dx = t.x + 0.5 - g.x, dy = t.y + 0.5 - g.y;
     const d = Math.hypot(dx, dy);
-    const spd = 0.06;
+    const spd = g.panic ? 0.11 : 0.06; // stampede speed during emergencies
     if (d < spd) { g.x = t.x + 0.5; g.y = t.y + 0.5; g.path.shift(); }
     else { g.x += (dx / d) * spd; g.y += (dy / d) * spd; }
   } else if (g.dwell > 0) {
@@ -109,6 +119,8 @@ function visibilityFrom(state, b, def) {
   const R = def.viewRadius;
   const out = [];
   for (const c of state.creatures) {
+    // cloaked organisms are invisible to guests without thermal optics
+    if (c.cloaked && !hasResearch(state, 'sec_thermal')) continue;
     const d = Math.hypot(c.x - cx, c.y - cy);
     if (d > R) continue;
     let block = 0;
@@ -152,16 +164,27 @@ function arriveAtTarget(state, g) {
   const def = BUILDINGS[b.type];
   if (def.viewRadius) {
     const seen = visibilityFrom(state, b, def);
-    const score = seen.reduce((s, e) => s + speciesById(e.creature.speciesId).appeal * e.vis, 0);
+    const score = seen.reduce((s, e) => {
+      const base = speciesById(e.creature.speciesId).appeal;
+      return s + (e.creature.juvenile ? base * 1.4 : base) * e.vis;
+    }, 0);
+    const night = getDayPhase(state.tick).phase === 'night';
     if (score > 12) {
       g.needs.fun = Math.min(1, g.needs.fun + 0.35 + score / 300);
       g.seen += seen.length;
       const best = seen.sort((a, b2) => b2.vis - a.vis)[0];
       const sp = speciesById(best.creature.speciesId);
       const view = getSpeciesView(state, sp.id);
-      if (getDayPhase(state.tick).phase === 'night' && sp.colors.glow) {
+      const glowSeen = seen.some((e) => speciesById(e.creature.speciesId).colors.glow);
+      const juvSeen = seen.find((e) => e.creature.juvenile);
+      if (night && glowSeen) {
         addOpinion(state, g, `The ${sp.name} glowing in the dark is unforgettable.`, true);
-        g.satisfaction = Math.min(1, g.satisfaction + 0.05);
+        g.satisfaction = Math.min(1, g.satisfaction + (g.nightTour ? 0.09 : 0.05));
+      } else if (g.nightTour && !glowSeen) {
+        addOpinion(state, g, 'I paid a night tour premium and nothing here even glows...', false);
+      } else if (juvSeen) {
+        addOpinion(state, g, `The baby ${speciesById(juvSeen.creature.speciesId).name} is adorable!`, true);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.06);
       } else if (g.archetype === 'researcher' && view.unknown.length) {
         addOpinion(state, g, `I observed an unclassified organism — ${sp.name}. Incredible.`, true);
         g.satisfaction = Math.min(1, g.satisfaction + 0.06);
@@ -173,6 +196,8 @@ function arriveAtTarget(state, g) {
     } else if (seen.length > 0) {
       addOpinion(state, g, 'I could barely glimpse anything through the cover.', false);
       g.needs.fun = Math.min(1, g.needs.fun + 0.08);
+    } else if (g.nightTour) {
+      addOpinion(state, g, `A premium night tour and the ${def.name} shows nothing glowing. Refund, please.`, false);
     } else {
       addOpinion(state, g, `Couldn't see a single creature from the ${def.name}.`, false);
     }
@@ -185,15 +210,21 @@ function arriveAtTarget(state, g) {
 function archMult(g) { return ARCHETYPES.find((a) => a.key === g.archetype)?.spendMult || 1; }
 
 export function decideGuest(state, g) {
+  // panic check runs even mid-route: dangerous escapes trigger an immediate stampede
+  if (!g.panic) {
+    const parkWide = state.creatures.some((c) => c.escaped && speciesById(c.speciesId).danger >= 3);
+    const nearby = !parkWide && state.creatures.some((c) => c.escaped && Math.hypot(c.x - g.x, c.y - g.y) <= 14);
+    if (parkWide || nearby) {
+      g.panic = true; g.fleeing = true; g.leaving = true;
+      g.path = []; g.dwell = 0; g.target = null;
+      addOpinion(state, g, parkWide
+        ? 'RUN! Something dangerous is loose in the park!'
+        : 'There is something loose out here! This place is not safe!', false);
+      g.satisfaction = Math.max(0, g.satisfaction - 0.25);
+    }
+  }
   if (g.path.length || g.dwell > 0) return;
   const { x, y } = { x: Math.floor(g.x), y: Math.floor(g.y) };
-  // safety: dangerous escaped creature nearby → flee to exit
-  const danger = state.creatures.some((c) => c.escaped && speciesById(c.speciesId).danger >= 3);
-  if (danger && !g.fleeing) {
-    g.fleeing = true; g.leaving = true;
-    addOpinion(state, g, 'There is something loose out here! This place is not safe!', false);
-    g.satisfaction = Math.max(0, g.satisfaction - 0.25);
-  }
   // storms send guests home
   if (isStorm(state) && !g.leaving && rnd() < 0.3) {
     g.leaving = true;

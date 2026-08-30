@@ -64,6 +64,7 @@ export function demolishBuilding(state, id) {
 export function isPowered(state, x, y) {
   for (const b of state.buildings) {
     if (b.type !== 'power') continue;
+    if (b.offlineUntil && state.tick < b.offlineUntil) continue; // surge-damaged relay
     const def = BUILDINGS.power;
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     if (Math.hypot(x - cx, y - cy) <= def.powerRadius) return true;

@@ -11,7 +11,7 @@ import { isStorm, getDayPhase } from './weather';
 
 let nameCounter = {};
 
-export function addCreature(state, speciesId, x, y) {
+export function addCreature(state, speciesId, x, y, opts = {}) {
   const sp = speciesById(speciesId);
   nameCounter[speciesId] = (nameCounter[speciesId] || 0) + 1;
   const c = {
@@ -22,6 +22,7 @@ export function addCreature(state, speciesId, x, y) {
     factors: [], enclosureId: null, homeTile: { x, y }, escaped: false, dir: 1,
     trait: ['Calm', 'Curious', 'Restless', 'Bold', 'Timid'][Math.floor(rnd() * 5)],
   };
+  if (opts.juvenile) { c.juvenile = true; c.growth = 0; }
   const enc = enclosureAt(state, x, y);
   c.enclosureId = enc ? enc.id : null;
   state.creatures.push(c);
@@ -447,4 +448,167 @@ export function recallCreature(state, id) {
   c.stress = Math.min(1, c.stress + 0.1);
   pushAlert(state, { type: 'info', title: 'ASSET RECOVERED', msg: `${c.name} returned to its habitat by the recall team.`, target: { kind: 'creature', id } });
   return { ok: true };
+}
+
+// ---------- breeding: thriving compatible pairs produce offspring ----------
+const GESTATION_TICKS = 1000;
+const GROWTH_PER_CHECK = 0.085; // checks every ~200 ticks -> adult in ~1.3 cycles
+const BREED_COOLDOWN = 3600;
+
+export function breedingTick(state, c) {
+  if (!hasResearch(state, 'bio_breeding')) return;
+  const sp = speciesById(c.speciesId);
+
+  // juveniles grow up
+  if (c.juvenile) {
+    c.growth = Math.min(1, (c.growth || 0) + GROWTH_PER_CHECK);
+    if (c.growth >= 1) {
+      c.juvenile = false;
+      logCause(state, c.name, 'has reached maturity');
+    }
+    return;
+  }
+
+  if (c.breedCd > 0) c.breedCd = Math.max(0, c.breedCd - 200);
+
+  // gestation countdown -> birth
+  if (c.gestation > 0) {
+    c.gestation -= 200;
+    if (c.gestation <= 0) {
+      c.gestation = 0;
+      const { x, y } = curTile(c);
+      const spot = adjacentOpenTile(state, x, y, sp.env.water.aquaticMin > 0) || { x, y };
+      const baby = addCreature(state, c.speciesId, spot.x, spot.y, { juvenile: true });
+      baby.name = `${sp.name} Cub`;
+      c.breedCd = BREED_COOLDOWN;
+      state.stats.births = (state.stats.births || 0) + 1;
+      pushAlert(state, {
+        type: 'success', title: 'NEW OFFSPRING',
+        msg: `${c.name} has produced healthy offspring — a juvenile ${sp.name} joins the exhibit.`,
+        target: { kind: 'creature', id: baby.id },
+      });
+      logCause(state, 'Husbandry', `${sp.name} offspring born`);
+    }
+    return;
+  }
+
+  // attempt pairing
+  if (c.welfare < 0.72 || c.stress > 0.45 || c.escaped || !c.enclosureId) return;
+  const kin = state.creatures.filter((o) =>
+    o.id !== c.id && o.speciesId === c.speciesId && o.enclosureId === c.enclosureId &&
+    !o.juvenile && !o.gestation && (o.breedCd || 0) <= 0 && o.welfare >= 0.72 && o.stress <= 0.45);
+  if (!kin.length) return;
+  // capacity: respect space and social group limits
+  const encData = computeEnclosures(state);
+  const enc = encData.enclosures.find((e) => e.id === c.enclosureId);
+  if (!enc) return;
+  const sameHere = state.creatures.filter((o) => o.speciesId === c.speciesId && o.enclosureId === c.enclosureId).length;
+  const maxBySpace = Math.floor(enc.area / sp.env.spacePerHead);
+  if (sameHere >= maxBySpace || sameHere >= sp.social.max) return;
+  if (rnd() > 0.35) return;
+  const partner = kin[0];
+  c.gestation = GESTATION_TICKS;
+  partner.breedCd = BREED_COOLDOWN;
+  logCause(state, c.name, `pair bonding observed with ${partner.name}`);
+}
+
+function adjacentOpenTile(state, x, y, swims) {
+  const occ = buildOccupancy(state);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const tx = x + dx, ty = y + dy;
+    if (inMap(tx, ty) && !occ[idx(tx, ty)] && (state.water[idx(tx, ty)] !== 2 || swims)) return { x: tx, y: ty };
+  }
+  return null;
+}
+
+// ---------- anomalous abilities: camouflage, burrowing, electrical surges ----------
+export function abilityTick(state, c) {
+  const sp = speciesById(c.speciesId);
+  if (!sp.ability) return;
+  const phase = getDayPhase(state.tick).phase;
+
+  if (sp.ability === 'camouflage') {
+    const sheltered = ['sheltering', 'seekShelter'].includes(c.state);
+    const shouldCloak = (phase === 'day' && !sheltered && rnd() < 0.65) || c.stress > 0.5;
+    if (shouldCloak && !c.cloaked) {
+      c.cloaked = true;
+      if (!c._cloakSeen) {
+        c._cloakSeen = true;
+        pushAlert(state, {
+          type: 'warning', title: 'CLOAKING OBSERVED',
+          msg: `${c.name} has optically vanished. Guests cannot see it — research Thermal Optics to keep exhibits visible.`,
+          target: { kind: 'creature', id: c.id },
+        });
+      }
+      recordEvidence(state, sp.id, 'shelter', 0.8);
+    } else if (!shouldCloak && c.cloaked) {
+      c.cloaked = false;
+    }
+    return;
+  }
+
+  if (sp.ability === 'burrow') {
+    if (c.escaped || c.juvenile || c.welfare >= 0.5 || rnd() > 0.22) return;
+    if (hasResearch(state, 'cont_foundations')) {
+      logCause(state, c.name, 'attempted to burrow out — subterranean foundations held');
+      recordEvidence(state, sp.id, 'containment', 1);
+      return;
+    }
+    // tunnel under the fence: relocate just outside the enclosure
+    const encData = computeEnclosures(state);
+    const enc = encData.enclosures.find((e) => e.id === c.enclosureId);
+    if (!enc) return;
+    const tset = enc.tileSet || new Set(enc.tiles);
+    const occ = buildOccupancy(state);
+    let out = null;
+    for (const ti of enc.tiles) {
+      const tx = ti % MAP_SIZE, ty = Math.floor(ti / MAP_SIZE);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = tx + dx, ny = ty + dy;
+        if (inMap(nx, ny) && !tset.has(idx(nx, ny)) && !occ[idx(nx, ny)] && state.water[idx(nx, ny)] !== 2) {
+          out = { x: nx, y: ny }; break;
+        }
+      }
+      if (out) break;
+    }
+    if (!out) return;
+    c.x = out.x + 0.5; c.y = out.y + 0.5;
+    c.path = []; c.state = 'idle'; c.actionTicks = 0;
+    state.stats.breaches = (state.stats.breaches || 0) + 1;
+    recordEvidence(state, sp.id, 'containment', 2);
+    pushAlert(state, {
+      type: 'danger', title: 'BURROW BREACH',
+      msg: `${c.name} dug UNDER the barrier — fences alone cannot hold it. Research Subterranean Foundations.`,
+      target: { kind: 'creature', id: c.id },
+    });
+    logCause(state, c.name, 'burrowed under the perimeter');
+    return;
+  }
+
+  if (sp.ability === 'surge') {
+    if (c.stress <= 0.45 || rnd() > 0.4) return;
+    c._surgeUntil = state.tick + 80;
+    if (hasResearch(state, 'sec_surge')) {
+      logCause(state, c.name, 'discharged a surge — dampeners absorbed it');
+      return;
+    }
+    let hit = 0;
+    for (const b of state.buildings) {
+      if (b.type !== 'power') continue;
+      const d = Math.hypot(b.x + b.w / 2 - c.x, b.y + b.h / 2 - c.y);
+      if (d <= 12 && (!b.offlineUntil || state.tick >= b.offlineUntil)) {
+        b.offlineUntil = state.tick + 500;
+        hit++;
+      }
+    }
+    if (hit) {
+      recordEvidence(state, sp.id, 'diet', 1);
+      pushAlert(state, {
+        type: 'danger', title: 'POWER SURGE',
+        msg: `${c.name} discharged — ${hit} Power Relay${hit > 1 ? 's' : ''} knocked offline. Electrified systems in the area are down.`,
+        target: { kind: 'creature', id: c.id },
+      });
+      logCause(state, c.name, 'surged and blacked out nearby relays');
+    }
+  }
 }

@@ -103,6 +103,7 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     security: { units: [] },
     expeditions: [],
     contracts: { available: [], active: [], completed: 0, nextRefreshDay: 0 },
+    policies: { nightTours: false },
     nextId: 1,
   };
   genTerrain(state);
@@ -147,6 +148,7 @@ export function deserialize(data) {
   if (!state.security) state.security = { units: [] };
   if (!state.expeditions) state.expeditions = [];
   if (!state.contracts) state.contracts = { available: [], active: [], completed: 0, nextRefreshDay: 0 };
+  if (!state.policies) state.policies = { nightTours: false };
   state._terrainDirty = true;
   state._encDirty = true;
   state._occDirty = true;
@@ -170,4 +172,10 @@ export function setTicketPrice(state, price) {
   const p = Number(price);
   if (!Number.isFinite(p)) return;
   state.ticketPrice = Math.max(10, Math.min(60, p));
+}
+
+export function setPolicy(state, key, value) {
+  if (!state.policies) state.policies = { nightTours: false };
+  if (!(key in state.policies)) return;
+  state.policies[key] = !!value;
 }

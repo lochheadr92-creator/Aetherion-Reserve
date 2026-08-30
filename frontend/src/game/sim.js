@@ -2,7 +2,7 @@
 import { TICKS_PER_DAY } from './constants';
 import { idx, pushAlert, emit, hasResearch } from './state';
 import { computeEnclosures, enclosureAt } from './enclosures';
-import { tickCreatureMovement, decideCreature, onArrive, updateNeeds, updateWelfare, fencePressure, cohabTick } from './creatures';
+import { tickCreatureMovement, decideCreature, onArrive, updateNeeds, updateWelfare, fencePressure, cohabTick, abilityTick, breedingTick } from './creatures';
 import { spawnGuests, tickGuestMovement, decideGuest, guestNeedsTick, cullGuests } from './guests';
 import { dailyRollover } from './economy';
 import { RESEARCH } from './data/research';
@@ -149,6 +149,8 @@ export function tickOnce(state) {
     if (T % 40 === c.id % 40) updateWelfare(state, c);
     if (T % 150 === c.id % 150) fencePressure(state, c);
     if (T % 100 === c.id % 100) cohabTick(state, c);
+    if (T % 120 === c.id % 120) abilityTick(state, c);
+    if (T % 200 === c.id % 200) breedingTick(state, c);
   }
 
   // guests

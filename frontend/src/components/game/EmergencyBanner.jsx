@@ -11,6 +11,7 @@ export default function EmergencyBanner({ onNavigate }) {
   if (!escapes.length) return null;
   const hasPost = s.buildings.some((b) => b.type === 'security_post');
   const unitsOut = (s.security?.units || []).length;
+  const evacuating = s.guests.filter((g) => g.panic).length;
 
   return (
     <div
@@ -55,6 +56,11 @@ export default function EmergencyBanner({ onNavigate }) {
           {hasPost
             ? `${unitsOut} response unit${unitsOut === 1 ? '' : 's'} deployed \u2014 \u25C8250 per dispatch`
             : 'No Rapid Response Post \u2014 build one (Facilities tab) or recall manually from the creature panel (\u25C8500)'}
+          {evacuating > 0 && (
+            <span className="mono text-[var(--warning)]" data-testid="emergency-evacuating">
+              {' '}· {evacuating} GUEST{evacuating === 1 ? '' : 'S'} STAMPEDING TO THE EXIT
+            </span>
+          )}
         </div>
       </div>
     </div>

@@ -454,7 +454,8 @@ export class GameRenderer {
     const h = s.heights[ti] || 0;
     const inWater = s.water[ti] > 0;
     const p = worldPx(c.x, c.y, h);
-    const sc = sp.size * (inWater ? 0.8 : 1);
+    const grow = c.juvenile ? 0.5 + 0.5 * (c.growth || 0) : 1;
+    const sc = sp.size * (inWater ? 0.8 : 1) * grow;
     const bob = Math.sin(this.frame / 12 + c.id) * 1.5;
     ctx.save();
     ctx.translate(p.x, p.y + (inWater ? 4 : 0));
@@ -466,10 +467,34 @@ export class GameRenderer {
       ctx.beginPath(); ctx.ellipse(0, 2, 16 * sc + 4, 8 * sc + 2, 0, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.scale(c.dir, 1);
-    if (sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = this._phase === 'night' ? 18 : 10; }
+    // camouflage: near-invisible shimmer; thermal optics keeps a readable heat signature
+    if (c.cloaked) {
+      const thermal = this.state.research?.completed?.includes('sec_thermal');
+      ctx.globalAlpha = thermal ? 0.55 : 0.1 + 0.06 * Math.sin(this.frame / 6 + c.id);
+      if (thermal) { ctx.shadowColor = '#FF8A5C'; ctx.shadowBlur = 10; }
+    }
+    if (!c.cloaked && sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = this._phase === 'night' ? 18 : 10; }
     drawBody(ctx, sp, sc, this.frame, c, bob);
     ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
     ctx.restore();
+    // electrical surge arcs
+    if (c._surgeUntil && this.state.tick < c._surgeUntil) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(45,226,230,0.9)'; ctx.lineWidth = 1.4;
+      for (let a = 0; a < 3; a++) {
+        const ang = (this.frame / 3 + a * 2.1 + c.id) % (Math.PI * 2);
+        let ax = p.x, ay = p.y - 10 * sc;
+        ctx.beginPath(); ctx.moveTo(ax, ay);
+        for (let seg = 0; seg < 3; seg++) {
+          ax += Math.cos(ang + seg) * (6 + (this.frame + seg * 7) % 5);
+          ay += Math.sin(ang * 1.7 + seg) * 5 - 3;
+          ctx.lineTo(ax, ay);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     // status pip
     if (c.welfare < 0.4) {
       ctx.fillStyle = '#FF4D6D';
@@ -489,10 +514,22 @@ export class GameRenderer {
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 3.4, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+    // panicked guests sprint with a frantic bounce and lean
+    const bounce = g.panic ? Math.abs(Math.sin(this.frame / 2.2 + g.id)) * 2.5 : 0;
+    if (g.panic) { ctx.translate(p.x, p.y - bounce); ctx.rotate(0.16 * (g.id % 2 === 0 ? 1 : -1)); ctx.translate(-p.x, -(p.y - bounce)); }
     ctx.fillStyle = colors[g.archetype] || PALETTE.guest;
-    ctx.fillRect(p.x - 1.6, p.y - 9, 3.2, 8);
-    ctx.beginPath(); ctx.arc(p.x, p.y - 11, 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(p.x - 1.6, p.y - 9 - bounce, 3.2, 8);
+    ctx.beginPath(); ctx.arc(p.x, p.y - 11 - bounce, 2.2, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+    if (g.panic) {
+      // red exclamation marker
+      ctx.save();
+      const flash = this.frame % 14 < 9;
+      ctx.fillStyle = flash ? '#FF4D6D' : 'rgba(255,77,109,0.5)';
+      ctx.fillRect(p.x - 0.9, p.y - 22, 1.8, 5);
+      ctx.beginPath(); ctx.arc(p.x, p.y - 15.2, 1.1, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
   }
 
   drawSecurityUnit(ctx, u) {
@@ -556,13 +593,23 @@ export class GameRenderer {
       for (const b of s.buildings) {
         if (b.type !== 'power') continue;
         const def = BUILDINGS.power;
+        const offline = b.offlineUntil && s.tick < b.offlineUntil;
         const c = worldPx(b.x + b.w / 2, b.y + b.h / 2, s.heights[idx(b.x, b.y)] || 0);
-        ctx.fillStyle = 'rgba(242,193,78,0.1)';
-        ctx.strokeStyle = 'rgba(242,193,78,0.5)';
+        ctx.fillStyle = offline ? 'rgba(255,77,109,0.07)' : 'rgba(242,193,78,0.1)';
+        ctx.strokeStyle = offline ? 'rgba(255,77,109,0.55)' : 'rgba(242,193,78,0.5)';
         ctx.lineWidth = 1.5;
+        if (offline) ctx.setLineDash([6, 5]);
         ctx.beginPath();
         ctx.ellipse(c.x, c.y, def.powerRadius * TILE_W / 2, def.powerRadius * TILE_H / 2, 0, 0, Math.PI * 2);
         ctx.fill(); ctx.stroke();
+        ctx.setLineDash([]);
+        if (offline) {
+          ctx.fillStyle = '#FF4D6D';
+          ctx.font = `600 ${11 / this.cam.zoom}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText('OFFLINE', c.x, c.y - 8);
+          ctx.textAlign = 'left';
+        }
       }
     } else if (this.overlay === 'view') {
       for (const b of s.buildings) {

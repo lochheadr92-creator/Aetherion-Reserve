@@ -1,46 +1,22 @@
 [
   {
-    "content": "5A: Rectangle mode — fenceRectEdges + shape toggle + input wiring + preview",
+    "content": "6A: Guest panic — guests.js panic logic + renderer markers + banner count + spawn block",
     "status": "completed"
   },
   {
-    "content": "5A: Test rectangle placement (extend fence test)",
+    "content": "6B: Night tours — policies state, spawn premium, tours income, FinanceScreen toggle",
     "status": "completed"
   },
   {
-    "content": "5B: Security Post building + security.js (dispatch/capture loop) + sim hook",
+    "content": "6C: Breeding — research node, breedingTick, juveniles, renderer scale, panel badge",
     "status": "completed"
   },
   {
-    "content": "5B: Renderer — security units + escape rings; EmergencyBanner UI",
+    "content": "6D: Abilities — camouflage/burrow/surge + counter research + power offline + renderer FX",
     "status": "completed"
   },
   {
-    "content": "5B: Security scenario test (escape → dispatch → capture)",
-    "status": "completed"
-  },
-  {
-    "content": "5C: Expeditions data + logic (zones, stages, events, claim flow)",
-    "status": "completed"
-  },
-  {
-    "content": "5C: Contracts logic (templates, accept, progress, payout)",
-    "status": "completed"
-  },
-  {
-    "content": "5C: Field Ops tabs UI (Acquire | Expeditions | Contracts)",
-    "status": "completed"
-  },
-  {
-    "content": "5C: Expedition/contract scenario test",
-    "status": "completed"
-  },
-  {
-    "content": "5D: Visual verification of new UI",
-    "status": "completed"
-  },
-  {
-    "content": "5D: Full regression + testing agent",
+    "content": "6E: phase6_test.py + full regression + testing agent",
     "status": "completed"
   }
 ]

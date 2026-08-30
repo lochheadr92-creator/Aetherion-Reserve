@@ -115,7 +115,23 @@ export default function CreaturePanel({ id, tick, onNavigate, onOpenSpecies, onC
       <div className="flex gap-3">
         <Portrait speciesId={sp.id} size={72} />
         <div className="min-w-0">
-          <div className="text-base font-semibold text-[var(--text-1)]">{c.name}</div>
+          <div className="text-base font-semibold text-[var(--text-1)] flex items-center gap-2">
+            {c.name}
+            {c.juvenile && (
+              <span data-testid="creature-juvenile-badge"
+                className="mono text-[9px] tracking-[0.15em] px-1.5 py-0.5 rounded border"
+                style={{ borderColor: 'var(--accent-seaglass)', color: 'var(--accent-seaglass)' }}>
+                JUVENILE {Math.round((c.growth || 0) * 100)}%
+              </span>
+            )}
+            {c.cloaked && (
+              <span data-testid="creature-cloaked-badge"
+                className="mono text-[9px] tracking-[0.15em] px-1.5 py-0.5 rounded border"
+                style={{ borderColor: 'var(--accent-violet)', color: 'var(--accent-violet)' }}>
+                CLOAKED
+              </span>
+            )}
+          </div>
           <div className="mono text-[10px] text-[var(--text-3)]">{sp.code}</div>
           <TraitChips view={view} sp={sp} trait={c.trait} />
         </div>

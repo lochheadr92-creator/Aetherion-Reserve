@@ -104,6 +104,8 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     expeditions: [],
     contracts: { available: [], active: [], completed: 0, nextRefreshDay: 0 },
     policies: { nightTours: false },
+    staff: [],
+    waste: [],
     nextId: 1,
   };
   genTerrain(state);
@@ -149,6 +151,8 @@ export function deserialize(data) {
   if (!state.expeditions) state.expeditions = [];
   if (!state.contracts) state.contracts = { available: [], active: [], completed: 0, nextRefreshDay: 0 };
   if (!state.policies) state.policies = { nightTours: false };
+  if (!state.staff) state.staff = [];
+  if (!state.waste) state.waste = [];
   state._terrainDirty = true;
   state._encDirty = true;
   state._occDirty = true;

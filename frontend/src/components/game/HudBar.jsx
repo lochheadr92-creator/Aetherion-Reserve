@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle } from 'lucide-react';
+import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog } from 'lucide-react';
 import { game } from '@/game/controller';
 import { fmtMoney } from '@/game/constants';
 import { getDayPhase, clockLabel } from '@/game/weather';
@@ -168,6 +168,7 @@ export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp }) {
           <HudKpis s={s} />
           <div className="w-px h-6 bg-[var(--line)]" />
           <HudButton icon={Rocket} label="Field Ops" testId="open-fieldops-button" onClick={() => onOpenModal('fieldops')} />
+          <HudButton icon={UserCog} label="Staff" testId="open-staff-button" onClick={() => onOpenModal('staff')} />
           <HudButton icon={Database} label="Species" testId="species-database-open-button" onClick={() => onOpenModal('db')} />
           <HudButton icon={FlaskConical} label="Research" testId="open-research-button" onClick={() => onOpenModal('research')} />
           <HudButton icon={Coins} label="Finances" testId="open-finances-button" onClick={() => onOpenModal('finances')} />

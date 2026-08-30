@@ -1,12 +1,47 @@
 import { useEffect, useState } from 'react';
-import { Play, FolderOpen, Trash2, Beaker, Coins } from 'lucide-react';
+import { Play, FolderOpen, Trash2, Beaker, Coins, Target, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { game } from '@/game/controller';
 import { fmtMoney } from '@/game/constants';
+import { SCENARIO_LIST } from '@/game/data/scenarios';
+
+const DIFF_COLORS = { EASY: 'var(--success)', MEDIUM: 'var(--accent-amber)', HARD: 'var(--danger)', EXPERT: 'var(--accent-violet)' };
+
+function completedScenarios() {
+  try { return JSON.parse(localStorage.getItem('aetherion_scenarios_done') || '{}'); } catch (e) { return {}; }
+}
+
+function ScenarioPicker({ selected, onSelect }) {
+  const done = completedScenarios();
+  return (
+    <div className="grid grid-cols-2 gap-2" data-testid="scenario-picker">
+      {SCENARIO_LIST.map((sc) => (
+        <button key={sc.id} data-testid={`scenario-card-${sc.id}`}
+          onClick={() => onSelect(sc.id)}
+          className="rounded-lg border p-2.5 text-left transition-colors"
+          style={{
+            borderColor: selected === sc.id ? 'var(--accent-amber)' : 'var(--line)',
+            background: selected === sc.id ? 'rgba(242,193,78,0.06)' : 'var(--panel-2)',
+          }}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[12px] font-semibold text-[var(--text-1)] truncate">{sc.name}</span>
+            {done[sc.id] && <CheckCircle2 size={13} className="text-[var(--success)] shrink-0" data-testid={`scenario-done-${sc.id}`} />}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="mono text-[9px] tracking-wider" style={{ color: DIFF_COLORS[sc.difficulty] }}>{sc.difficulty}</span>
+            <span className="mono text-[9px] text-[var(--accent-amber)]">+◈{sc.reward.toLocaleString()}</span>
+          </div>
+          <div className="text-[10px] text-[var(--text-3)] mt-1 leading-snug line-clamp-2">{sc.tagline}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function MainMenu({ onStart, onLoad }) {
   const [parkName, setParkName] = useState('Aetherion Reserve');
   const [mode, setMode] = useState('management');
+  const [scenarioId, setScenarioId] = useState(SCENARIO_LIST[0].id);
   const [saves, setSaves] = useState([]);
   const [loadingSaves, setLoadingSaves] = useState(true);
 
@@ -59,23 +94,41 @@ export default function MainMenu({ onStart, onLoad }) {
                 maxLength={40}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button data-testid="mode-management" onClick={() => setMode('management')}
                 className="rounded-lg border p-3 text-left transition-colors"
                 style={{ borderColor: mode === 'management' ? 'var(--accent-cyan)' : 'var(--line)', background: mode === 'management' ? 'rgba(45,226,230,0.06)' : 'var(--panel-2)' }}>
                 <div className="flex items-center gap-2 text-sm font-semibold"><Coins size={14} className="text-[var(--accent-amber)]" /> Management</div>
-                <div className="text-[11px] text-[var(--text-3)] mt-1">Budget {fmtMoney(150000)}, research progression, unknown biology. The intended experience.</div>
+                <div className="text-[11px] text-[var(--text-3)] mt-1">Budget {fmtMoney(150000)}, research progression, unknown biology.</div>
               </button>
               <button data-testid="mode-sandbox" onClick={() => setMode('sandbox')}
                 className="rounded-lg border p-3 text-left transition-colors"
                 style={{ borderColor: mode === 'sandbox' ? 'var(--accent-cyan)' : 'var(--line)', background: mode === 'sandbox' ? 'rgba(45,226,230,0.06)' : 'var(--panel-2)' }}>
                 <div className="flex items-center gap-2 text-sm font-semibold"><Beaker size={14} className="text-[var(--accent-seaglass)]" /> Sandbox</div>
-                <div className="text-[11px] text-[var(--text-3)] mt-1">Unlimited funds, all research and biology unlocked. Pure ecosystem building.</div>
+                <div className="text-[11px] text-[var(--text-3)] mt-1">Unlimited funds, all research and biology unlocked.</div>
+              </button>
+              <button data-testid="mode-scenario" onClick={() => setMode('scenario')}
+                className="rounded-lg border p-3 text-left transition-colors"
+                style={{ borderColor: mode === 'scenario' ? 'var(--accent-amber)' : 'var(--line)', background: mode === 'scenario' ? 'rgba(242,193,78,0.06)' : 'var(--panel-2)' }}>
+                <div className="flex items-center gap-2 text-sm font-semibold"><Target size={14} className="text-[var(--accent-amber)]" /> Scenarios</div>
+                <div className="text-[11px] text-[var(--text-3)] mt-1">Hand-crafted missions with goals, rewards and fail states.</div>
               </button>
             </div>
+            {mode === 'scenario' && (
+              <>
+                <ScenarioPicker selected={scenarioId} onSelect={setScenarioId} />
+                <div className="text-[11px] text-[var(--text-2)] leading-relaxed px-0.5" data-testid="scenario-desc">
+                  {SCENARIO_LIST.find((sc) => sc.id === scenarioId)?.desc}
+                </div>
+              </>
+            )}
             <button
               data-testid="start-game-button"
-              onClick={() => onStart({ parkName: parkName.trim() || 'Aetherion Reserve', mode })}
+              onClick={() => onStart({
+                parkName: parkName.trim() || 'Aetherion Reserve',
+                mode: mode === 'scenario' ? 'management' : mode,
+                scenarioId: mode === 'scenario' ? scenarioId : undefined,
+              })}
               className="w-full h-11 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-colors hover:opacity-90"
               style={{ background: 'var(--accent-cyan)', color: '#061014' }}>
               <Play size={16} /> BEGIN OPERATIONS

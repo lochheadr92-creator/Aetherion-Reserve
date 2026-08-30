@@ -2,6 +2,7 @@ import SpeciesDatabase from '@/components/game/SpeciesDatabase';
 import ResearchScreen from '@/components/game/ResearchScreen';
 import FinanceScreen from '@/components/game/FinanceScreen';
 import AcquisitionScreen from '@/components/game/AcquisitionScreen';
+import StaffScreen from '@/components/game/StaffScreen';
 
 // Single router for the full-screen management modals.
 export default function GameModals({ modal, dbSpecies, onClose, onBuy, onClaimSpecimen }) {
@@ -14,6 +15,8 @@ export default function GameModals({ modal, dbSpecies, onClose, onBuy, onClaimSp
       return <FinanceScreen onClose={onClose} />;
     case 'fieldops':
       return <AcquisitionScreen onClose={onClose} onBuy={onBuy} onClaimSpecimen={onClaimSpecimen} />;
+    case 'staff':
+      return <StaffScreen onClose={onClose} />;
     default:
       return null;
   }

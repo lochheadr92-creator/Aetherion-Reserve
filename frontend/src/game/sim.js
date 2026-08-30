@@ -12,8 +12,10 @@ import { spend } from './economy';
 import { weatherTick, isStorm } from './weather';
 import { damageFence } from './construction';
 import { securityTick, tickSecurityUnits } from './security';
+import { staffTick, wasteTick } from './staff';
 import { expeditionTick } from './expeditions';
 import { contractTick } from './contracts';
+import { scenarioTick } from './scenarios';
 import { rnd } from './state';
 
 export const OBJECTIVES = [
@@ -151,7 +153,11 @@ export function tickOnce(state) {
     if (T % 100 === c.id % 100) cohabTick(state, c);
     if (T % 120 === c.id % 120) abilityTick(state, c);
     if (T % 200 === c.id % 200) breedingTick(state, c);
+    if (T % 400 === c.id % 400) wasteTick(state, c);
   }
+
+  // keeper staff
+  staffTick(state);
 
   // guests
   for (const g of state.guests) {
@@ -188,6 +194,7 @@ export function tickOnce(state) {
   // objectives + rating
   if (T % 50 === 0) checkObjectives(state);
   if (T % 100 === 0) computeRating(state);
+  if (T % 100 === 30) scenarioTick(state);
 
   // day cycle
   if (T % TICKS_PER_DAY === 0) dailyRollover(state);

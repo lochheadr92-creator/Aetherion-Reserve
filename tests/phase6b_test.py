@@ -98,7 +98,7 @@ async def main():
         await acquire_and_place(page, "voltari", 52, 34)
         await page.click('[data-testid="hud-speed-3-button"]')
         surged = False
-        for _ in range(60):
+        for _ in range(100):  # surge rolls happen every ~120 ticks at 40% chance; wide window kills flakiness
             await page.evaluate(
                 """(() => { const c = window.__game.state.creatures.find(q => q.speciesId === 'voltari');
                     if (c) c.stress = 0.85; })()"""
@@ -128,6 +128,7 @@ async def main():
             await page.evaluate(
                 """(() => { for (const c of window.__game.state.creatures) {
                     if (c.speciesId === 'skitter') { c.welfare = 0.9; c.stress = 0.1;
+                        c.needs.hunger = 1; c.needs.thirst = 1; c.needs.energy = 1;
                         if (c.gestation > 200) c.gestation = 150; } } })()"""
             )
             await page.wait_for_timeout(500)

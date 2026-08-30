@@ -240,17 +240,21 @@ export class GameRenderer {
       ents.push({ d: +x + +y + 0.5, kind: 'fence', x: +x, y: +y, dir: d, f: s.fences[key], key });
     }
     for (const b of s.buildings) ents.push({ d: b.x + b.y + Math.max(b.w, b.h) - 1, kind: 'building', b });
+    for (const w of (s.waste || [])) ents.push({ d: w.x + w.y - 0.3, kind: 'waste', w });
     for (const c of s.creatures) ents.push({ d: c.x + c.y, kind: 'creature', c });
     for (const g of s.guests) ents.push({ d: g.x + g.y, kind: 'guest', g });
     for (const u of (s.security?.units || [])) ents.push({ d: u.x + u.y, kind: 'secunit', u });
+    for (const st of (s.staff || [])) ents.push({ d: st.x + st.y, kind: 'staff', st });
     ents.sort((a, b) => a.d - b.d);
     for (const e of ents) {
       if (e.kind === 'veg') this.drawVeg(ctx, e.x, e.y, e.v);
       else if (e.kind === 'fence') this.drawFence(ctx, e.x, e.y, e.dir, e.f, e.key);
       else if (e.kind === 'building') this.drawBuilding(ctx, e.b);
+      else if (e.kind === 'waste') this.drawWaste(ctx, e.w);
       else if (e.kind === 'creature') this.drawCreature(ctx, e.c);
       else if (e.kind === 'guest') this.drawGuest(ctx, e.g);
       else if (e.kind === 'secunit') this.drawSecurityUnit(ctx, e.u);
+      else if (e.kind === 'staff') this.drawStaff(ctx, e.st);
     }
 
     // entrance marker
@@ -564,8 +568,65 @@ export class GameRenderer {
     ctx.restore();
   }
 
-  drawEntrance(ctx) {
+  // ---------- keeper staff (deterministic sim entities; sprites from art/staff.js) ----------
+  drawStaff(ctx, st) {
     const s = this.state;
+    const tx = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(st.x)));
+    const ty = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(st.y)));
+    const h = s.heights[idx(tx, ty)] || 0;
+    const p = worldPx(st.x, st.y, h);
+    const spr = getStaffSprite(st.role === 'warden' ? 'warden' : st.role === 'biomedical' ? 'biomedical' : 'xenobiologist');
+    if (!spr) return;
+    const S = SPRITE_SCALE;
+    const moving = st.state === 'moving';
+    const fi = Math.floor(this.frame / (moving ? 9 : 22) + (st.id % 3)) % spr.frames.length;
+    ctx.save();
+    // contact shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(p.x + 1, p.y + 1, 4.5, 2, 0, 0, Math.PI * 2); ctx.fill();
+    // working pulse ring (soft, role-tinted)
+    if (st.state === 'working') {
+      const pulse = 0.25 + 0.2 * Math.sin(this.frame / 8 + st.id);
+      const tint = st.role === 'warden' ? '242,193,78' : st.role === 'biomedical' ? '77,182,255' : '110,243,197';
+      ctx.strokeStyle = `rgba(${tint},${pulse})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 8, 4, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.translate(p.x, p.y);
+    ctx.scale(st.dir || 1, 1);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(spr.frames[fi], -(spr.w * S) / 2, -spr.h * S + 2, spr.w * S, spr.h * S);
+    ctx.restore();
+  }
+
+  // ---------- biowaste (cleaned up by keepers) ----------
+  drawWaste(ctx, w) {
+    const s = this.state;
+    const h = s.heights[idx(w.x, w.y)] || 0;
+    const p = worldPx(w.x + 0.5, w.y + 0.5, h);
+    if (!this._wasteSpr) {
+      const cv = document.createElement('canvas');
+      cv.width = 9; cv.height = 6;
+      const c2 = cv.getContext('2d');
+      c2.imageSmoothingEnabled = false;
+      // small olive mound, upper-left lit
+      c2.fillStyle = '#3a4028'; c2.fillRect(2, 2, 5, 3);
+      c2.fillStyle = '#4a5232'; c2.fillRect(3, 1, 3, 2);
+      c2.fillStyle = '#565f3a'; c2.fillRect(3, 1, 2, 1);
+      c2.fillStyle = '#2c301e'; c2.fillRect(4, 4, 3, 1);
+      c2.fillStyle = 'rgba(5,9,14,0.6)'; c2.fillRect(1, 4, 2, 1); c2.fillRect(7, 3, 1, 2);
+      this._wasteSpr = cv;
+    }
+    const S = SPRITE_SCALE;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(p.x + 1, p.y + 1, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this._wasteSpr, p.x - (9 * S) / 2, p.y - 6 * S + 4, 9 * S, 6 * S);
+    ctx.restore();
+  }
+
+  drawEntrance(ctx) {    const s = this.state;
     const e = s.entrance;
     const p = worldPx(e.x + 0.5, e.y + 0.5, s.heights[idx(e.x, e.y)] || 0);
     ctx.save();

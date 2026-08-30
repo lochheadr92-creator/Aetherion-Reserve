@@ -3,6 +3,7 @@ import axios from 'axios';
 import { TICK_MS } from './constants';
 import { createNewGame, serialize, deserialize, emit, on, setTimeControls } from './state';
 import { tickOnce, initObjectives } from './sim';
+import { applyScenario } from './scenarios';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
 
@@ -22,6 +23,7 @@ class GameController {
   newGame(opts) {
     this.state = createNewGame(opts);
     initObjectives(this.state);
+    if (opts && opts.scenarioId) applyScenario(this.state, opts.scenarioId);
     this.saveId = null;
     this.saveName = null;
     clearUndo();

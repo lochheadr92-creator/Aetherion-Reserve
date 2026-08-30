@@ -8,7 +8,7 @@ import { fmtMoney } from '@/game/constants';
 import { parkValue } from '@/game/economy';
 
 const INCOME_LABELS = { tickets: 'Entry tickets', tours: 'Night tour premiums', food: 'Food sales', drink: 'Drink sales', gift: 'Curio sales', grants: 'Grants & salvage' };
-const EXPENSE_LABELS = { upkeep: 'Facility upkeep', feed: 'Creature feed', construction: 'Construction', terrain: 'Terraforming', acquisition: 'Acquisitions', research: 'Research', response: 'Emergency response' };
+const EXPENSE_LABELS = { upkeep: 'Facility upkeep', feed: 'Creature feed', wages: 'Staff wages', construction: 'Construction', terrain: 'Terraforming', acquisition: 'Acquisitions', research: 'Research', response: 'Emergency response' };
 
 export default function FinanceScreen({ onClose }) {
   useGameTick();

@@ -3,10 +3,11 @@ import { logCause, emptyDay, pushAlert } from './state';
 import { BUILDINGS } from './data/buildings';
 import { FENCES } from './constants';
 import { speciesById } from './data/species';
+import { STAFF_ROLES } from './data/staffRoles';
 
 export function spend(state, amount, cat, label) {
   amount = Math.round(amount);
-  if (state.mode !== 'sandbox' && state.cash < amount && cat !== 'upkeep' && cat !== 'feed') {
+  if (state.mode !== 'sandbox' && state.cash < amount && cat !== 'upkeep' && cat !== 'feed' && cat !== 'wages') {
     return { ok: false, reason: `Insufficient funds (need ◈${amount.toLocaleString()})` };
   }
   state.cash -= amount;
@@ -32,6 +33,10 @@ export function dailyRollover(state) {
   for (const key of Object.keys(state.fences)) fenceMaint += FENCES[state.fences[key].tier].cost * 0.005;
   upkeep += Math.round(fenceMaint);
   if (upkeep > 0) spend(state, upkeep, 'upkeep', `Daily facility upkeep`);
+
+  // staff payroll
+  const wages = (state.staff || []).reduce((sum, st) => sum + (STAFF_ROLES[st.role]?.wage || 0), 0);
+  if (wages > 0) spend(state, wages, 'wages', 'Staff wages');
 
   const t = state.finances.today;
   const incomeSum = Object.values(t.income).reduce((a, b) => a + b, 0);

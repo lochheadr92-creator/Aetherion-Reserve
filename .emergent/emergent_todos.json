@@ -1,22 +1,22 @@
 [
   {
-    "content": "Verify frontend compiles (esbuild) and services healthy",
+    "content": "Phase 8: staff data model, sim module, UI, renderer — DONE (12/12 tests)",
     "status": "completed"
   },
   {
-    "content": "Run full automated regression suite (smoke, scenario, visual, fence, phase5, phase6a, phase6b)",
+    "content": "Phase 9: scenario data, engine, tracker UI, menu picker — DONE (17/17 tests)",
     "status": "completed"
   },
   {
-    "content": "Fix phase6b breeding test race (umbra predator cohab) - test-only fix, 13/13 now",
+    "content": "Full local regression sweep (9 suites) — green",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 for Phase 7 comprehensive pass (iteration_6)",
+    "content": "Run testing_agent_v3 comprehensive pass (iteration_7)",
     "status": "in_progress"
   },
   {
-    "content": "Fix any regressions found and re-verify",
+    "content": "Fix any issues found and re-verify",
     "status": "pending"
   }
 ]

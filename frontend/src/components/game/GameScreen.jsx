@@ -9,6 +9,7 @@ import OverlayToggles from '@/components/game/OverlayToggles';
 import TutorialOverlay from '@/components/game/TutorialOverlay';
 import GameModals from '@/components/game/GameModals';
 import EmergencyBanner from '@/components/game/EmergencyBanner';
+import ScenarioTracker from '@/components/game/ScenarioTracker';
 import { useGameTick } from '@/components/game/useGame';
 import { useGameAlerts } from '@/components/game/hooks/useGameAlerts';
 import { useHotkeys } from '@/components/game/hooks/useHotkeys';
@@ -80,6 +81,7 @@ export default function GameScreen({ onExit }) {
 
       <HudBar onOpenModal={setModal} onExit={onExit} onNavigate={navigateTo} onHelp={openHelp} />
       <EmergencyBanner onNavigate={navigateTo} />
+      <ScenarioTracker onExit={onExit} />
       <ObjectivesPanel />
       <OverlayToggles rendererRef={rendererRef} />
       <BuildToolbar activeTool={activeTool} setTool={setTool} />

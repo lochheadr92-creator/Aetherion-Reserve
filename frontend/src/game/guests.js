@@ -6,6 +6,7 @@ import { speciesById } from './data/species';
 import { getSpeciesView } from './knowledge';
 import { earn } from './economy';
 import { visibilityWeatherMult, spawnWeatherMult, getDayPhase, isStorm } from './weather';
+import { wasteNear } from './staff';
 
 const ARCHETYPES = [
   { key: 'family', name: 'Family', color: '#e0c080', spendMult: 1.0, wantsSafety: true },
@@ -192,6 +193,10 @@ function arriveAtTarget(state, g) {
         addOpinion(state, g, `The ${sp.name} looked right at me. Worth every credit.`, true);
       } else {
         addOpinion(state, g, `Amazing view of the ${sp.name} habitat!`, true);
+      }
+      // dirty exhibits sour the experience — keepers should clear biowaste
+      if (wasteNear(state, best.creature.x, best.creature.y, 7) >= 3 && rnd() < 0.5) {
+        addOpinion(state, g, 'That exhibit really needs cleaning.', false);
       }
     } else if (seen.length > 0) {
       addOpinion(state, g, 'I could barely glimpse anything through the cover.', false);

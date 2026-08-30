@@ -1,0 +1,6 @@
+/* Aetherion Reserve — app-level styles kept minimal; tokens live in index.css */
+.App {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}

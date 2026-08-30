@@ -1,0 +1,54 @@
+[
+  {
+    "content": "Backend: MongoDB save-slot CRUD API (/api/saves)",
+    "status": "completed"
+  },
+  {
+    "content": "Engine: constants, palette, species/buildings/research data (15 species, data-driven)",
+    "status": "completed"
+  },
+  {
+    "content": "Engine: authoritative state, terrain sculpt/paint/water/veg tools with costs+undo",
+    "status": "completed"
+  },
+  {
+    "content": "Engine: fences/gates, enclosure detection, habitat evaluation with explainable factors",
+    "status": "completed"
+  },
+  {
+    "content": "Engine: creature AI (needs, state machine, pathfinding), knowledge/discovery system",
+    "status": "completed"
+  },
+  {
+    "content": "Engine: guests, viewing visibility, economy, research, park rating, alerts, objectives",
+    "status": "completed"
+  },
+  {
+    "content": "Engine: canvas isometric renderer + input (pan/zoom/tools/selection/overlays)",
+    "status": "completed"
+  },
+  {
+    "content": "UI: index.css tokens, App shell, MainMenu, HUD, BuildToolbar, InspectPanel",
+    "status": "completed"
+  },
+  {
+    "content": "UI: SpeciesDatabase, Research, Finances, Acquisition, Objectives, Alerts screens",
+    "status": "completed"
+  },
+  {
+    "content": "Save/Load wired frontend<->backend, New Game (Management/Sandbox)",
+    "status": "completed"
+  },
+  {
+    "content": "POC smoke test: terrain/fences/enclosure/creature/save-load all PASS",
+    "status": "completed"
+  },
+  {
+    "content": "Scenario test: discovery loop, guests, economy in management mode",
+    "status": "completed"
+  },
+  {
+    "content": "End-to-end testing via testing_agent_v3 + fix all issues",
+    "status": "completed"
+  }
+]

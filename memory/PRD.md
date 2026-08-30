@@ -53,6 +53,14 @@ emberoot (fungal ground terraforming)
 - UI reads species biology ONLY via getSpeciesView (unknown enforcement)
 - Tests in /app/tests (playwright, python3, uses localhost:3000 + window.__game)
 
+## Feature additions (v1.1)
+- WEATHER & DAY-NIGHT (game/weather.js): state.weather {type: clear|overcast|storm, ticksLeft}; day phases day/dusk/night from tick.
+  Effects: storms → creatures seek shelter + stress if exposed, random fence storm damage, guest arrivals ×0.15 + guests leave, visibility ×0.5;
+  night → arrivals ×0.5, visibility ×0.65 EXCEPT bioluminescent (colors.glow) species get ×1.2 + special guest opinion;
+  nocturnal species (umbra, activity:'nocturnal') hide by day (shelter/canopy) and relax at night. Renderer: night/dusk tints, rain streaks, lightning; HUD chip (hud-weather-chip/label/clock). Weather serialized; deserialize defaults it for old saves.
+- TUTORIAL (TutorialOverlay.jsx): 6-step first-run orientation, pauses game, localStorage 'aetherion_tutorial_done', Help button (hud-help-button) reopens. Tests must set the localStorage flag before starting a game to bypass.
+- BUG FIX: terrain tiles were drawn centred on grid corners (worldPx(x,y)) while previews/fences used tile centres (worldPx(x+0.5,y+0.5)) → half-tile placement misalignment. drawTileOff now centres on (x+0.5,y+0.5); everything aligned.
+
 ## Known scope (post-v1 backlog)
 - Expedition timers/map, contracts beyond tutorial directives, weather/incidents, staff entities,
   escape emergencies beyond recall (capture teams/drones), more overlays (guest heatmap), key rebinding

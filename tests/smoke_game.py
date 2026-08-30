@@ -36,6 +36,7 @@ async def main():
         page.on("pageerror", lambda e: errors.append(str(e)[:300]))
         await page.goto(URL, wait_until="networkidle", timeout=30000)
         await page.wait_for_timeout(1200)
+        await page.evaluate("localStorage.setItem('aetherion_tutorial_done','1')")
         await page.click('[data-testid="mode-sandbox"]')
         await page.click('[data-testid="start-game-button"]')
         await page.wait_for_timeout(2000)

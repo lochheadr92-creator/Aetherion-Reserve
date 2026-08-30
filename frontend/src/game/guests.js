@@ -5,6 +5,7 @@ import { BUILDINGS } from './data/buildings';
 import { speciesById } from './data/species';
 import { getSpeciesView } from './knowledge';
 import { earn } from './economy';
+import { visibilityWeatherMult, spawnWeatherMult, getDayPhase, isStorm } from './weather';
 
 const ARCHETYPES = [
   { key: 'family', name: 'Family', color: '#e0c080', spendMult: 1.0, wantsSafety: true },
@@ -59,6 +60,8 @@ export function spawnGuests(state) {
   const appealSum = state.creatures.reduce((s, c) => s + speciesById(c.speciesId).appeal, 0);
   let rate = 0.25 + Math.min(1.2, appealSum / 150) + state.rating.overall * 0.8;
   if (hasResearch(state, 'fac_marketing')) rate *= 1.4;
+  // weather and time of day govern arrivals (storms nearly stop them)
+  rate *= spawnWeatherMult(state);
   // ticket price sensitivity
   rate *= Math.max(0.3, 1.4 - state.ticketPrice / 60);
   const n = Math.floor(rate) + (rnd() < rate % 1 ? 1 : 0);
@@ -123,6 +126,12 @@ function visibilityFrom(state, b, def) {
     if (def.id === 'tower') vis = Math.max(vis, (1 - d / R) * 0.5); // elevation sees over cover
     const ct = idx(Math.floor(c.x), Math.floor(c.y));
     if (state.water[ct] === 2) vis *= 0.55; // submerged
+    // weather + day-night: storms/darkness reduce visibility, but at night
+    // bioluminescent species glow through the dark
+    let wm = visibilityWeatherMult(state);
+    const csp = speciesById(c.speciesId);
+    if (getDayPhase(state.tick).phase === 'night' && csp.colors.glow && !isStorm(state)) wm = Math.max(wm, 1.2);
+    vis *= wm;
     if (vis > 0.08) out.push({ creature: c, vis });
   }
   return out;
@@ -150,7 +159,10 @@ function arriveAtTarget(state, g) {
       const best = seen.sort((a, b2) => b2.vis - a.vis)[0];
       const sp = speciesById(best.creature.speciesId);
       const view = getSpeciesView(state, sp.id);
-      if (g.archetype === 'researcher' && view.unknown.length) {
+      if (getDayPhase(state.tick).phase === 'night' && sp.colors.glow) {
+        addOpinion(state, g, `The ${sp.name} glowing in the dark is unforgettable.`, true);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.05);
+      } else if (g.archetype === 'researcher' && view.unknown.length) {
         addOpinion(state, g, `I observed an unclassified organism — ${sp.name}. Incredible.`, true);
         g.satisfaction = Math.min(1, g.satisfaction + 0.06);
       } else if (g.archetype === 'thrill' && sp.danger >= 3) {
@@ -181,6 +193,11 @@ export function decideGuest(state, g) {
     g.fleeing = true; g.leaving = true;
     addOpinion(state, g, 'There is something loose out here! This place is not safe!', false);
     g.satisfaction = Math.max(0, g.satisfaction - 0.25);
+  }
+  // storms send guests home
+  if (isStorm(state) && !g.leaving && rnd() < 0.3) {
+    g.leaving = true;
+    addOpinion(state, g, 'This storm is miserable \u2014 we are heading home.', false);
   }
   if (g.leaving) {
     const exitSet = new Set([idx(state.entrance.x, state.entrance.y)]);

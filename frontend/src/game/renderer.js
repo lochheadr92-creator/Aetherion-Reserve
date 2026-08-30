@@ -4,6 +4,7 @@ import { idx, inMap } from './state';
 import { BUILDINGS } from './data/buildings';
 import { speciesById } from './data/species';
 import { computeEnclosures } from './enclosures';
+import { getDayPhase } from './weather';
 
 const OX = (MAP_SIZE * TILE_W) / 2 + TILE_W;
 const OY = MAX_H * H_STEP + TILE_H;
@@ -123,7 +124,9 @@ export class GameRenderer {
     const s = this.state;
     const i = idx(x, y);
     const h = s.heights[i];
-    const p = worldPx(x, y, h);
+    // IMPORTANT: tiles are centred on (x+0.5, y+0.5) so the drawn diamond
+    // exactly matches previews, fences, buildings and picking.
+    const p = worldPx(x + 0.5, y + 0.5, h);
     const px = p.x + OX, py = p.y + OY;
     const hw = TILE_W / 2, hh = TILE_H / 2;
     const mat = MATERIALS[s.materials[i]];
@@ -201,6 +204,9 @@ export class GameRenderer {
     ctx.fillRect(0, 0, W, H);
     if (!s) return;
     this.frame++;
+    this._phase = getDayPhase(s.tick).phase;
+    this._storm = s.weather?.type === 'storm';
+    this._overcast = s.weather?.type === 'overcast';
     if (s._terrainDirty) this.redrawTerrain();
     ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x, this.cam.y);
     ctx.imageSmoothingEnabled = this.cam.zoom < 1;
@@ -236,6 +242,44 @@ export class GameRenderer {
     this.drawEntrance(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
+    this.drawAtmosphere(ctx, W, H);
+  }
+
+  // day-night tint, rain and lightning — screen-space, drawn last
+  drawAtmosphere(ctx, W, H) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (this._phase === 'night') {
+      ctx.fillStyle = 'rgba(7, 11, 32, 0.42)';
+      ctx.fillRect(0, 0, W, H);
+    } else if (this._phase === 'dusk') {
+      ctx.fillStyle = 'rgba(46, 18, 52, 0.22)';
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (this._overcast) {
+      ctx.fillStyle = 'rgba(14, 20, 30, 0.18)';
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (this._storm) {
+      ctx.fillStyle = 'rgba(10, 16, 28, 0.34)';
+      ctx.fillRect(0, 0, W, H);
+      // rain streaks (deterministic scatter, cheap)
+      ctx.strokeStyle = 'rgba(150, 190, 230, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const f = this.frame * 11;
+      for (let i = 0; i < 110; i++) {
+        const rx = ((i * 379 + f * 3) % (W + 60)) - 30;
+        const ry = ((i * 173 + f * 7) % (H + 40)) - 20;
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - 4, ry + 13);
+      }
+      ctx.stroke();
+      // lightning flash
+      if (this.frame % 260 < 3) {
+        ctx.fillStyle = 'rgba(220, 235, 255, 0.14)';
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
   }
 
   tileCenter(x, y) {
@@ -411,7 +455,7 @@ export class GameRenderer {
       ctx.beginPath(); ctx.ellipse(0, 2, 16 * sc + 4, 8 * sc + 2, 0, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.scale(c.dir, 1);
-    if (sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = 10; }
+    if (sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = this._phase === 'night' ? 18 : 10; }
     drawBody(ctx, sp, sc, this.frame, c, bob);
     ctx.shadowBlur = 0;
     ctx.restore();

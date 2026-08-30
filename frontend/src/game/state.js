@@ -98,6 +98,7 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     objectives: [], // filled by sim
     rating: { overall: 0.5, comp: {} },
     entrance: { x: Math.floor(S / 2), y: S - 1 },
+    weather: { type: 'clear', ticksLeft: 900 },
     stats: { guestsTotal: 0, discoveries: 0, breaches: 0, guestSat: 0.7 },
     nextId: 1,
   };
@@ -139,6 +140,7 @@ export function serialize(state) {
 
 export function deserialize(data) {
   const state = data;
+  if (!state.weather) state.weather = { type: 'clear', ticksLeft: 900 };
   state._terrainDirty = true;
   state._encDirty = true;
   state._occDirty = true;

@@ -275,6 +275,7 @@ S.umbra = {
   containment: { tier: 2, estimate: 2 },
   hiddenAttrs: ['forest', 'shelter'],
   traits: ['Light-Averse', 'Silent'],
+  activity: 'nocturnal',
   lore: 'Cameras in its recovery crate recorded nothing. Not darkness \u2014 nothing. It dislikes being seen.',
   question: 'Can I build a shaded exhibit guests can still enjoy?',
 };

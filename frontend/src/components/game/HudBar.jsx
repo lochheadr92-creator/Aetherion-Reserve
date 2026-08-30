@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Pause, Play, FastForward, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star } from 'lucide-react';
+import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle } from 'lucide-react';
 import { game } from '@/game/controller';
 import { fmtMoney } from '@/game/constants';
+import { getDayPhase, clockLabel } from '@/game/weather';
 import { useGameTick } from '@/components/game/useGame';
 
 const HudButton = ({ icon: Icon, label, onClick, testId, active }) => (
@@ -18,7 +19,7 @@ const HudButton = ({ icon: Icon, label, onClick, testId, active }) => (
   </button>
 );
 
-export default function HudBar({ onOpenModal, onExit, onNavigate }) {
+export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp }) {
   useGameTick();
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -26,6 +27,11 @@ export default function HudBar({ onOpenModal, onExit, onNavigate }) {
   if (!s) return null;
   const unread = s.alerts.filter((a) => !a.read).length;
   const stars = Math.round(s.rating.overall * 5 * 10) / 10;
+  const { phase } = getDayPhase(s.tick);
+  const wType = s.weather?.type || 'clear';
+  const WeatherIcon = wType === 'storm' ? CloudRain : phase === 'night' ? Moon : phase === 'dusk' ? Sunset : wType === 'overcast' ? Cloud : Sun;
+  const weatherColor = wType === 'storm' ? 'var(--info)' : phase === 'night' ? 'var(--accent-violet)' : phase === 'dusk' ? 'var(--accent-amber)' : wType === 'overcast' ? 'var(--text-3)' : 'var(--accent-amber)';
+  const weatherLabel = `${phase.toUpperCase()}${wType !== 'clear' ? ' \u00b7 ' + wType.toUpperCase() : ''}`;
 
   const doSave = async () => {
     setSaving(true);
@@ -62,6 +68,15 @@ export default function HudBar({ onOpenModal, onExit, onNavigate }) {
             className="nl-tool h-9 px-3 mono text-xs" data-active={!s.paused && s.speed === 1 ? 'true' : 'false'} title="Normal speed (1)">1×</button>
           <button data-testid="hud-speed-3-button" onClick={() => game.setSpeed(3)}
             className="nl-tool h-9 px-3 mono text-xs" data-active={!s.paused && s.speed === 3 ? 'true' : 'false'} title="Fast speed (3)">3×</button>
+          <div
+            className="flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--line)] bg-[var(--panel-2)] ml-2"
+            data-testid="hud-weather-chip"
+            title="Weather & time affect the park: storms send guests home, damage exposed barriers and stress unsheltered creatures. At night fewer guests arrive and visibility drops — but bioluminescent species glow."
+          >
+            <WeatherIcon size={14} style={{ color: weatherColor }} />
+            <span className="mono text-[10px] text-[var(--text-2)] tracking-wider" data-testid="hud-weather-label">{weatherLabel}</span>
+            <span className="mono text-[10px] text-[var(--text-3)]" data-testid="hud-clock">{clockLabel(s.tick)}</span>
+          </div>
         </div>
 
         {/* right: KPIs + menus */}
@@ -116,6 +131,7 @@ export default function HudBar({ onOpenModal, onExit, onNavigate }) {
           </div>
 
           <HudButton icon={Save} label={saving ? 'Saving…' : 'Save'} testId="hud-save-button" onClick={doSave} />
+          <HudButton icon={HelpCircle} label="Help" testId="hud-help-button" onClick={onHelp} />
           <HudButton icon={DoorOpen} label="Menu" testId="hud-exit-button" onClick={onExit} />
         </div>
       </div>

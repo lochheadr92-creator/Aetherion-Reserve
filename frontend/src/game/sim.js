@@ -9,6 +9,9 @@ import { RESEARCH } from './data/research';
 import { refreshDynamicProjects, discover, EVIDENCE_THRESHOLD } from './knowledge';
 import { speciesById, SPECIES_LIST } from './data/species';
 import { spend } from './economy';
+import { weatherTick, isStorm } from './weather';
+import { damageFence } from './construction';
+import { rnd } from './state';
 
 export const OBJECTIVES = [
   { id: 'build_admin', name: 'Establish Command', desc: 'Build the Administration Nexus (Operations tab).', reward: 2000, check: (s) => s.buildings.some((b) => b.type === 'admin') },
@@ -150,6 +153,16 @@ export function tickOnce(state) {
     }
   }
   if (T % 25 === 0) { spawnGuests(state); cullGuests(state); }
+
+  // weather & day-night
+  if (T % 25 === 0) weatherTick(state);
+  if (isStorm(state) && T % 200 === 0 && rnd() < 0.5) {
+    const keys = Object.keys(state.fences);
+    if (keys.length) {
+      const key = keys[Math.floor(rnd() * keys.length)];
+      damageFence(state, key, 8 + rnd() * 12, 'Storm winds are battering a barrier segment');
+    }
+  }
 
   // research
   if (T % 10 === 0) researchTick(state);

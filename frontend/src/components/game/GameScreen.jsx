@@ -11,6 +11,7 @@ import ResearchScreen from '@/components/game/ResearchScreen';
 import FinanceScreen from '@/components/game/FinanceScreen';
 import AcquisitionScreen from '@/components/game/AcquisitionScreen';
 import OverlayToggles from '@/components/game/OverlayToggles';
+import TutorialOverlay from '@/components/game/TutorialOverlay';
 import { undoTerrain } from '@/game/terrain';
 import { useGameTick } from '@/components/game/useGame';
 
@@ -22,6 +23,8 @@ export default function GameScreen({ onExit }) {
   const [modal, setModal] = useState(null); // 'db' | 'research' | 'finances' | 'fieldops'
   const [dbSpecies, setDbSpecies] = useState(null);
   const [activeTool, setActiveTool] = useState({ mode: 'select' });
+  const [tutorialOpen, setTutorialOpen] = useState(() => !localStorage.getItem('aetherion_tutorial_done'));
+  const [tutorialFirstTime] = useState(() => !localStorage.getItem('aetherion_tutorial_done'));
 
   const setTool = useCallback((tool) => {
     if (inputRef.current) inputRef.current.setTool(tool);
@@ -120,6 +123,7 @@ export default function GameScreen({ onExit }) {
         onOpenModal={setModal}
         onExit={onExit}
         onNavigate={navigateTo}
+        onHelp={() => setTutorialOpen(true)}
       />
 
       <ObjectivesPanel />
@@ -141,6 +145,8 @@ export default function GameScreen({ onExit }) {
       {modal === 'research' && <ResearchScreen onClose={() => setModal(null)} />}
       {modal === 'finances' && <FinanceScreen onClose={() => setModal(null)} />}
       {modal === 'fieldops' && <AcquisitionScreen onClose={() => setModal(null)} onBuy={buyCreature} />}
+
+      {tutorialOpen && <TutorialOverlay firstTime={tutorialFirstTime} onClose={() => setTutorialOpen(false)} />}
     </div>
   );
 }

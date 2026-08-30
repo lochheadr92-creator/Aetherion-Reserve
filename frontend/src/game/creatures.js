@@ -7,6 +7,7 @@ import { findPath, reachableTiles, buildOccupancy, edgeKey } from './pathfind';
 import { recordEvidence, discover } from './knowledge';
 import { spend } from './economy';
 import { damageFence, isPowered } from './construction';
+import { isStorm, getDayPhase } from './weather';
 
 let nameCounter = {};
 
@@ -164,6 +165,39 @@ export function decideCreature(state, c) {
     }
     c.state = 'resting'; c.actionTicks = 60; return;
   }
+  // storm instinct: seek shelter (or hunker down) while a storm is overhead
+  if (isStorm(state) && enc && rnd() < 0.5) {
+    if (enc.shelters.length) {
+      const sb = state.buildings.find((b) => b.id === enc.shelters[0]);
+      if (sb) {
+        const adj = adjacentWalkable(state, sb, swims);
+        for (const a of adj) {
+          const p = findPath(state, x, y, a.x, a.y, { swims });
+          if (p) { c.path = p; c.state = 'seekShelter'; return; }
+        }
+      }
+    }
+    c.state = 'resting'; c.actionTicks = 50; return;
+  }
+  // nocturnal species hide from daylight: seek shelter or dense canopy by day
+  if (sp.activity === 'nocturnal' && getDayPhase(state.tick).phase === 'day' && enc && rnd() < 0.45) {
+    if (enc.shelters.length) {
+      const sb = state.buildings.find((b) => b.id === enc.shelters[0]);
+      if (sb) {
+        const adj = adjacentWalkable(state, sb, swims);
+        for (const a of adj) {
+          const p = findPath(state, x, y, a.x, a.y, { swims });
+          if (p) { c.path = p; c.state = 'seekShelter'; return; }
+        }
+      }
+    }
+    const shady = reach().filter((t) => { const v = VEG[state.veg[idx(t.x, t.y)]]; return v && v.forest > 0.4; });
+    if (shady.length) {
+      const t = shady[Math.floor(rnd() * shady.length)];
+      const p = findPath(state, x, y, t.x, t.y, { swims });
+      if (p) { c.path = p; c.state = 'seekTerrain'; return; }
+    }
+  }
   // aquatic urge
   if (swims && rnd() < 0.35) {
     const tiles = reach().filter((t) => state.water[idx(t.x, t.y)] > 0);
@@ -305,6 +339,17 @@ export function updateWelfare(state, c) {
   const stressMult = hasResearch(state, 'bio_stress') ? 0.7 : 1;
   if (c.welfare < 0.5) c.stress = Math.min(1, c.stress + (0.5 - c.welfare) * 0.05 * stressMult);
   else c.stress = Math.max(0, c.stress - 0.02);
+  // weather & day-night pressure
+  const sheltered = ['sheltering', 'seekShelter'].includes(c.state);
+  if (isStorm(state) && !sheltered) c.stress = Math.min(1, c.stress + 0.015 * stressMult);
+  if (sp.activity === 'nocturnal') {
+    const { phase } = getDayPhase(state.tick);
+    const { x: cx2, y: cy2 } = curTile(c);
+    const v = VEG[state.veg[idx(cx2, cy2)]];
+    const covered = sheltered || (v && v.forest > 0.4);
+    if (phase === 'day' && !covered) c.stress = Math.min(1, c.stress + 0.012 * stressMult);
+    else if (phase === 'night') c.stress = Math.max(0, c.stress - 0.012);
+  }
   if (c.stress > 0.85) c.health = Math.max(0.1, c.health - 0.004);
   else if (c.health < 1) c.health = Math.min(1, c.health + 0.002);
   // low welfare alert (throttled via flag)

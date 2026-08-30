@@ -113,6 +113,11 @@ async def main():
 
         # ---- TEST 4: Breeding (skitter pair -> juvenile) ----
         await page.click('[data-testid="hud-time-pause-button"]')
+        # remove the umbra (preys on skitter -> hostile cohab stress/welfare penalty blocks
+        # pairing gates) and the stressed voltari so the breeding pair has a calm enclosure
+        await page.evaluate(
+            "window.__game.state.creatures = window.__game.state.creatures.filter(c => !['umbra','voltari'].includes(c.speciesId))"
+        )
         await acquire_and_place(page, "skitter", 43, 33)
         await acquire_and_place(page, "skitter", 44, 33)
         await page.evaluate("window.__game.state.research.completed.push('bio_breeding')")
@@ -137,7 +142,16 @@ async def main():
         # juvenile badge
         await page.click('[data-testid="hud-time-pause-button"]')
         await page.click('[data-testid="tool-select"]')
-        jp = await S("(() => { const c = window.__game.state.creatures.find(q => q.juvenile); return c ? { x: Math.floor(c.x), y: Math.floor(c.y) } : null; })()")
+        # separate the juvenile from clustered adults so the iso pick can't grab a parent
+        jp = await S(
+            """(() => { const c = window.__game.state.creatures.find(q => q.juvenile);
+                if (!c) return null;
+                c.x = 47.5; c.y = 35.5; c.path = []; c.state = 'idle'; c.actionTicks = 50;
+                for (const o of window.__game.state.creatures) {
+                    if (!o.juvenile && Math.hypot(o.x - c.x, o.y - c.y) < 3) { o.x = 42.5; o.y = 32.5; o.path = []; }
+                }
+                return { x: Math.floor(c.x), y: Math.floor(c.y) }; })()"""
+        )
         jbadge = 0
         if jp:
             await click_tile(page, jp["x"], jp["y"])

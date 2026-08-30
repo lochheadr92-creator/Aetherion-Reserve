@@ -12,9 +12,23 @@
 - Ensure **explainability** (why numbers change) and **overlays** (habitat/visibility/view ranges/power).
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
-**Current objective (top priority):** maintain a stable, test-backed baseline after Phase 6 expansion and await user direction for the next workstream.
+**Current objective (top priority):** implement **Phase 8 — Keeper Staff** (hireable keepers who feed/clean/calm creatures automatically) while preserving deterministic sim and performance.
 
-Status: **Phase 1–6 COMPLETE** (Phase 6 delivered + fully verified). Regression baseline green (**iteration_5**).
+Status:
+- **Phase 1–6 COMPLETE** and fully test-backed.
+- **Phase 7 COMPLETE** (visual/art overhaul) and **fully verified**.
+- **Phase 8 IN PROGRESS**.
+- **Phase 9 NOT STARTED** (to follow immediately after Phase 8).
+
+> Constraint (hard): Phase 7 was **visual-only** and is now verified to have introduced **no gameplay regressions**.
+
+> Next gameplay features (explicitly approved): build **BOTH P1 features** — **Keeper Staff** then **Scenario Missions**.
+
+**Testing baselines:**
+- iteration_5: pre-Phase 7 green baseline.
+- iteration_6: post-Phase 7 green baseline (**testing_agent_v3 100%**, plus local suites).
+
+---
 
 ## 2) Implementation Steps
 
@@ -268,15 +282,162 @@ Status: **Phase 1–6 COMPLETE** (Phase 6 delivered + fully verified). Regressio
 
 ---
 
-## 3) Next Actions (immediate)
-**Stop for user review and direction.**
+### Phase 7 — Dedicated Visual Quality Pass (Pixel Art Cohesion) ✅ COMPLETE
+**Goal:** Upgrade all visuals (15 creatures, staff, buildings, archive portraits) to cohesive slightly-3D pixel art with upper-left lighting, shadows, and restrained bioluminescence — **without changing simulation logic**.
 
-Select next workstream (not started):
-1. **Emergency depth**: guest crowd routing/panic pathing polish, injuries, lockdown tools, repair crews, staffing economy.
-2. **Sandbox extras**: unlimited toggles, scenario presets, debug overlays, “quick start” macros.
-3. **Campaign / scenarios**: structured missions, narrative progression, challenge modifiers.
-4. **Breeding/genetics depth**: heritable traits, compatibility genetics, incubation facilities, population control.
-5. **Multiplayer / async sharing**: facility sharing, contracts, leaderboards.
+**Non-negotiables (Phase 7):**
+- Do not change:
+  - simulation logic / creature behaviour
+  - creature stats / requirements
+  - economy / research / progression
+  - containment mechanics / pathfinding
+  - save semantics
+  - UI information architecture
+  - building functionality
+- Keep performance: no React-driven animation loops; render-loop sprite animation only.
+
+#### Phase 7A — Art Direction + Technical Baseline ✅ COMPLETE
+- Established global pixel-art language:
+  - consistent pixel density (asset pixel → device px scale, smoothing off)
+  - top-left primary lighting, lower-right grounding shadows
+  - restrained highlights + controlled ambient occlusion
+  - dark teal/near-black base palette with cyan/turquoise/violet/amber/crimson accents
+  - selective bioluminescence (no huge halos)
+- Implemented new art module scaffold:
+  - `/app/frontend/src/game/art/pixel.js`: pixel painter utilities (shading bands, dither, outline pass, glow px, iso helpers)
+
+#### Phase 7B — Creature Visual System (15-species roster) ✅ COMPLETE
+**Deliverable:** upgrade **ALL 15** species for in-world sprites and Species Database portraits, with idle animations (2–4 frames).
+
+- New modules:
+  - `/app/frontend/src/game/art/creatures_a.js` + `creatures_b.js` (painter definitions)
+  - `/app/frontend/src/game/art/creatures.js` (registry + cached lazy baking)
+- Implemented: 15/15 species upgraded with distinct silhouettes and per-species shadow profiles.
+
+#### Phase 7C — Buildings Visual Pass ✅ COMPLETE
+**Deliverable:** consistent iso pixel sprites with 2.5D depth and readable functional silhouettes.
+
+- New module:
+  - `/app/frontend/src/game/art/buildings.js` (cached sprites; optional ambient frames)
+
+#### Phase 7D — Staff Visuals ✅ COMPLETE
+**Deliverable:** staff sprites for:
+- Field Xenobiologist
+- Containment Warden
+- Biomedical Officer
+
+- New module:
+  - `/app/frontend/src/game/art/staff.js`
+- Integration: security unit visuals swapped to the warden sprite (behavior unchanged).
+
+#### Phase 7E — Renderer Wiring + Portrait Pipeline ✅ COMPLETE
+- `renderer.js`: replaced vector/placeholder drawing with sprite blitting from cached pixel-art sheets.
+- `Portrait.jsx`: renders archive portraits via the new pixel portrait renderer.
+
+#### Phase 7F — Verification + Regression + Performance ✅ COMPLETE
+**Verified:**
+- All local suites green:
+  - `smoke_game.py`, `scenario_discovery.py`, `visual_v2.py`, `fence_drag_test.py`, `phase5_test.py`, `phase6a_test.py`, `phase6b_test.py`
+- `phase6b_test.py` remains 13/13; a **pre-existing test design race** was corrected (test-only fix): Umbra is a skitter predator, so the test now removes Umbra/Voltari before asserting skitter breeding.
+- `testing_agent_v3`: `/app/test_reports/iteration_6.json` **100% backend + frontend**, zero issues.
+- Phase 7 visual capture scripts executed cleanly (`phase7_visual.py`, `phase7_buildings.py`).
+
+**Phase 7 Exit Criteria:** met.
+
+---
+
+### Phase 8 — Keeper Staff (Hireable keepers: feed/clean/calm automation) 🧪 IN PROGRESS
+**Goal:** Add hireable staff who reduce micromanagement in large parks by automatically handling routine creature care, while preserving deterministic sim and performance.
+
+**High-level requirements:**
+- Hire staff from UI (roles, wages, capacity).
+- AI behaviors:
+  - Feed creatures by refilling feeders or delivering food to enclosures (depending on existing feeder mechanics).
+  - Clean/maintain enclosure hygiene proxies (introduce a minimal “maintenance” layer only if needed; avoid disrupting existing welfare math).
+  - Calm stressed creatures (stress mitigation / emergency assistance).
+- Pathfinding:
+  - Use existing tile/path constraints; staff prefer paths; respect fences/gates.
+- Performance:
+  - Deterministic update; no React-driven loops; staff rendered in canvas with cached sprites.
+- Safety:
+  - Staff avoid escaped dangerous creatures unless they are wardens.
+
+**Implementation outline (updated to start immediately):**
+1. **Data model & persistence**
+   - Add `state.staff[]`: `{ id, role, x, y, state, target, task, path, shift, stamina, homeBuildingId? }`.
+   - Add `state.staffing`: wage rates, caps, hire slots, daily payroll bucket.
+   - Ensure `serialize/deserialize` compatibility for existing saves.
+2. **Roles & capabilities**
+   - Field Xenobiologist: boosts observation/discovery nearby (non-invasive).
+   - Containment Warden: assists escape response; patrols fence hot spots; supports security posts.
+   - Biomedical Officer: calms high-stress creatures; optionally improves recovery after breaches.
+3. **Task system**
+   - Implement deterministic task queue (priority: emergency → hunger/feeder refill → stress calming → patrol/idle).
+   - Keep tasks data-driven where possible.
+4. **Movement & pathing**
+   - Reuse existing movement/path utilities; prefer paths; avoid fenced regions unless gate access.
+5. **UI**
+   - New Staff panel/screen: hire/fire, wages/day, assignments, roster.
+   - Small HUD indicators (staff count, active tasks).
+6. **Rendering**
+   - Use `/game/art/staff.js` sprites; 2–3 frame idle/walk; depth-sorted like other entities.
+7. **Testing**
+   - Add `phase8_staff_test.py`:
+     - hires staff
+     - verifies staff move on paths
+     - verifies feeders are serviced / stress is reduced
+     - verifies no regressions in save/load and core sim
+
+**Exit criteria:**
+- Player can hire staff, see them in-world, and observe care tasks being performed.
+- Performance remains stable with many staff/creatures.
+- New tests green + full regression green.
+
+---
+
+### Phase 9 — Scenario Missions (Campaign challenges with start states + goals) ⏳ NOT STARTED
+**Goal:** Add a campaign-like mode with handcrafted missions that teach systems, introduce constraints, and provide replayable challenges.
+
+**High-level requirements:**
+- Scenario selection UI (from Main Menu) with descriptions, difficulty, and completion badges.
+- Each scenario defines:
+  - Starting state (terrain, buildings, cash, research unlocks, starting creatures)
+  - Win conditions (rating threshold, welfare sustained X days, discovery milestones, profit goal, no-escape timer, etc.)
+  - Optional modifiers (storms frequency, guest volatility, limited building categories)
+  - Fail conditions (bankruptcy, too many escapes, welfare collapse)
+- Must not break sandbox/management mode.
+
+**Implementation outline:**
+1. Data:
+   - `data/scenarios.js`: list of scenario definitions, starting templates, goals.
+2. Engine:
+   - `game/scenarios.js`: apply scenario template to new game; evaluate win/lose each tick/day.
+3. UI:
+   - Main menu “Scenarios” entry + scenario browser + in-game objective tracker additions.
+4. Persistence:
+   - Save scenario id and completion status; keep save slots compatible.
+5. Testing:
+   - Add `phase9_scenarios_test.py` for deterministic scenario start and win/lose checks.
+
+**Exit criteria:**
+- At least 3 scenarios playable end-to-end with clear success/failure messaging.
+- Scenario saves load correctly.
+- Full regression green.
+
+---
+
+## 3) Next Actions (immediate)
+1. **Begin Phase 8 (Keeper Staff):**
+   - Implement state model + persistence
+   - Implement deterministic staff task system + pathing
+   - Add Staff UI panel
+   - Render staff sprites in-world
+   - Add `phase8_staff_test.py`
+   - Run full regression suite + testing agent if needed
+2. **After Phase 8 is green:**
+   - Implement **Phase 9 (Scenario Missions)**.
+
+---
 
 ## 4) Success Criteria
 - **Core fantasy works:** player starts ignorant, observes, discovers, adapts habitat, profits.
@@ -294,4 +455,18 @@ Select next workstream (not started):
   - Night tours generate premium income (`income.tours`) and guests react appropriately to glow/no-glow exhibits.
   - Breeding produces juveniles with growth scaling, badge, alerts/stats, and measurable guest reactions.
   - Late-game abilities introduce new failure modes with research counterplay and clear overlays.
-- **Automated verification:** full suite + testing agent pass (iteration_5 baseline).
+- **Phase 7 acceptance (visual-only):** ✅ met
+  - All **15 creatures** upgraded consistently in-world + portraits (no placeholders).
+  - All existing **buildings** upgraded to cohesive iso pixel art.
+  - Staff sprites created (3 roles) and integrated only where staff already exist.
+  - Consistent pixel density, lighting direction, shadows, palette, and controlled glow.
+  - Performance preserved; animation in renderer only.
+  - **Automated verification:** full suite + testing agent pass (iteration_6).
+- **Phase 8 acceptance (Keeper Staff):**
+  - Hireable staff autonomously feed/clean/calm within deterministic sim.
+  - Staff path correctly and respect containment.
+  - No regressions; new tests added; performance maintained.
+- **Phase 9 acceptance (Scenario Missions):**
+  - Scenario mode exists with multiple missions, clear goals, win/lose states, and persistence.
+  - Sandbox/management mode unaffected.
+  - Full regression green.

@@ -5,6 +5,10 @@ import { BUILDINGS } from './data/buildings';
 import { speciesById } from './data/species';
 import { computeEnclosures } from './enclosures';
 import { getDayPhase } from './weather';
+import { SPRITE_SCALE } from './art/pixel';
+import { getCreatureSheet } from './art/creatures';
+import { getBuildingSprite } from './art/buildings';
+import { getStaffSprite } from './art/staff';
 
 const OX = (MAP_SIZE * TILE_W) / 2 + TILE_W;
 const OY = MAX_H * H_STEP + TILE_H;
@@ -412,37 +416,26 @@ export class GameRenderer {
   }
 
   drawBuilding(ctx, b) {
-    const def = BUILDINGS[b.type];
     const s = this.state;
     const h = s.heights[idx(b.x, b.y)] || 0;
-    const heights = { admin: 46, lab: 38, power: 44, tower: 72, viewing: 26, food_stall: 30, drink_stall: 26, restroom: 24, gift_shop: 32, shelter: 22, feeder_forage: 14, feeder_meat: 14, feeder_mineral: 14, feeder_fungal: 16, feeder_energy: 24 };
-    const hgt = heights[b.type] || 30;
-    const p00 = worldPx(b.x, b.y, h), p10 = worldPx(b.x + b.w, b.y, h), p11 = worldPx(b.x + b.w, b.y + b.h, h), p01 = worldPx(b.x, b.y + b.h, h);
+    const spr = getBuildingSprite(b.type, b.w, b.h);
+    const p00 = worldPx(b.x, b.y, h);
+    // slow ambient frame (status lights / pulses)
+    const fi = Math.floor(this.frame / 42 + (b.id % 2)) % spr.frames.length;
+    const S = SPRITE_SCALE;
     ctx.save();
-    // left face (south-west)
-    ctx.fillStyle = shade(def.color, 0.75);
-    ctx.beginPath(); ctx.moveTo(p01.x, p01.y); ctx.lineTo(p11.x, p11.y); ctx.lineTo(p11.x, p11.y - hgt); ctx.lineTo(p01.x, p01.y - hgt); ctx.closePath(); ctx.fill();
-    // right face (south-east)
-    ctx.fillStyle = shade(def.color, 0.55);
-    ctx.beginPath(); ctx.moveTo(p11.x, p11.y); ctx.lineTo(p10.x, p10.y); ctx.lineTo(p10.x, p10.y - hgt); ctx.lineTo(p11.x, p11.y - hgt); ctx.closePath(); ctx.fill();
-    // roof
-    ctx.fillStyle = shade(def.color, 1.5);
-    ctx.beginPath(); ctx.moveTo(p00.x, p00.y - hgt); ctx.lineTo(p10.x, p10.y - hgt); ctx.lineTo(p11.x, p11.y - hgt); ctx.lineTo(p01.x, p01.y - hgt); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = PALETTE.buildingEdge; ctx.lineWidth = 1; ctx.stroke();
-    // accent light strip
-    ctx.strokeStyle = def.light; ctx.lineWidth = 1.6;
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath(); ctx.moveTo(p01.x, p01.y - hgt + 4); ctx.lineTo(p11.x, p11.y - hgt + 4); ctx.lineTo(p10.x, p10.y - hgt + 4); ctx.stroke();
-    ctx.globalAlpha = 1;
-    // roof beacon
-    const cx = (p00.x + p11.x) / 2, cy = (p00.y + p11.y) / 2 - hgt;
-    ctx.shadowColor = def.light; ctx.shadowBlur = 8;
-    ctx.fillStyle = def.light;
-    ctx.beginPath(); ctx.arc(cx, cy - 2, 2.5, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    if (b.type === 'tower') {
-      ctx.strokeStyle = def.light; ctx.lineWidth = 1;
-      ctx.strokeRect(cx - 8, cy - 14, 16, 10);
+    // grounding cast shadow toward lower-right
+    const pc = worldPx(b.x + b.w / 2, b.y + b.h / 2, h);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(pc.x + 4, pc.y + 2, (b.w + b.h) * 15, (b.w + b.h) * 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(spr.frames[fi], p00.x - spr.ox * S, p00.y - spr.oy * S, spr.W * S, spr.H * S);
+    // surge-offline flicker for power relays
+    if (b.type === 'power' && b.offlineUntil && s.tick < b.offlineUntil && this.frame % 20 < 10) {
+      ctx.fillStyle = 'rgba(255,77,109,0.85)';
+      ctx.beginPath(); ctx.arc(pc.x, pc.y - 46, 3, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
   }
@@ -454,27 +447,44 @@ export class GameRenderer {
     const h = s.heights[ti] || 0;
     const inWater = s.water[ti] > 0;
     const p = worldPx(c.x, c.y, h);
+    const sheet = getCreatureSheet(c.speciesId);
     const grow = c.juvenile ? 0.5 + 0.5 * (c.growth || 0) : 1;
-    const sc = sp.size * (inWater ? 0.8 : 1) * grow;
-    const bob = Math.sin(this.frame / 12 + c.id) * 1.5;
+    const S = SPRITE_SCALE * grow * (inWater ? 0.85 : 1);
+    const moving = c.path && c.path.length > 0;
+    const frames = moving && sheet.walk ? sheet.walk : sheet.idle;
+    const fi = Math.floor(this.frame / (moving ? 7 : 16) + (c.id % 5)) % frames.length;
+    const dw = sheet.w * S, dh = sheet.h * S;
+    // floaters bob gently; hoverers sit slightly above ground
+    const bob = sheet.bob ? Math.sin(this.frame / 18 + c.id) * 2.5 : 0;
+    const lift = (sheet.hover || 0) * S;
+    const gy = p.y + (inWater ? 3 : 0);
     ctx.save();
-    ctx.translate(p.x, p.y + (inWater ? 4 : 0));
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(0, 2, 12 * sc, 5 * sc, 0, 0, Math.PI * 2); ctx.fill();
+    // per-species contact shadow (soft/detached profiles supported)
+    const sh = sheet.shadow;
+    const shx = p.x + 2, shy = p.y + 1.5; // grounding toward lower-right
+    ctx.fillStyle = `rgba(0,0,0,${sh.alpha * (sh.detached ? 0.8 : 1)})`;
+    ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S, sh.ry * S, 0, 0, Math.PI * 2); ctx.fill();
+    if (sh.soft) {
+      ctx.fillStyle = `rgba(0,0,0,${sh.alpha * 0.4})`;
+      ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S * 1.5, sh.ry * S * 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    }
     if (c.escaped && this.frame % 40 < 24) {
       ctx.strokeStyle = '#FF4D6D'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(0, 2, 16 * sc + 4, 8 * sc + 2, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, dw * 0.6 + 4, dw * 0.3 + 2, 0, 0, Math.PI * 2); ctx.stroke();
     }
+    ctx.translate(p.x, gy + bob - lift);
     ctx.scale(c.dir, 1);
     // camouflage: near-invisible shimmer; thermal optics keeps a readable heat signature
     if (c.cloaked) {
       const thermal = this.state.research?.completed?.includes('sec_thermal');
       ctx.globalAlpha = thermal ? 0.55 : 0.1 + 0.06 * Math.sin(this.frame / 6 + c.id);
-      if (thermal) { ctx.shadowColor = '#FF8A5C'; ctx.shadowBlur = 10; }
+      if (thermal) { ctx.shadowColor = '#FF8A5C'; ctx.shadowBlur = 8; }
+    } else if (sp.colors.glow && this._phase === 'night') {
+      // selective bioluminescence at night (restrained)
+      ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = 7;
     }
-    if (!c.cloaked && sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = this._phase === 'night' ? 18 : 10; }
-    drawBody(ctx, sp, sc, this.frame, c, bob);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(frames[fi], -dw / 2, -dh + 2, dw, dh);
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -484,7 +494,7 @@ export class GameRenderer {
       ctx.strokeStyle = 'rgba(45,226,230,0.9)'; ctx.lineWidth = 1.4;
       for (let a = 0; a < 3; a++) {
         const ang = (this.frame / 3 + a * 2.1 + c.id) % (Math.PI * 2);
-        let ax = p.x, ay = p.y - 10 * sc;
+        let ax = p.x, ay = p.y - dh * 0.5;
         ctx.beginPath(); ctx.moveTo(ax, ay);
         for (let seg = 0; seg < 3; seg++) {
           ax += Math.cos(ang + seg) * (6 + (this.frame + seg * 7) % 5);
@@ -498,11 +508,11 @@ export class GameRenderer {
     // status pip
     if (c.welfare < 0.4) {
       ctx.fillStyle = '#FF4D6D';
-      ctx.beginPath(); ctx.arc(p.x, p.y - 30 * sc - 8, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y - dh - 6, 3, 0, Math.PI * 2); ctx.fill();
     }
     if (this.selection?.kind === 'creature' && this.selection.id === c.id) {
       ctx.strokeStyle = PALETTE.selected; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, 14 * sc + 5, 7 * sc + 3, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, dw * 0.6 + 5, dw * 0.3 + 3, 0, 0, Math.PI * 2); ctx.stroke();
     }
   }
 
@@ -538,24 +548,19 @@ export class GameRenderer {
     const ty = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(u.y)));
     const h = s.heights[idx(tx, ty)] || 0;
     const p = worldPx(u.x, u.y, h);
+    const spr = getStaffSprite('warden');
+    const S = SPRITE_SCALE;
+    const fi = Math.floor(this.frame / 20 + u.id) % spr.frames.length;
     ctx.save();
     // strobe light halo while active
     const pulse = 0.35 + 0.3 * Math.sin(this.frame / 5);
-    ctx.fillStyle = `rgba(255,92,122,${pulse * 0.35})`;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
-    // shadow
+    ctx.fillStyle = `rgba(255,92,122,${pulse * 0.3})`;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 9, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    // contact shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 3.8, 1.8, 0, 0, Math.PI * 2); ctx.fill();
-    // armoured body (rose uniform, amber visor)
-    ctx.fillStyle = '#b23a52';
-    ctx.fillRect(p.x - 2.1, p.y - 10, 4.2, 9);
-    ctx.fillStyle = '#F2C14E';
-    ctx.fillRect(p.x - 2.1, p.y - 7.4, 4.2, 1.4);
-    ctx.beginPath(); ctx.arc(p.x, p.y - 12, 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#2a2f3a'; ctx.fill();
-    // antenna blink
-    ctx.strokeStyle = `rgba(255,92,122,${0.5 + pulse})`; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(p.x + 2, p.y - 13); ctx.lineTo(p.x + 3.5, p.y - 17); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(p.x + 1, p.y + 1, 4.5, 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(spr.frames[fi], p.x - (spr.w * S) / 2, p.y - spr.h * S + 2, spr.w * S, spr.h * S);
     ctx.restore();
   }
 
@@ -742,182 +747,31 @@ export class GameRenderer {
   }
 }
 
-// ---------- procedural creature bodies (shared with UI portraits) ----------
-export function drawBody(ctx, sp, sc, frame, c, bob = 0) {
-  const col = sp.colors.body, acc = sp.colors.accent;
-  const walk = c && c.path && c.path.length ? Math.sin(frame / 4) * 3 : 0;
-  switch (sp.bodyType) {
-    case 'tall': {
-      // long legs, high body, long neck
-      ctx.strokeStyle = shade(col, 0.8); ctx.lineWidth = 2.2 * sc;
-      for (let k = 0; k < 4; k++) {
-        const lx = (k - 1.5) * 5 * sc;
-        ctx.beginPath(); ctx.moveTo(lx, -14 * sc); ctx.lineTo(lx + (k % 2 ? walk : -walk) * 0.4, 0); ctx.stroke();
-      }
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(0, -18 * sc + bob * 0.4, 12 * sc, 6.5 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = col; ctx.lineWidth = 3 * sc;
-      ctx.beginPath(); ctx.moveTo(9 * sc, -20 * sc); ctx.quadraticCurveTo(16 * sc, -30 * sc, 18 * sc, -34 * sc + bob * 0.3); ctx.stroke();
-      ctx.fillStyle = acc;
-      ctx.beginPath(); ctx.ellipse(19 * sc, -35 * sc + bob * 0.3, 4 * sc, 2.6 * sc, 0.4, 0, Math.PI * 2); ctx.fill();
-      // eyes glow points
-      ctx.fillStyle = '#dff';
-      ctx.fillRect(20 * sc, -36 * sc, 1.4, 1.4);
-      break;
-    }
-    case 'quad': {
-      ctx.strokeStyle = shade(col, 0.8); ctx.lineWidth = 2.4 * sc;
-      for (let k = 0; k < 4; k++) {
-        const lx = (k - 1.5) * 6 * sc;
-        ctx.beginPath(); ctx.moveTo(lx, -8 * sc); ctx.lineTo(lx + (k % 2 ? walk : -walk) * 0.5, 0); ctx.stroke();
-      }
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(0, -11 * sc + bob * 0.3, 13 * sc, 7 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      // armour ridge
-      ctx.strokeStyle = acc; ctx.lineWidth = 1.4 * sc;
-      ctx.beginPath(); ctx.moveTo(-9 * sc, -15 * sc); ctx.quadraticCurveTo(0, -19 * sc + bob * 0.3, 9 * sc, -15 * sc); ctx.stroke();
-      // head
-      ctx.fillStyle = shade(col, 1.15);
-      ctx.beginPath(); ctx.ellipse(13 * sc, -13 * sc + bob * 0.3, 5.5 * sc, 4 * sc, 0.2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#dff'; ctx.fillRect(15 * sc, -14 * sc, 1.4, 1.4);
-      // tail
-      ctx.strokeStyle = col; ctx.lineWidth = 2 * sc;
-      ctx.beginPath(); ctx.moveTo(-12 * sc, -11 * sc); ctx.quadraticCurveTo(-18 * sc, -9 * sc, -20 * sc, -5 * sc); ctx.stroke();
-      break;
-    }
-    case 'insect': {
-      ctx.strokeStyle = shade(col, 0.9); ctx.lineWidth = 1.1 * sc;
-      for (let k = 0; k < 6; k++) {
-        const lx = (k - 2.5) * 3.4 * sc;
-        ctx.beginPath(); ctx.moveTo(lx, -4 * sc); ctx.lineTo(lx + (k % 2 ? walk : -walk) * 0.6, 0); ctx.stroke();
-      }
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(-3 * sc, -6 * sc + bob * 0.4, 6 * sc, 4 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = shade(col, 1.2);
-      ctx.beginPath(); ctx.ellipse(4 * sc, -6.5 * sc + bob * 0.4, 3.6 * sc, 2.8 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = acc;
-      ctx.beginPath(); ctx.arc(6.5 * sc, -7 * sc, 1.1 * sc, 0, Math.PI * 2); ctx.fill();
-      break;
-    }
-    case 'winged': {
-      const flap = Math.sin(frame / 8 + (c ? c.id : 0)) * 6;
-      ctx.fillStyle = shade(col, 0.85);
-      ctx.beginPath();
-      ctx.moveTo(0, -14 * sc); ctx.quadraticCurveTo(-14 * sc, -22 * sc - flap, -22 * sc, -12 * sc - flap);
-      ctx.quadraticCurveTo(-12 * sc, -12 * sc, 0, -12 * sc); ctx.closePath(); ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(0, -14 * sc); ctx.quadraticCurveTo(14 * sc, -22 * sc - flap, 22 * sc, -12 * sc - flap);
-      ctx.quadraticCurveTo(12 * sc, -12 * sc, 0, -12 * sc); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(0, -12 * sc + bob * 0.5, 7 * sc, 5 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = acc;
-      ctx.beginPath(); ctx.ellipse(5 * sc, -14 * sc, 2.6 * sc, 2 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = shade(col, 0.7); ctx.lineWidth = 1.6 * sc;
-      ctx.beginPath(); ctx.moveTo(-2 * sc, -7 * sc); ctx.lineTo(-2 * sc, 0); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(2 * sc, -7 * sc); ctx.lineTo(2 * sc, 0); ctx.stroke();
-      break;
-    }
-    case 'blob': {
-      const squish = Math.sin(frame / 20 + (c ? c.id : 0)) * 1.5;
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(0, -9 * sc + bob * 0.3, 13 * sc + squish, 9 * sc - squish * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = shade(col, 1.25);
-      ctx.beginPath(); ctx.ellipse(-3 * sc, -12 * sc, 6 * sc, 4 * sc, -0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = acc;
-      for (let k = 0; k < 3; k++) {
-        ctx.beginPath(); ctx.arc((k - 1) * 6 * sc, -16 * sc + Math.sin(frame / 15 + k) * 1.5, 1.6 * sc, 0, Math.PI * 2); ctx.fill();
-      }
-      break;
-    }
-    case 'float': {
-      const hover = Math.sin(frame / 16 + (c ? c.id : 0)) * 3;
-      ctx.fillStyle = col;
-      ctx.globalAlpha = 0.9;
-      ctx.beginPath(); ctx.ellipse(0, -22 * sc + hover, 9 * sc, 6.5 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = acc;
-      ctx.beginPath(); ctx.ellipse(0, -24 * sc + hover, 4 * sc, 2.6 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = acc; ctx.lineWidth = 1 * sc; ctx.globalAlpha = 0.7;
-      for (let k = -1; k <= 1; k++) {
-        ctx.beginPath(); ctx.moveTo(k * 4 * sc, -17 * sc + hover);
-        ctx.quadraticCurveTo(k * 5 * sc + Math.sin(frame / 10 + k) * 2, -10 * sc + hover, k * 6 * sc, -4 * sc + hover);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      break;
-    }
-    case 'crystal': {
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.moveTo(0, -20 * sc + bob * 0.4); ctx.lineTo(6 * sc, -8 * sc); ctx.lineTo(3 * sc, 0); ctx.lineTo(-3 * sc, 0); ctx.lineTo(-6 * sc, -8 * sc);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = acc;
-      ctx.beginPath(); ctx.moveTo(0, -17 * sc + bob * 0.4); ctx.lineTo(3 * sc, -9 * sc); ctx.lineTo(0, -6 * sc); ctx.lineTo(-3 * sc, -9 * sc); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = shade(col, 1.3);
-      ctx.beginPath(); ctx.moveTo(7 * sc, -12 * sc); ctx.lineTo(10 * sc, -4 * sc); ctx.lineTo(6 * sc, -2 * sc); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(-7 * sc, -12 * sc); ctx.lineTo(-10 * sc, -4 * sc); ctx.lineTo(-6 * sc, -2 * sc); ctx.closePath(); ctx.fill();
-      break;
-    }
-    case 'serpent': {
-      ctx.strokeStyle = col; ctx.lineWidth = 5 * sc;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-14 * sc, -3 * sc);
-      for (let k = 0; k <= 8; k++) {
-        const t = k / 8;
-        ctx.lineTo(-14 * sc + t * 26 * sc, -6 * sc - Math.sin(t * Math.PI * 2 + frame / 8) * 4 * sc);
-      }
-      ctx.stroke();
-      ctx.strokeStyle = acc; ctx.lineWidth = 1.4 * sc;
-      ctx.beginPath();
-      ctx.moveTo(-14 * sc, -3 * sc);
-      for (let k = 0; k <= 8; k++) {
-        const t = k / 8;
-        ctx.lineTo(-14 * sc + t * 26 * sc, -6 * sc - Math.sin(t * Math.PI * 2 + frame / 8) * 4 * sc);
-      }
-      ctx.stroke();
-      ctx.fillStyle = acc;
-      ctx.beginPath(); ctx.arc(13 * sc, -7 * sc, 3 * sc, 0, Math.PI * 2); ctx.fill();
-      break;
-    }
-    case 'amphib': {
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(0, -6 * sc + bob * 0.2, 14 * sc, 5.5 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      // ridged back
-      ctx.strokeStyle = acc; ctx.lineWidth = 1.4 * sc;
-      for (let k = -2; k <= 2; k++) {
-        ctx.beginPath(); ctx.moveTo(k * 4 * sc, -10 * sc); ctx.lineTo(k * 4 * sc + 1.5 * sc, -13 * sc); ctx.stroke();
-      }
-      // head w/ raised eyes
-      ctx.fillStyle = shade(col, 1.15);
-      ctx.beginPath(); ctx.ellipse(12 * sc, -6 * sc, 6 * sc, 3.6 * sc, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = acc;
-      ctx.beginPath(); ctx.arc(14 * sc, -10 * sc, 1.6 * sc, 0, Math.PI * 2); ctx.fill();
-      // tail
-      ctx.strokeStyle = col; ctx.lineWidth = 3.4 * sc;
-      ctx.beginPath(); ctx.moveTo(-13 * sc, -5 * sc); ctx.quadraticCurveTo(-20 * sc, -4 * sc + Math.sin(frame / 10) * 2, -24 * sc, -2 * sc); ctx.stroke();
-      break;
-    }
-    default: {
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(0, -10 * sc, 10 * sc, 7 * sc, 0, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-}
-
+// ---------- Species Database portraits (baked pixel sprites in the archive frame) ----------
 export function renderPortrait(canvas, speciesId) {
   const sp = speciesById(speciesId);
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#0A0F16';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // vignette rings
+  // vignette rings (archive framing preserved)
   ctx.strokeStyle = 'rgba(45,226,230,0.12)';
   ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width * 0.42, 0, Math.PI * 2); ctx.stroke();
+  const sheet = getCreatureSheet(speciesId);
+  if (!sheet) return;
+  const frame = sheet.idle[0];
+  // fit sprite into the frame, integer-ish scale, silhouette-first
+  const box = canvas.width * 0.76;
+  const scale = Math.max(1, Math.min(box / sheet.w, box / sheet.h));
+  const dw = sheet.w * scale, dh = sheet.h * scale;
   ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height * 0.78);
-  const sc = (canvas.width / 64) * 1.15;
-  if (sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = 12; }
-  drawBody(ctx, sp, sc, 20, null, 0);
+  ctx.imageSmoothingEnabled = false;
+  // soft ground contact
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(canvas.width / 2 + 2, canvas.height * 0.86, dw * 0.34, dh * 0.08 + 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = 6; }
+  ctx.drawImage(frame, (canvas.width - dw) / 2, canvas.height * 0.86 - dh, dw, dh);
   ctx.restore();
 }

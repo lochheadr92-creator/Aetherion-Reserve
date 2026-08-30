@@ -47,6 +47,27 @@ function HireCard({ def, cash, onHire }) {
   );
 }
 
+function RosterRow({ st, onFire }) {
+  const def = STAFF_ROLES[st.role];
+  const Icon = ROLE_ICONS[st.role];
+  return (
+    <div data-testid={`staff-row-${st.id}`}
+      className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel-2)]">
+      <Icon size={15} style={{ color: ROLE_COLORS[st.role] }} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] font-medium text-[var(--text-1)]">{st.name}</div>
+        <div className="mono text-[10px] text-[var(--text-3)]">{def.short} · hired cycle {st.hiredDay}</div>
+      </div>
+      <div className="mono text-[10px] text-[var(--text-2)]" data-testid={`staff-activity-${st.id}`}>{activityLabel(st)}</div>
+      <div className="mono text-[10px] text-[var(--text-3)] w-20 text-right">{fmtMoney(def.wage)}/cyc</div>
+      <button data-testid={`staff-fire-button-${st.id}`} onClick={() => onFire(st.id, st.name)}
+        className="nl-tool h-7 w-7 flex items-center justify-center" title="Dismiss">
+        <UserMinus size={13} />
+      </button>
+    </div>
+  );
+}
+
 export default function StaffScreen({ onClose }) {
   useGameTick();
   const s = game.state;
@@ -95,26 +116,7 @@ export default function StaffScreen({ onClose }) {
             </div>
           )}
           <div className="space-y-1.5">
-            {roster.map((st) => {
-              const def = STAFF_ROLES[st.role];
-              const Icon = ROLE_ICONS[st.role];
-              return (
-                <div key={st.id} data-testid={`staff-row-${st.id}`}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel-2)]">
-                  <Icon size={15} style={{ color: ROLE_COLORS[st.role] }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[12px] font-medium text-[var(--text-1)]">{st.name}</div>
-                    <div className="mono text-[10px] text-[var(--text-3)]">{def.short} · hired cycle {st.hiredDay}</div>
-                  </div>
-                  <div className="mono text-[10px] text-[var(--text-2)]" data-testid={`staff-activity-${st.id}`}>{activityLabel(st)}</div>
-                  <div className="mono text-[10px] text-[var(--text-3)] w-20 text-right">{fmtMoney(def.wage)}/cyc</div>
-                  <button data-testid={`staff-fire-button-${st.id}`} onClick={() => doFire(st.id, st.name)}
-                    className="nl-tool h-7 w-7 flex items-center justify-center" title="Dismiss">
-                    <UserMinus size={13} />
-                  </button>
-                </div>
-              );
-            })}
+            {roster.map((st) => <RosterRow key={st.id} st={st} onFire={doFire} />)}
           </div>
         </div>
       </div>

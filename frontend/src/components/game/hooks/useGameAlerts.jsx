@@ -36,16 +36,19 @@ function dangerToast(a, navigateTo) {
   ), { duration: 4500 });
 }
 
+// Routes one simulation alert to the appropriately styled toast (module-level helper).
+function routeAlert(alert, navigateTo) {
+  const opts = { duration: 4500 };
+  if (alert.type === 'breakthrough') breakthroughToast(alert, navigateTo);
+  else if (alert.type === 'danger') dangerToast(alert, navigateTo);
+  else if (alert.type === 'warning') toast.warning(`${alert.title}: ${alert.msg}`, opts);
+  else if (alert.type === 'success') toast.success(`${alert.title}: ${alert.msg}`, opts);
+  else toast.info(`${alert.title}: ${alert.msg}`, opts);
+}
+
 // Routes simulation alerts into styled toasts.
 export function useGameAlerts(navigateTo) {
   useEffect(() => {
-    return on('alert', (a) => {
-      const opts = { duration: 4500 };
-      if (a.type === 'breakthrough') breakthroughToast(a, navigateTo);
-      else if (a.type === 'danger') dangerToast(a, navigateTo);
-      else if (a.type === 'warning') toast.warning(`${a.title}: ${a.msg}`, opts);
-      else if (a.type === 'success') toast.success(`${a.title}: ${a.msg}`, opts);
-      else toast.info(`${a.title}: ${a.msg}`, opts);
-    });
+    return on('alert', (alert) => routeAlert(alert, navigateTo));
   }, [navigateTo]);
 }

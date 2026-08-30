@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { MapPin, Trash2, BookOpen, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { game } from '@/game/controller';
@@ -88,15 +87,16 @@ function BiologySection({ view, knownEntries }) {
   );
 }
 
-export default function CreaturePanel({ id, tick, onNavigate, onOpenSpecies, onClose }) {
+// Biology entries the player has actually confirmed (private "_" keys are UI hints).
+function knownBiologyEntries(view) {
+  return view ? Object.entries(view.known).filter(([key]) => !key.startsWith('_')) : [];
+}
+
+export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }) {
   const s = game.state;
   const c = s.creatures.find((q) => q.id === id);
-  const speciesId = c?.speciesId;
-  const view = useMemo(() => (speciesId ? getSpeciesView(s, speciesId) : null), [s, speciesId, tick]);
-  const knownEntries = useMemo(
-    () => (view ? Object.entries(view.known).filter(([k]) => !k.startsWith('_')) : []),
-    [view],
-  );
+  const view = c ? getSpeciesView(s, c.speciesId) : null;
+  const knownEntries = knownBiologyEntries(view);
   if (!c || !view) return <div className="p-4 text-xs text-[var(--text-3)]">Creature no longer present.</div>;
 
   const sp = speciesById(c.speciesId);

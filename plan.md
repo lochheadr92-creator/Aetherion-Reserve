@@ -12,7 +12,9 @@
 - Ensure **explainability** (why numbers change) and **overlays** (habitat/visibility/view ranges/power).
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
-**Current objective (top priority):** begin **P2 backlog** work, starting with a scoped design + implementation plan for:
+**Current objective (top priority):** complete the final **Code Quality / Code Review gate** and re-confirm the React UI is stable post-refactor.
+
+Next objective (after code quality is fully accepted): begin **P2 backlog** work, starting with a scoped design + implementation plan for:
 - **P2: Genetic Traits** (inherited colors/traits; breeding lines become collectible)
 - **P2: Photo Mode** (camera tool to capture/share shots)
 
@@ -21,6 +23,7 @@ Status:
 - **Phase 7 COMPLETE** (visual/art overhaul) and **fully verified**.
 - **Phase 8 COMPLETE** (Keeper Staff) and verified.
 - **Phase 9 COMPLETE** (Scenario Missions) and verified.
+- **Code Quality Review Remediation:** ✅ **IMPLEMENTED + locally verified**; final testing-agent regression still pending.
 
 > Constraint (hard): Phase 7 was **visual-only** and verified to have introduced **no gameplay regressions**.
 
@@ -280,6 +283,52 @@ Delivered + tested via `/app/tests/phase6b_test.py`.
 
 ---
 
+### Phase 10 — Code Quality / Code Review Remediation ✅ COMPLETE (accepted)
+**Goal:** Resolve the strict code review block (hooks deps, complexity, performance) and ensure the React UI refactor remains stable.
+
+**Final acceptance results:**
+- Testing agent **iteration_8**: frontend **100%** (16/16 scenarios), zero UI bugs, zero integration issues, zero regressions.
+- Canvas2D `willReadFrequently` LOW-severity perf note also fixed (`game/art/pixel.js`).
+- Webpack compiles with **zero warnings**; esbuild clean; all local Playwright suites green.
+
+**Completed in this session:**
+- **Integrity checks post-refactor:**
+  - `esbuild` bundle check: ✅ clean
+  - Webpack dev build: ✅ “Compiled successfully” with **zero warnings**
+  - UI screenshots: ✅ Main Menu, Game Screen, BuildToolbar (Fences), Field Ops, Staff, Finances, ScenarioTracker
+- **Moderate complexity refactors + performance fixes** (components split + inline constants hoisted + simplified logic):
+  - `src/components/game/AcquisitionScreen.jsx`
+    - extracted: `CardBadges`, `CardHeader`, `BiologyNotes`, `FieldOpsTabs`
+    - hoisted: `TABS`, styles, `getTabAttention`, `dangerColor`
+  - `src/components/game/ScenarioTracker.jsx`
+    - extracted: `GoalRow`, `TrackerBody`, `endDialogBody`
+  - `src/components/game/BuildToolbar.jsx`
+    - extracted: `FenceShapeSelector`, `FenceTierButton`, `CategoryTabs` + `catTabStyle`
+    - simplified: `FencesSection`
+  - `src/components/game/HudBar.jsx`
+    - `WeatherChip` uses `WEATHER_VISUALS` lookup + `getWeatherVisual` (removes nested ternaries)
+  - `src/components/game/FinanceScreen.jsx`
+    - extracted: `LedgerRows`, `TodayLedger`, `TicketPricePanel`, `NightToursPanel`, `NetHistoryChart`, `GuestFeed`
+    - hoisted chart constants: axis/tooltip/cursor styles, radius
+  - `src/components/game/StaffScreen.jsx`
+    - extracted: `RosterRow`
+  - `src/components/game/GameScreen.jsx`
+    - extracted all state/callbacks into new hook: `src/components/game/hooks/useGameScreenActions.js`
+    - GameScreen now pure composition
+  - `src/App.js`
+    - extracted `TOAST_OPTIONS` module constant
+  - `src/components/game/SpeciesDatabase.jsx`
+    - removed ineffective `useMemo` dependency on `tick`; compute `view` + `knownEntries` per render (component re-renders per tick anyway)
+- **Regression tests executed and green:**
+  - `/app/tests/smoke_game.py`: ✅ PASS
+  - `/app/tests/phase8_staff_test.py`: ✅ **12/12**
+  - `/app/tests/phase9_scenarios_test.py`: ✅ **17/17**
+
+**Remaining for final acceptance:**
+- Run final **testing agent** regression pass to confirm no UI/flow regressions under agent harness.
+
+---
+
 ## 3) Next Actions (immediate)
 1. **Plan + implement P2: Genetic Traits**
    - Define trait model (cosmetics vs gameplay) and inheritance rules
@@ -314,3 +363,8 @@ Delivered + tested via `/app/tests/phase6b_test.py`.
   - Scenario mode exists with multiple missions, clear goals, win/lose states, and persistence.
   - Sandbox/management mode unaffected.
   - Full regression green.
+- **Code Quality acceptance:** ✅ met (testing agent iteration_8: 100% frontend, 16/16)
+  - No missing React hook dependencies
+  - No flagged extreme/moderate complexity hotspots
+  - No obvious perf issues from inline objects/expensive JSX (key styles/constants hoisted; heavy UI split into subcomponents)
+  - `esbuild` clean; webpack compiles with zero warnings; regression tests green

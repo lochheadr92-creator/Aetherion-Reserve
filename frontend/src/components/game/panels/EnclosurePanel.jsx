@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { game } from '@/game/controller';
 import { computeEnclosures } from '@/game/enclosures';
@@ -96,18 +95,21 @@ function knownPairs(s, speciesIds) {
   return pairs;
 }
 
-export default function EnclosurePanel({ id, tick, onNavigate }) {
+// Derives the resident/composition view model for one enclosure (module-level helper).
+function deriveEnclosureView(s, enc) {
+  if (!enc) return null;
+  const residents = s.creatures.filter((c) => c.enclosureId === enc.id);
+  const bySpecies = {};
+  residents.forEach((c) => { bySpecies[c.speciesId] = (bySpecies[c.speciesId] || []).concat(c); });
+  const mats = Object.entries(enc.matPct).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const pairs = knownPairs(s, Object.keys(bySpecies));
+  return { residents, bySpecies, mats, pairs };
+}
+
+export default function EnclosurePanel({ id, onNavigate }) {
   const s = game.state;
   const enc = computeEnclosures(s).enclosures.find((e) => e.id === id);
-  const derived = useMemo(() => {
-    if (!enc) return null;
-    const residents = s.creatures.filter((c) => c.enclosureId === enc.id);
-    const bySpecies = {};
-    residents.forEach((c) => { bySpecies[c.speciesId] = (bySpecies[c.speciesId] || []).concat(c); });
-    const mats = Object.entries(enc.matPct).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    const pairs = knownPairs(s, Object.keys(bySpecies));
-    return { residents, bySpecies, mats, pairs };
-  }, [s, enc, tick]);
+  const derived = deriveEnclosureView(s, enc);
 
   if (!enc || !derived) return <div className="p-4 text-xs text-[var(--text-3)]">This area is no longer enclosed.</div>;
 

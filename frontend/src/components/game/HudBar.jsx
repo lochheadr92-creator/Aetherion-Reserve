@@ -50,11 +50,24 @@ function TimeControls({ s }) {
 
 const WEATHER_TOOLTIP = 'Weather & time affect the park: storms send guests home, damage exposed barriers and stress unsheltered creatures. At night fewer guests arrive and visibility drops — but bioluminescent species glow.';
 
+const WEATHER_VISUALS = {
+  storm: { Icon: CloudRain, color: 'var(--info)' },
+  night: { Icon: Moon, color: 'var(--accent-violet)' },
+  dusk: { Icon: Sunset, color: 'var(--accent-amber)' },
+  overcast: { Icon: Cloud, color: 'var(--text-3)' },
+  clear: { Icon: Sun, color: 'var(--accent-amber)' },
+};
+
+function getWeatherVisual(phase, wType) {
+  if (wType === 'storm') return WEATHER_VISUALS.storm;
+  if (phase === 'night' || phase === 'dusk') return WEATHER_VISUALS[phase];
+  return WEATHER_VISUALS[wType] || WEATHER_VISUALS.clear;
+}
+
 function WeatherChip({ s }) {
   const { phase } = getDayPhase(s.tick);
   const wType = s.weather?.type || 'clear';
-  const Icon = wType === 'storm' ? CloudRain : phase === 'night' ? Moon : phase === 'dusk' ? Sunset : wType === 'overcast' ? Cloud : Sun;
-  const color = wType === 'storm' ? 'var(--info)' : phase === 'night' ? 'var(--accent-violet)' : phase === 'dusk' ? 'var(--accent-amber)' : wType === 'overcast' ? 'var(--text-3)' : 'var(--accent-amber)';
+  const { Icon, color } = getWeatherVisual(phase, wType);
   const label = `${phase.toUpperCase()}${wType !== 'clear' ? ' · ' + wType.toUpperCase() : ''}`;
   return (
     <div className="flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--line)] bg-[var(--panel-2)] ml-2" data-testid="hud-weather-chip" title={WEATHER_TOOLTIP}>

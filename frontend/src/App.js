@@ -5,6 +5,10 @@ import MainMenu from '@/components/game/MainMenu';
 import GameScreen from '@/components/game/GameScreen';
 import { game } from '@/game/controller';
 
+const TOAST_OPTIONS = {
+  style: { background: 'var(--panel)', border: '1px solid var(--line)', color: 'var(--text-1)' },
+};
+
 function App() {
   const [screen, setScreen] = useState('menu');
 
@@ -33,9 +37,7 @@ function App() {
       <Toaster
         position="bottom-right"
         expand={false}
-        toastOptions={{
-          style: { background: 'var(--panel)', border: '1px solid var(--line)', color: 'var(--text-1)' },
-        }}
+        toastOptions={TOAST_OPTIONS}
       />
     </div>
   );

@@ -127,6 +127,33 @@ function PathsSection({ is, setTool }) {
   );
 }
 
+function FenceShapeSelector({ shape, setShape }) {
+  return (
+    <div className="w-full flex items-center gap-1 pb-0.5">
+      <span className="mono text-[9px] tracking-[0.15em] text-[var(--text-3)] mr-1">DRAW</span>
+      <button data-testid="fence-shape-line" onClick={() => setShape('line')}
+        className="nl-tool h-6 px-3 mono text-[10px] flex items-center justify-center" data-active={shape === 'line' ? 'true' : 'false'}
+        title="Drag draws a straight wall">LINE</button>
+      <button data-testid="fence-shape-rect" onClick={() => setShape('rect')}
+        className="nl-tool h-6 px-3 mono text-[10px] flex items-center justify-center" data-active={shape === 'rect' ? 'true' : 'false'}
+        title="Drag outlines a full 4-wall enclosure in one stroke">RECTANGLE</button>
+    </div>
+  );
+}
+
+function FenceTierButton({ f, s, shape, is, setTool }) {
+  const locked = f.locked && !hasResearch(s, f.locked);
+  return (
+    <ToolButton testId={`fence-tier-${f.tier}`} disabled={locked} active={is('fence', { fenceTier: f.tier })}
+      onClick={() => setTool({ mode: 'fence', fenceTier: f.tier, fenceShape: shape })}
+      title={locked ? `Requires research: ${f.name}` : `${f.name} — ◈${f.cost}/segment · Security T${f.security} · Drag to draw a ${shape === 'rect' ? 'full rectangle' : 'straight wall'}`}>
+      <Fence size={16} style={{ color: f.color }} />
+      <span>{f.name.replace(' Barrier', '').replace(' Containment', '')}</span>
+      <span className="mono text-[var(--text-3)]">{locked ? <Lock size={9} className="inline" /> : `◈${f.cost}`}</span>
+    </ToolButton>
+  );
+}
+
 function FencesSection({ s, is, setTool, activeTool }) {
   const shape = activeTool.fenceShape || 'line';
   const setShape = (sh) => {
@@ -135,27 +162,10 @@ function FencesSection({ s, is, setTool, activeTool }) {
   };
   return (
     <div className="flex flex-wrap gap-1.5">
-      <div className="w-full flex items-center gap-1 pb-0.5">
-        <span className="mono text-[9px] tracking-[0.15em] text-[var(--text-3)] mr-1">DRAW</span>
-        <button data-testid="fence-shape-line" onClick={() => setShape('line')}
-          className="nl-tool h-6 px-3 mono text-[10px] flex items-center justify-center" data-active={shape === 'line' ? 'true' : 'false'}
-          title="Drag draws a straight wall">LINE</button>
-        <button data-testid="fence-shape-rect" onClick={() => setShape('rect')}
-          className="nl-tool h-6 px-3 mono text-[10px] flex items-center justify-center" data-active={shape === 'rect' ? 'true' : 'false'}
-          title="Drag outlines a full 4-wall enclosure in one stroke">RECTANGLE</button>
-      </div>
-      {FENCE_LIST.map((f) => {
-        const locked = f.locked && !hasResearch(s, f.locked);
-        return (
-          <ToolButton key={f.tier} testId={`fence-tier-${f.tier}`} disabled={locked} active={is('fence', { fenceTier: f.tier })}
-            onClick={() => setTool({ mode: 'fence', fenceTier: f.tier, fenceShape: shape })}
-            title={locked ? `Requires research: ${f.name}` : `${f.name} — ◈${f.cost}/segment · Security T${f.security} · Drag to draw a ${shape === 'rect' ? 'full rectangle' : 'straight wall'}`}>
-            <Fence size={16} style={{ color: f.color }} />
-            <span>{f.name.replace(' Barrier', '').replace(' Containment', '')}</span>
-            <span className="mono text-[var(--text-3)]">{locked ? <Lock size={9} className="inline" /> : `◈${f.cost}`}</span>
-          </ToolButton>
-        );
-      })}
+      <FenceShapeSelector shape={shape} setShape={setShape} />
+      {FENCE_LIST.map((f) => (
+        <FenceTierButton key={f.tier} f={f} s={s} shape={shape} is={is} setTool={setTool} />
+      ))}
       <ToolButton testId="tool-gate" active={is('gate')} onClick={() => setTool({ mode: 'gate' })} title={`Toggle access gate on a fence segment — ◈${COSTS.gate}`}>
         <DoorClosed size={16} /><span>Gate</span><span className="mono text-[var(--text-3)]">◈{COSTS.gate}</span>
       </ToolButton>
@@ -226,6 +236,24 @@ function HeaderRow({ is, setTool, brushSize, setBrush, open, setOpen }) {
   );
 }
 
+const catTabStyle = (active) => ({
+  color: active ? 'var(--accent-cyan)' : 'var(--text-3)',
+  borderBottom: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+  background: active ? 'var(--panel-2)' : 'transparent',
+});
+
+function CategoryTabs({ cat, setCat }) {
+  return (
+    <div className="flex border-b border-[var(--line)] bg-[var(--panel-3)]" data-testid="build-toolbar-category-tabs">
+      {CATS.map((c) => (
+        <button key={c.id} data-testid={`cat-${c.id}`} onClick={() => setCat(c.id)}
+          className="flex-1 py-2 text-[11px] font-medium transition-colors"
+          style={catTabStyle(cat === c.id)}>{c.label}</button>
+      ))}
+    </div>
+  );
+}
+
 const SECTIONS = {
   terrain: TerrainSection,
   ground: GroundSection,
@@ -262,17 +290,7 @@ export default function BuildToolbar({ activeTool, setTool }) {
         <HeaderRow is={is} setTool={setTool} brushSize={brushSize} setBrush={setBrush} open={open} setOpen={setOpen} />
         {open && (
           <>
-            <div className="flex border-b border-[var(--line)] bg-[var(--panel-3)]" data-testid="build-toolbar-category-tabs">
-              {CATS.map((c) => (
-                <button key={c.id} data-testid={`cat-${c.id}`} onClick={() => setCat(c.id)}
-                  className="flex-1 py-2 text-[11px] font-medium transition-colors"
-                  style={{
-                    color: cat === c.id ? 'var(--accent-cyan)' : 'var(--text-3)',
-                    borderBottom: cat === c.id ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-                    background: cat === c.id ? 'var(--panel-2)' : 'transparent',
-                  }}>{c.label}</button>
-              ))}
-            </div>
+            <CategoryTabs cat={cat} setCat={setCat} />
             <div className="p-2 max-h-[200px] overflow-y-auto nl-scroll">
               <Section s={s} cat={cat} is={is} setTool={setTool} activeTool={activeTool} />
             </div>

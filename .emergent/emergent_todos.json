@@ -1,26 +1,6 @@
 [
   {
-    "content": "Phase 7 verification: all suites + testing agent iteration_6 green",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 8 Keeper Staff: implemented + 12/12 tests",
-    "status": "completed"
-  },
-  {
-    "content": "Phase 9 Scenario Missions: implemented + 17/17 tests",
-    "status": "completed"
-  },
-  {
-    "content": "Full regression sweep (9 suites) + testing agent iteration_7 green",
-    "status": "completed"
-  },
-  {
-    "content": "Fixed MainMenu save-list overflow bug + hardened flaky phase6b assertions",
-    "status": "completed"
-  },
-  {
-    "content": "Save/load round-trip verified for staff + scenario saves",
+    "content": "Code Quality Refactor phase — all items completed and verified (testing agent iteration_8: 100%)",
     "status": "completed"
   }
 ]

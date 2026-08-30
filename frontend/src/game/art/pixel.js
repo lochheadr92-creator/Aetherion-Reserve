@@ -37,7 +37,7 @@ export class Px {
     this.w = w; this.h = h;
     this.cv = document.createElement('canvas');
     this.cv.width = w; this.cv.height = h;
-    this.ctx = this.cv.getContext('2d');
+    this.ctx = this.cv.getContext('2d', { willReadFrequently: true });
     this.ctx.imageSmoothingEnabled = false;
   }
 

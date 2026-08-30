@@ -1,4 +1,5 @@
 import requests
+import json
 import sys
 from datetime import datetime
 
@@ -33,7 +34,7 @@ class APITester:
                 print(f"✅ Passed - Status: {response.status_code}")
                 try:
                     return success, response.json()
-                except:
+                except (ValueError, json.JSONDecodeError):
                     return success, {}
             else:
                 print(f"❌ Failed - Expected {expected_status}, got {response.status_code}")

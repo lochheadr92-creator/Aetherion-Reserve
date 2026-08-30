@@ -1,4 +1,5 @@
 import { X, Lock, PackageCheck } from 'lucide-react';
+import { useState } from 'react';
 import { game } from '@/game/controller';
 import { useGameTick } from '@/components/game/useGame';
 import { SPECIES_LIST } from '@/game/data/species';
@@ -6,6 +7,8 @@ import { getSpeciesView } from '@/game/knowledge';
 import { hasResearch } from '@/game/state';
 import { fmtMoney } from '@/game/constants';
 import Portrait from '@/components/game/Portrait';
+import ExpeditionsTab from '@/components/game/fieldops/ExpeditionsTab';
+import ContractsTab from '@/components/game/fieldops/ContractsTab';
 
 const tierUnlocked = (s, tier) => tier === 1 || (tier === 2 && hasResearch(s, 'ops_field2')) || (tier === 3 && hasResearch(s, 'ops_field3'));
 
@@ -61,23 +64,55 @@ function AcquireCard({ sp, s, onBuy }) {
   );
 }
 
-export default function AcquisitionScreen({ onClose, onBuy }) {
+export default function AcquisitionScreen({ onClose, onBuy, onClaimSpecimen }) {
   useGameTick();
+  const [tab, setTab] = useState('acquire');
   const s = game.state;
   if (!s) return null;
+
+  const attention = {
+    expeditions: (s.expeditions || []).some((e) => e.status === 'returned' && e.specimens.some((sp) => !sp.placed)),
+    contracts: (s.contracts?.available?.length || 0) > 0 && (s.contracts?.active?.length || 0) < 3,
+  };
+
+  const TABS = [
+    { id: 'acquire', label: 'ACQUIRE' },
+    { id: 'expeditions', label: 'EXPEDITIONS' },
+    { id: 'contracts', label: 'CONTRACTS' },
+  ];
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center" style={{ background: 'rgba(5,7,11,0.8)' }} data-testid="fieldops-modal">
       <div className="nl-panel w-[1100px] max-w-[95vw] h-[80vh] flex flex-col overflow-hidden">
         <div className="nl-panel-header flex items-center justify-between px-4 py-3">
           <div>
-            <div className="mono text-[10px] tracking-[0.25em] text-[var(--accent-cyan)]">FIELD OPERATIONS — ASSET RECOVERY</div>
-            <div className="text-sm text-[var(--text-2)] mt-0.5">Acquire recovered organisms. You will be asked to release them into a fenced enclosure. Funds: <span className="mono">{fmtMoney(s.cash)}</span></div>
+            <div className="mono text-[10px] tracking-[0.25em] text-[var(--accent-cyan)]">FIELD OPERATIONS</div>
+            <div className="text-sm text-[var(--text-2)] mt-0.5">Asset recovery, survey expeditions and Oversight directives. Funds: <span className="mono">{fmtMoney(s.cash)}</span></div>
           </div>
           <button data-testid="fieldops-close-button" onClick={onClose} className="nl-tool w-8 h-8 flex items-center justify-center"><X size={15} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto nl-scroll p-4 grid grid-cols-3 gap-3 content-start">
-          {SPECIES_LIST.map((sp) => <AcquireCard key={sp.id} sp={sp} s={s} onBuy={onBuy} />)}
+        <div className="flex border-b border-[var(--line)] bg-[var(--panel-3)]" data-testid="fieldops-tabs">
+          {TABS.map((t) => (
+            <button key={t.id} data-testid={`fieldops-tab-${t.id}`} onClick={() => setTab(t.id)}
+              className="px-5 py-2.5 mono text-[10px] tracking-[0.2em] font-medium transition-colors relative"
+              style={{
+                color: tab === t.id ? 'var(--accent-cyan)' : 'var(--text-3)',
+                borderBottom: tab === t.id ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+                background: tab === t.id ? 'var(--panel-2)' : 'transparent',
+              }}>
+              {t.label}
+              {attention[t.id] && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-seaglass)' }} />}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto nl-scroll p-4">
+          {tab === 'acquire' && (
+            <div className="grid grid-cols-3 gap-3 content-start">
+              {SPECIES_LIST.map((sp) => <AcquireCard key={sp.id} sp={sp} s={s} onBuy={onBuy} />)}
+            </div>
+          )}
+          {tab === 'expeditions' && <ExpeditionsTab s={s} onClaimSpecimen={onClaimSpecimen} />}
+          {tab === 'contracts' && <ContractsTab s={s} />}
         </div>
       </div>
     </div>

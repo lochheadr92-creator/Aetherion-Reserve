@@ -125,13 +125,40 @@ export function fenceLineEdges(v0, v1) {
   return edges;
 }
 
-export function placeFenceLine(state, v0, v1, tier) {
+// Rectangle perimeter between two lattice corners: all four walls in one action.
+// Degenerate rectangles (zero width or height) fall back to a straight line.
+export function fenceRectEdges(v0, v1) {
+  if (!v0 || !v1) return [];
+  const x0 = Math.max(0, Math.min(MAP_SIZE, Math.min(v0.vx, v1.vx)));
+  const x1 = Math.max(0, Math.min(MAP_SIZE, Math.max(v0.vx, v1.vx)));
+  const y0 = Math.max(1, Math.min(MAP_SIZE - 1, Math.min(v0.vy, v1.vy)));
+  const y1 = Math.max(1, Math.min(MAP_SIZE - 1, Math.max(v0.vy, v1.vy)));
+  if (x1 - x0 === 0 || y1 - y0 === 0) return fenceLineEdges(v0, v1);
+  const edges = [];
+  const cx0 = Math.max(1, x0), cx1 = Math.min(MAP_SIZE - 1, x1);
+  // top + bottom walls (S edges of tile rows y0-1 and y1-1)
+  for (let vx = x0; vx < x1; vx++) {
+    if (vx >= 0 && vx <= MAP_SIZE - 1) {
+      edges.push({ x: vx, y: y0 - 1, d: 'S' });
+      edges.push({ x: vx, y: y1 - 1, d: 'S' });
+    }
+  }
+  // left + right walls (E edges of tile columns cx0-1 and cx1-1)
+  for (let vy = y0; vy < y1; vy++) {
+    if (vy >= 0 && vy <= MAP_SIZE - 1) {
+      edges.push({ x: cx0 - 1, y: vy, d: 'E' });
+      edges.push({ x: cx1 - 1, y: vy, d: 'E' });
+    }
+  }
+  return edges;
+}
+
+function commitFenceEdges(state, edges, tier) {
   const def = FENCES[tier];
   if (!def) return { ok: false, reason: 'Unknown fence tier' };
   if (def.locked && !hasResearch(state, def.locked)) return { ok: false, reason: `Requires research: ${def.name}` };
-  const edges = fenceLineEdges(v0, v1);
   const placeable = edges.filter((e) => canPlaceFenceSegment(state, e.x, e.y, e.d, tier).ok);
-  if (!placeable.length) return { ok: false, reason: 'No placeable segments along that line' };
+  if (!placeable.length) return { ok: false, reason: 'No placeable segments there' };
   const total = def.cost * placeable.length;
   const pay = spend(state, total, 'construction', `${def.name} × ${placeable.length}`);
   if (!pay.ok) return pay;
@@ -145,8 +172,15 @@ export function placeFenceLine(state, v0, v1, tier) {
   return { ok: true, msg: `${def.name} × ${placeable.length} placed (−◈${total})` };
 }
 
-export function removeFenceLine(state, v0, v1) {
-  const edges = fenceLineEdges(v0, v1);
+export function placeFenceLine(state, v0, v1, tier) {
+  return commitFenceEdges(state, fenceLineEdges(v0, v1), tier);
+}
+
+export function placeFenceRect(state, v0, v1, tier) {
+  return commitFenceEdges(state, fenceRectEdges(v0, v1), tier);
+}
+
+function removeFenceEdges(state, edges) {
   let count = 0, refund = 0;
   for (const e of edges) {
     const key = edgeKey(e.x, e.y, e.d);
@@ -156,10 +190,18 @@ export function removeFenceLine(state, v0, v1) {
     delete state.fences[key];
     count++;
   }
-  if (!count) return { ok: false, reason: 'No fence segments along that line' };
+  if (!count) return { ok: false, reason: 'No fence segments there' };
   earn(state, refund, 'grants', `Fence salvage × ${count}`);
   state._encDirty = true;
   return { ok: true, msg: `Removed ${count} segment${count > 1 ? 's' : ''} (+◈${Math.round(refund)} salvage)` };
+}
+
+export function removeFenceLine(state, v0, v1) {
+  return removeFenceEdges(state, fenceLineEdges(v0, v1));
+}
+
+export function removeFenceRect(state, v0, v1) {
+  return removeFenceEdges(state, fenceRectEdges(v0, v1));
 }
 
 export function removeFence(state, x, y, d) {

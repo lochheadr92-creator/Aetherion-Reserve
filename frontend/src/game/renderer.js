@@ -238,6 +238,7 @@ export class GameRenderer {
     for (const b of s.buildings) ents.push({ d: b.x + b.y + Math.max(b.w, b.h) - 1, kind: 'building', b });
     for (const c of s.creatures) ents.push({ d: c.x + c.y, kind: 'creature', c });
     for (const g of s.guests) ents.push({ d: g.x + g.y, kind: 'guest', g });
+    for (const u of (s.security?.units || [])) ents.push({ d: u.x + u.y, kind: 'secunit', u });
     ents.sort((a, b) => a.d - b.d);
     for (const e of ents) {
       if (e.kind === 'veg') this.drawVeg(ctx, e.x, e.y, e.v);
@@ -245,6 +246,7 @@ export class GameRenderer {
       else if (e.kind === 'building') this.drawBuilding(ctx, e.b);
       else if (e.kind === 'creature') this.drawCreature(ctx, e.c);
       else if (e.kind === 'guest') this.drawGuest(ctx, e.g);
+      else if (e.kind === 'secunit') this.drawSecurityUnit(ctx, e.u);
     }
 
     // entrance marker
@@ -490,6 +492,33 @@ export class GameRenderer {
     ctx.fillStyle = colors[g.archetype] || PALETTE.guest;
     ctx.fillRect(p.x - 1.6, p.y - 9, 3.2, 8);
     ctx.beginPath(); ctx.arc(p.x, p.y - 11, 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  drawSecurityUnit(ctx, u) {
+    const s = this.state;
+    const tx = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(u.x)));
+    const ty = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(u.y)));
+    const h = s.heights[idx(tx, ty)] || 0;
+    const p = worldPx(u.x, u.y, h);
+    ctx.save();
+    // strobe light halo while active
+    const pulse = 0.35 + 0.3 * Math.sin(this.frame / 5);
+    ctx.fillStyle = `rgba(255,92,122,${pulse * 0.35})`;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 3.8, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+    // armoured body (rose uniform, amber visor)
+    ctx.fillStyle = '#b23a52';
+    ctx.fillRect(p.x - 2.1, p.y - 10, 4.2, 9);
+    ctx.fillStyle = '#F2C14E';
+    ctx.fillRect(p.x - 2.1, p.y - 7.4, 4.2, 1.4);
+    ctx.beginPath(); ctx.arc(p.x, p.y - 12, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#2a2f3a'; ctx.fill();
+    // antenna blink
+    ctx.strokeStyle = `rgba(255,92,122,${0.5 + pulse})`; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(p.x + 2, p.y - 13); ctx.lineTo(p.x + 3.5, p.y - 17); ctx.stroke();
     ctx.restore();
   }
 

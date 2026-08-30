@@ -11,6 +11,9 @@ import { speciesById, SPECIES_LIST } from './data/species';
 import { spend } from './economy';
 import { weatherTick, isStorm } from './weather';
 import { damageFence } from './construction';
+import { securityTick, tickSecurityUnits } from './security';
+import { expeditionTick } from './expeditions';
+import { contractTick } from './contracts';
 import { rnd } from './state';
 
 export const OBJECTIVES = [
@@ -25,6 +28,7 @@ export const OBJECTIVES = [
   { id: 'discovery', name: 'Learn Something True', desc: 'Confirm one piece of unknown biology through observation.', reward: 2000, check: (s) => s.stats.discoveries >= 1 },
   { id: 'guests20', name: 'Open the Gates', desc: 'Welcome 20 total guests.', reward: 1500, check: (s) => s.stats.guestsTotal >= 20 },
   { id: 'research1', name: 'Scientific Method', desc: 'Complete a research project (requires a Research Laboratory).', reward: 1200, check: (s) => (s.stats.researchCompleted || 0) >= 1 },
+  { id: 'security_post', name: 'Emergency Readiness', desc: 'Build a Rapid Response Post so escaped creatures are recaptured automatically.', reward: 1000, check: (s) => s.buildings.some((b) => b.type === 'security_post') },
   { id: 'two_species', name: 'Shared World', desc: 'House two different species together, both above 60% welfare.', reward: 2500, check: (s) => {
     const byEnc = {};
     for (const c of s.creatures) {
@@ -39,6 +43,9 @@ export const OBJECTIVES = [
 
 export function initObjectives(state) {
   if (!state.objectives.length) state.objectives = OBJECTIVES.map((o) => ({ id: o.id, done: false }));
+  else for (const o of OBJECTIVES) {
+    if (!state.objectives.some((x) => x.id === o.id)) state.objectives.push({ id: o.id, done: false });
+  }
 }
 
 function checkObjectives(state) {
@@ -163,6 +170,14 @@ export function tickOnce(state) {
       damageFence(state, key, 8 + rnd() * 12, 'Storm winds are battering a barrier segment');
     }
   }
+
+  // security response teams
+  tickSecurityUnits(state);
+  if (T % 40 === 0) securityTick(state);
+
+  // expeditions + contracts
+  if (T % 10 === 0) expeditionTick(state);
+  if (T % 60 === 0) contractTick(state);
 
   // research
   if (T % 10 === 0) researchTick(state);

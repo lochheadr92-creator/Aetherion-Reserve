@@ -8,6 +8,7 @@ import ObjectivesPanel from '@/components/game/ObjectivesPanel';
 import OverlayToggles from '@/components/game/OverlayToggles';
 import TutorialOverlay from '@/components/game/TutorialOverlay';
 import GameModals from '@/components/game/GameModals';
+import EmergencyBanner from '@/components/game/EmergencyBanner';
 import { useGameTick } from '@/components/game/useGame';
 import { useGameAlerts } from '@/components/game/hooks/useGameAlerts';
 import { useHotkeys } from '@/components/game/hooks/useHotkeys';
@@ -57,6 +58,12 @@ export default function GameScreen({ onExit }) {
     toast.info('Transfer crate ready — click inside a fenced enclosure to release the creature.', { duration: 5000 });
   }, [setTool, setModal]);
 
+  const claimSpecimen = useCallback((expeditionId, specimen) => {
+    setModal(null);
+    setTool({ mode: 'place_creature', speciesId: specimen.speciesId, free: true, expeditionId, specimenId: specimen.id });
+    toast.info('Recovered specimen ready — click inside a fenced enclosure to release it (no charge).', { duration: 5000 });
+  }, [setTool, setModal]);
+
   const openSpecies = useCallback((sid) => {
     setDbSpecies(sid);
     setModal('db');
@@ -72,6 +79,7 @@ export default function GameScreen({ onExit }) {
       </div>
 
       <HudBar onOpenModal={setModal} onExit={onExit} onNavigate={navigateTo} onHelp={openHelp} />
+      <EmergencyBanner onNavigate={navigateTo} />
       <ObjectivesPanel />
       <OverlayToggles rendererRef={rendererRef} />
       <BuildToolbar activeTool={activeTool} setTool={setTool} />
@@ -85,7 +93,7 @@ export default function GameScreen({ onExit }) {
         />
       )}
 
-      <GameModals modal={modal} dbSpecies={dbSpecies} onClose={closeModal} onBuy={buyCreature} />
+      <GameModals modal={modal} dbSpecies={dbSpecies} onClose={closeModal} onBuy={buyCreature} onClaimSpecimen={claimSpecimen} />
 
       {tutorialOpen && <TutorialOverlay firstTime={tutorialFirstTime} onClose={closeHelp} />}
     </div>

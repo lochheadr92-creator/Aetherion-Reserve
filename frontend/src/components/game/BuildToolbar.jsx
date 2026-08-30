@@ -127,15 +127,29 @@ function PathsSection({ is, setTool }) {
   );
 }
 
-function FencesSection({ s, is, setTool }) {
+function FencesSection({ s, is, setTool, activeTool }) {
+  const shape = activeTool.fenceShape || 'line';
+  const setShape = (sh) => {
+    if (activeTool.mode === 'fence' || activeTool.mode === 'fenceRemove') setTool({ ...activeTool, fenceShape: sh });
+    else setTool({ mode: 'fence', fenceTier: 1, fenceShape: sh });
+  };
   return (
     <div className="flex flex-wrap gap-1.5">
+      <div className="w-full flex items-center gap-1 pb-0.5">
+        <span className="mono text-[9px] tracking-[0.15em] text-[var(--text-3)] mr-1">DRAW</span>
+        <button data-testid="fence-shape-line" onClick={() => setShape('line')}
+          className="nl-tool h-6 px-3 mono text-[10px] flex items-center justify-center" data-active={shape === 'line' ? 'true' : 'false'}
+          title="Drag draws a straight wall">LINE</button>
+        <button data-testid="fence-shape-rect" onClick={() => setShape('rect')}
+          className="nl-tool h-6 px-3 mono text-[10px] flex items-center justify-center" data-active={shape === 'rect' ? 'true' : 'false'}
+          title="Drag outlines a full 4-wall enclosure in one stroke">RECTANGLE</button>
+      </div>
       {FENCE_LIST.map((f) => {
         const locked = f.locked && !hasResearch(s, f.locked);
         return (
           <ToolButton key={f.tier} testId={`fence-tier-${f.tier}`} disabled={locked} active={is('fence', { fenceTier: f.tier })}
-            onClick={() => setTool({ mode: 'fence', fenceTier: f.tier })}
-            title={locked ? `Requires research: ${f.name}` : `${f.name} — ◈${f.cost}/segment · Security T${f.security} · Drag to draw a straight wall`}>
+            onClick={() => setTool({ mode: 'fence', fenceTier: f.tier, fenceShape: shape })}
+            title={locked ? `Requires research: ${f.name}` : `${f.name} — ◈${f.cost}/segment · Security T${f.security} · Drag to draw a ${shape === 'rect' ? 'full rectangle' : 'straight wall'}`}>
             <Fence size={16} style={{ color: f.color }} />
             <span>{f.name.replace(' Barrier', '').replace(' Containment', '')}</span>
             <span className="mono text-[var(--text-3)]">{locked ? <Lock size={9} className="inline" /> : `◈${f.cost}`}</span>
@@ -145,11 +159,11 @@ function FencesSection({ s, is, setTool }) {
       <ToolButton testId="tool-gate" active={is('gate')} onClick={() => setTool({ mode: 'gate' })} title={`Toggle access gate on a fence segment — ◈${COSTS.gate}`}>
         <DoorClosed size={16} /><span>Gate</span><span className="mono text-[var(--text-3)]">◈{COSTS.gate}</span>
       </ToolButton>
-      <ToolButton testId="tool-fence-remove" active={is('fenceRemove')} onClick={() => setTool({ mode: 'fenceRemove' })} title="Remove fence — drag along a wall (50% refund)">
+      <ToolButton testId="tool-fence-remove" active={is('fenceRemove')} onClick={() => setTool({ mode: 'fenceRemove', fenceShape: shape })} title="Remove fence — drag along a wall (50% refund)">
         <Eraser size={16} /><span>Remove</span>
       </ToolButton>
       <div data-testid="fence-drag-hint" className="w-full mono text-[9px] tracking-[0.12em] text-[var(--text-3)] pt-0.5">
-        DRAG TO DRAW A STRAIGHT WALL · CLICK FOR A SINGLE SEGMENT
+        {shape === 'rect' ? 'DRAG TO OUTLINE A FULL ENCLOSURE · CLICK FOR A SINGLE SEGMENT' : 'DRAG TO DRAW A STRAIGHT WALL · CLICK FOR A SINGLE SEGMENT'}
       </div>
     </div>
   );
@@ -260,7 +274,7 @@ export default function BuildToolbar({ activeTool, setTool }) {
               ))}
             </div>
             <div className="p-2 max-h-[200px] overflow-y-auto nl-scroll">
-              <Section s={s} cat={cat} is={is} setTool={setTool} />
+              <Section s={s} cat={cat} is={is} setTool={setTool} activeTool={activeTool} />
             </div>
           </>
         )}

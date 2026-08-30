@@ -16,6 +16,11 @@ export const BUILDINGS = {
     color: '#1d1d28', light: '#F2C14E', desc: 'Provides power within a 14-tile radius. Electrified systems require coverage.',
     powerRadius: 14,
   },
+  security_post: {
+    id: 'security_post', name: 'Rapid Response Post', cat: 'operations', w: 2, h: 2, cost: 3000, upkeep: 45,
+    color: '#241c22', light: '#FF5C7A', desc: 'Houses a rapid-response team that automatically recaptures escaped organisms. One active recovery per post; ◈250 per dispatch.',
+    needsPath: true, security: true,
+  },
   feeder_forage: {
     id: 'feeder_forage', name: 'Forage Dispenser', cat: 'habitat', w: 1, h: 1, cost: 450, upkeep: 12,
     color: '#1e2a1e', light: '#3EE28A', desc: 'Dispenses plant matter for grazers, browsers and scavengers.', station: 'forage', inEnclosure: true,

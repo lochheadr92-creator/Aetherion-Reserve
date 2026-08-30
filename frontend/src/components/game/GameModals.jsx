@@ -4,7 +4,7 @@ import FinanceScreen from '@/components/game/FinanceScreen';
 import AcquisitionScreen from '@/components/game/AcquisitionScreen';
 
 // Single router for the full-screen management modals.
-export default function GameModals({ modal, dbSpecies, onClose, onBuy }) {
+export default function GameModals({ modal, dbSpecies, onClose, onBuy, onClaimSpecimen }) {
   switch (modal) {
     case 'db':
       return <SpeciesDatabase initialSpecies={dbSpecies} onClose={onClose} />;
@@ -13,7 +13,7 @@ export default function GameModals({ modal, dbSpecies, onClose, onBuy }) {
     case 'finances':
       return <FinanceScreen onClose={onClose} />;
     case 'fieldops':
-      return <AcquisitionScreen onClose={onClose} onBuy={onBuy} />;
+      return <AcquisitionScreen onClose={onClose} onBuy={onBuy} onClaimSpecimen={onClaimSpecimen} />;
     default:
       return null;
   }

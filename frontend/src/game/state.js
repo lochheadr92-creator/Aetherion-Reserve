@@ -99,7 +99,10 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     rating: { overall: 0.5, comp: {} },
     entrance: { x: Math.floor(S / 2), y: S - 1 },
     weather: { type: 'clear', ticksLeft: 900 },
-    stats: { guestsTotal: 0, discoveries: 0, breaches: 0, guestSat: 0.7 },
+    stats: { guestsTotal: 0, discoveries: 0, breaches: 0, guestSat: 0.7, captures: 0 },
+    security: { units: [] },
+    expeditions: [],
+    contracts: { available: [], active: [], completed: 0, nextRefreshDay: 0 },
     nextId: 1,
   };
   genTerrain(state);
@@ -141,6 +144,9 @@ export function serialize(state) {
 export function deserialize(data) {
   const state = data;
   if (!state.weather) state.weather = { type: 'clear', ticksLeft: 900 };
+  if (!state.security) state.security = { units: [] };
+  if (!state.expeditions) state.expeditions = [];
+  if (!state.contracts) state.contracts = { available: [], active: [], completed: 0, nextRefreshDay: 0 };
   state._terrainDirty = true;
   state._encDirty = true;
   state._occDirty = true;

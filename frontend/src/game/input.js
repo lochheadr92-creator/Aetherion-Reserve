@@ -1,9 +1,10 @@
 // ---- Input: camera pan/zoom, tool application, selection ----
 import { idx, inMap } from './state';
 import { applyHeightTool, applyPaint, applyWater, applyVeg, applyPath } from './terrain';
-import { placeFence, removeFence, toggleGate, canPlaceBuilding, placeBuilding, demolishBuilding, repairFence, canPlaceFenceSegment, fenceLineEdges, placeFenceLine, removeFenceLine } from './construction';
+import { placeFence, removeFence, toggleGate, canPlaceBuilding, placeBuilding, demolishBuilding, repairFence, canPlaceFenceSegment, fenceLineEdges, fenceRectEdges, placeFenceLine, placeFenceRect, removeFenceLine, removeFenceRect } from './construction';
 import { enclosureAt } from './enclosures';
 import { addCreature } from './creatures';
+import { markSpecimenPlaced } from './expeditions';
 import { speciesById } from './data/species';
 import { spend } from './economy';
 import { walkableForCreature } from './pathfind';
@@ -129,7 +130,8 @@ export class InputController {
     const tier = r.tool.fenceTier || 1;
     const def = FENCES[tier];
     const v1 = r.vertexFromPointer(sx, sy);
-    const edges = fenceLineEdges(this.lineStart, v1);
+    const rect = r.tool.fenceShape === 'rect';
+    const edges = rect ? fenceRectEdges(this.lineStart, v1) : fenceLineEdges(this.lineStart, v1);
     let count = 0;
     const annotated = edges.map((ed) => {
       const ok = mode === 'fence'
@@ -159,8 +161,9 @@ export class InputController {
       else this.report(removeFence(state, ed.x, ed.y, ed.d), true);
       return;
     }
-    if (mode === 'fence') this.report(placeFenceLine(state, v0, v1, r.tool.fenceTier || 1));
-    else this.report(removeFenceLine(state, v0, v1));
+    const rect = r.tool.fenceShape === 'rect';
+    if (mode === 'fence') this.report(rect ? placeFenceRect(state, v0, v1, r.tool.fenceTier || 1) : placeFenceLine(state, v0, v1, r.tool.fenceTier || 1));
+    else this.report(rect ? removeFenceRect(state, v0, v1) : removeFenceLine(state, v0, v1));
   }
 
   report(res, quiet = false) {
@@ -230,9 +233,12 @@ export class InputController {
         const enc = enclosureAt(state, t.x, t.y);
         if (!enc) { this.report({ ok: false, reason: 'Creatures must be released inside a fenced enclosure' }); return; }
         if (!walkableForCreature(state, t.x, t.y, true)) { this.report({ ok: false, reason: 'Blocked tile — choose open ground' }); return; }
-        const pay = spend(state, sp.cost, 'acquisition', `Acquired ${sp.name}`);
-        if (!pay.ok) { this.report(pay); return; }
+        if (!r.tool.free) {
+          const pay = spend(state, sp.cost, 'acquisition', `Acquired ${sp.name}`);
+          if (!pay.ok) { this.report(pay); return; }
+        }
         const c = addCreature(state, speciesId, t.x, t.y);
+        if (r.tool.free && r.tool.expeditionId) markSpecimenPlaced(state, r.tool.expeditionId, r.tool.specimenId);
         this.report({ ok: true, msg: `${c.name} released` });
         if (this.cb.onCreaturePlaced) this.cb.onCreaturePlaced(c);
         return;

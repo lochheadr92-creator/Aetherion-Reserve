@@ -11,7 +11,10 @@
   - Guests + viewing tension + economy + research
 - Ensure **explainability** (why numbers change) and **overlays** (habitat/visibility/view ranges/power).
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
-- **Current objective (top priority):** **hold** for user review with a confirmed green regression baseline; do not start new features until approved.
+
+**Current objective (top priority):** maintain a stable, test-backed baseline and await user direction on next expansion workstream.
+
+Status: **Phase 5 COMPLETE** (feature expansion delivered + fully verified). Regression baseline green.
 
 ## 2) Implementation Steps
 
@@ -87,77 +90,99 @@
 **Goal:** ensure causal correctness, explainability, robustness, and fun first 5–10 minutes.
 
 **Workstream: Post-Refactor Verification & Code Quality Completion** ✅ COMPLETE
-A large React UI refactor (splitting monolithic components such as `GameScreen.jsx`, `InspectPanel.jsx`, `BuildToolbar.jsx` into smaller components/hooks) was applied. This phase verified the refactor did not break runtime behavior and completed remaining Code Quality Report items.
-
-#### Phase 3A — Post-Refactor Verification (UI health check) ✅ COMPLETE
-**Outcome:**
-- Frontend compilation verified (esbuild clean; only non-blocking warnings).
-- Game boots successfully: main route mounts, **Canvas renders**, key panels open/close, tools interact with canvas.
-
-#### Phase 3B — Complete remaining Code Quality Report items (must-fix) ✅ COMPLETE
-**Backend: add Python type hints**
-- File: `/app/backend/server.py`
-- Added return types to all **7** functions:
-  - `root() -> Dict[str, str]`
-  - `list_saves() -> List[Dict[str, Any]]`
-  - `get_save(save_id: str) -> Dict[str, Any]`
-  - `create_save(payload: SaveCreate) -> Dict[str, Any]`
-  - `update_save(save_id: str, payload: SaveCreate) -> Dict[str, Any]`
-  - `delete_save(save_id: str) -> Dict[str, str]`
-  - `shutdown_db_client() -> None`
-
-**Frontend sim bridge: fix direct state mutations**
-- File: `/app/frontend/src/game/controller.js`
-- Removed direct mutations in `setPaused` and `setSpeed`.
-- Added controlled mutator in `/app/frontend/src/game/state.js`:
-  - `setTimeControls(state, { paused, speed })`
-- Controller now calls `setTimeControls(...)` and emits UI refresh.
-
-**React: replace array-index keys with stable unique identifiers**
-- File: `/app/frontend/src/components/game/FinanceScreen.jsx`
-  - Chart bar cells now key by stable day string (`key={d.day}`)
-  - Guest feed uses stable `id` via `state.nextId++` in guests feed items (`key={f.id}`)
-  - Ticket price slider now uses controlled `setTicketPrice(state, value)` mutator from `state.js`
-- File: `/app/frontend/src/components/game/TutorialOverlay.jsx`
-  - `STEPS` now has stable `id` fields and uses `key={st.id}` for step dots
-  - Added `aria-label` to step dot buttons
-
-**Exit criteria:** met. No remaining index-key patterns found under `/app/frontend/src/components/game/`.
-
-#### Phase 3C — Regression test pass (automated + testing agent) ✅ COMPLETE
-**Automated tests:**
-- `/app/tests/visual_v2.py` ✅ pass
-- `/app/tests/scenario_discovery.py` ✅ pass
-- `/app/tests/smoke_game.py` ✅ pass
-
-**Testing agent:**
-- `/app/test_reports/iteration_3.json` ✅ pass
-  - Backend: **100% (10/10)**
-  - Frontend: **100%**
-  - No console errors
-  - No React key warnings
-  - Verified time controls + hotkeys + finance slider + save/load
-
-#### Phase 3D — STOP for user review ⏸️ CURRENT
-Per user instruction: stop after verification/fixes/testing and hand off for review. No P1 features started.
+- Verified the large React UI refactor compiles and boots.
+- Completed code quality report items:
+  - `server.py`: type hints for all 7 functions.
+  - `controller.js`: removed direct mutations for pause/speed; added `setTimeControls`.
+  - Stable keys: Finance chart/day keys; guest feed IDs; Tutorial steps IDs.
+- Regression: `visual_v2.py`, `scenario_discovery.py`, `smoke_game.py`, and testing agent iteration_3 all green.
 
 ---
 
-### Phase 4 — Post-v1 Expansion (after delivery) 💤 BACKLOG (Not Started)
-> NOTE: per user direction, do **not** start until after review.
-- Escapes/emergencies depth: readable failure causes + response units.
-- Expeditions depth: multi-step field ops, timelines, outcomes.
-- Contracts beyond tutorial directives.
-- Weather/incidents, staff entities.
-- Additional overlays (guest heatmaps), accessibility improvements (key rebinding), content packs via data pipeline.
+### Phase 4 — Fence UX Rework ✅ COMPLETE
+**Goal:** eliminate finicky fence building; make construction fast and predictable.
+
+**Delivered:**
+- **Drag-to-line fences** (fence tool): drag draws one clean straight wall; diagonal drags snap to dominant axis.
+- Live preview: valid segments highlighted + cost label (e.g., `8 seg · ◈400`).
+- Click remains precise (single segment); drag-remove supports bulk removal.
+- Tutorial + toolbar hint updated.
+
+**Tests:**
+- Added `/app/tests/fence_drag_test.py` (passes).
+- Full smoke regression still green.
+
+---
+
+### Phase 5 — Feature Expansion: Rectangles + Security + Expeditions ✅ COMPLETE
+**Goal:** deepen construction UX, add escape/emergency drama, and add progression beyond the tutorial.
+
+#### Phase 5A — Rectangle Mode (Fence drag → 4-wall perimeter) ✅ COMPLETE
+**Delivered:**
+- Fence toolbar now includes DRAW toggle: **Line | Rectangle** (`tool.fenceShape`).
+- `construction.js`:
+  - `fenceRectEdges(v0,v1)` perimeter generator.
+  - Shared commit/remove helpers for line/rect placement.
+  - Degenerate rectangles fall back to a straight line.
+- `input.js` fence drag flow now commits either line or rect edges.
+- Live preview + cost label works for rectangles; remove tool supports rectangle drag-removal.
+
+**Testing:**
+- Verified via `/app/tests/phase5_test.py`.
+
+#### Phase 5B — Security Response (Escapes, Emergencies, Security Teams) ✅ COMPLETE
+**Delivered:**
+- New building: **Rapid Response Post** (`security_post`) in Facilities/Operations, needs path.
+- New module: `game/security.js`
+  - Auto-dispatches units to escaped creatures (one active recovery per post).
+  - **◈250 dispatch cost** to `finances.today.expenses.response`.
+  - Capture loop: toTarget → capturing → returning.
+  - Escort back to `homeTile` if possible; otherwise relocate to **largest intact enclosure**.
+  - Cooldown + warning if no containment exists.
+- UI: `EmergencyBanner.jsx` top-center, listing escapees with clickable chips (centers camera).
+- Renderer: `drawSecurityUnit(...)` glyph + existing escape ring remains.
+- Objectives: new `security_post` directive; `initObjectives` merges missing objectives into old saves.
+- Stats: `stats.captures`.
+
+**Testing:**
+- Verified in `/app/tests/phase5_test.py` plus testing agent iteration_4.
+
+#### Phase 5C — Expedition Board + Contracts ✅ COMPLETE
+**Delivered:**
+- Expeditions:
+  - `data/expeditions.js`: 4 zones (Mirefen Delta, Shardpeak Ascent, Umbral Grove, Ember Wastes) with cost/duration/risk/species pools.
+  - `game/expeditions.js`: staged progress **Transit → Survey → Recovery → Return** with event log.
+  - Rewards: salvage cash, specimen recovery, and wild evidence injection.
+  - Claim flow: **CLAIM & RELEASE** arms a free creature placement tool (`tool.free`) and marks specimen placed.
+- Contracts:
+  - `game/contracts.js`: 5 templates (welfare, guests, discovery, rating, tickets-best-in-cycle).
+  - Refresh every 2 cycles; up to 3 active; expiry; payout via grants.
+- Field Ops UI:
+  - Field Ops modal now tabbed: **Acquire | Expeditions | Contracts**, with attention dots.
+
+**Persistence:**
+- `state.deserialize()` now provides defaults for `security`, `expeditions`, and `contracts` so old saves load safely.
+
+**Testing:**
+- `/app/tests/phase5_test.py` (18/18).
+- `smoke_game.py`, `scenario_discovery.py`, `visual_v2.py`, `fence_drag_test.py` all green.
+- Testing agent iteration_4: backend 100%, frontend 100%, integration 100%.
+
+#### Phase 5D — Full regression verification ✅ COMPLETE
+- Automated tests: all green.
+- Testing agent: `/app/test_reports/iteration_4.json` all green.
+
+---
 
 ## 3) Next Actions (immediate)
-1. **STOP — User review**
-   - User to play the game and validate UX/functionality.
-2. If user approves, pick **one** next workstream:
-   - **P1:** Escapes, Emergencies, and Security Teams
-   - **P1:** Expeditions, Contract Board, and Night Tours
-   - Or other priorities user selects.
+**Stop for user review and direction.**
+
+Choose next workstream (not started):
+1. **P1.2** Security deepening: injuries, guest panic routing, lock-down actions, repair crews, security staffing economy.
+2. **P2** Late-game creatures and abilities: anomalous/electrical/camouflage/burrowing, plus counterplay systems.
+3. **P1.3** Night Tours: turn night-time into an explicit monetizable mode.
+4. **P3** Sandbox extras: unlimited toggles, debug overlays, scenario presets.
+5. **P3/P4** Breeding/genetics; campaigns/multiplayer.
 
 ## 4) Success Criteria
 - **Core fantasy works:** player starts ignorant, observes, discovers, adapts habitat, profits.
@@ -165,7 +190,9 @@ Per user instruction: stop after verification/fixes/testing and hand off for rev
 - **Unknown biology enforced:** UI cannot infer undiscovered traits (including from habitat cause text).
 - **No fake systems:** every UI metric corresponds to actual sim causes.
 - **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns + recent-cause reasoning.
-- **Refactor-safe:** frontend compiles; panels/tools work; no runtime console errors.
-- **Code quality compliance:** `server.py` type hints added; controller time controls no longer direct-mutate; React stable keys used; ticket price uses controlled mutator.
-- **Automated verification:** tests + testing agent pass (iteration_3 baseline).
-- **First 10 minutes fun:** build first enclosure, acquire first creature, see a discovery, guests react, money moves—without friction.
+- **Construction UX:**
+  - Fence **Line**: drag builds a straight wall; click places one segment.
+  - Fence **Rectangle**: drag outlines a full 4-wall enclosure perimeter.
+- **Security:** escapes generate clear alerts/banners; response units dispatch; capture loop resolves breaches with costs.
+- **Progression:** expeditions + contracts provide goals and acquisition variety beyond tutorial.
+- **Automated verification:** full suite + testing agent pass (iteration_4 baseline).

@@ -1,26 +1,46 @@
 [
   {
-    "content": "Verify frontend compiles after bulk refactor (esbuild + supervisor logs)",
+    "content": "5A: Rectangle mode — fenceRectEdges + shape toggle + input wiring + preview",
     "status": "completed"
   },
   {
-    "content": "Boot game via screenshot tool, fix any import/prop errors",
+    "content": "5A: Test rectangle placement (extend fence test)",
     "status": "completed"
   },
   {
-    "content": "Add Python type hints to all functions in server.py",
+    "content": "5B: Security Post building + security.js (dispatch/capture loop) + sim hook",
     "status": "completed"
   },
   {
-    "content": "Fix direct state mutations in controller.js (lines 60-61)",
+    "content": "5B: Renderer — security units + escape rings; EmergencyBanner UI",
     "status": "completed"
   },
   {
-    "content": "Replace array-index React keys with stable IDs in FinanceScreen.jsx and TutorialOverlay.jsx",
+    "content": "5B: Security scenario test (escape → dispatch → capture)",
     "status": "completed"
   },
   {
-    "content": "Run full regression test (testing agent, frontend + backend)",
+    "content": "5C: Expeditions data + logic (zones, stages, events, claim flow)",
+    "status": "completed"
+  },
+  {
+    "content": "5C: Contracts logic (templates, accept, progress, payout)",
+    "status": "completed"
+  },
+  {
+    "content": "5C: Field Ops tabs UI (Acquire | Expeditions | Contracts)",
+    "status": "completed"
+  },
+  {
+    "content": "5C: Expedition/contract scenario test",
+    "status": "completed"
+  },
+  {
+    "content": "5D: Visual verification of new UI",
+    "status": "completed"
+  },
+  {
+    "content": "5D: Full regression + testing agent",
     "status": "completed"
   }
 ]

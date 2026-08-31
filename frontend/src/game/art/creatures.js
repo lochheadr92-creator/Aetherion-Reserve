@@ -2,8 +2,9 @@
 import { Px } from './pixel';
 import { CREATURES_A } from './creatures_a';
 import { CREATURES_B } from './creatures_b';
+import { CREATURES_C } from './creatures_c';
 
-export const CREATURE_ART = { ...CREATURES_A, ...CREATURES_B };
+export const CREATURE_ART = { ...CREATURES_A, ...CREATURES_B, ...CREATURES_C };
 
 const cache = new Map();
 

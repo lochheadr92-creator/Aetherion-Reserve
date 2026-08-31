@@ -82,6 +82,10 @@ export const RESEARCH = {
     id: 'ops_field3', cat: 'Field Operations', name: 'Field Operations III', cost: 6000, time: 160, requires: ['ops_field2'],
     desc: 'Deep-zone recovery teams. Unlocks acquisition of Tier 3 and Anomalous species.',
   },
+  ops_field4: {
+    id: 'ops_field4', cat: 'Field Operations', name: 'Field Operations IV', cost: 14000, time: 220, requires: ['ops_field3'],
+    desc: 'Titan-class recovery convoys and heavy transit cradles. Unlocks acquisition of Tier 4 Apex-class species.',
+  },
 };
 
 export const RESEARCH_LIST = Object.values(RESEARCH);

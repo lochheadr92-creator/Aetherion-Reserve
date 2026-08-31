@@ -1,262 +1,323 @@
-// ---- Creature pixel painters A: veyra, skitter, thornback, hollowcrest, mirefin, silttitan, shardling, mosswarden ----
-// All painted FACING RIGHT; renderer flips for direction. Ground = bottom row. Light: upper-left.
-import { tone, mixc } from './pixel';
-
-// legs helper: thin vertical legs with walk offsets
-function legs(P, xs, yTop, yBot, w, color, f, mode) {
-  xs.forEach((x, i) => {
-    const off = mode === 'walk' ? ((i % 2 === f % 2) ? 1 : -1) : 0;
-    P.r(x + (off > 0 ? 1 : 0), yTop, w, yBot - yTop - (off < 0 ? 1 : 0), color);
-    P.r(x + (off > 0 ? 1 : 0), yBot - 1, w, 1, tone(color, -0.3)); // foot
-  });
-}
+// ---- Creature pixel painters A (redesigned production pass) ----
+// veyra, skitter, thornback, hollowcrest, mirefin, silttitan, shardling, mosswarden
+// All painted FACING RIGHT; renderer flips for direction. Ground = bottom row.
+// Light: upper-left key + lower-right AO. 4-frame walk gaits, layered anatomy,
+// material-differentiated surfaces, restrained bioluminescence.
+import { tone, mixc, scales, striate, filaments, rimlight, gait, limb } from './pixel';
 
 export const CREATURES_A = {
-  // 1) VEYRA STRIDER — tall elegant plains walker, elongated sensory neck, four-eye cluster
+  // 1) VEYRA STRIDER — tall elegant plains walker; articulated legs, sensory neck
   veyra: {
-    w: 26, h: 34, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 9, ry: 3.4, alpha: 0.32 },
+    w: 30, h: 38, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 10, ry: 3.6, alpha: 0.32 },
     paint(P, f, mode) {
-      const body = '#4a6a5c', belly = '#5f8371', acc = '#8fd0b0';
-      const br = mode === 'idle' ? (f === 1 ? 0.6 : 0) : 0; // breathing
-      // long legs
-      legs(P, [8, 11, 15, 18], 21, 33, 1, tone(body, -0.25), f, mode);
-      // haunch joints
-      P.p(8, 24, tone(body, -0.1)); P.p(18, 24, tone(body, -0.1));
-      // body
-      P.blob(13, 18 - br * 0.5, 7, 4 + br, body, { tex: 1 });
-      P.blob(12, 20, 5, 2.4, belly, { lite: 0.25 });
-      // shoulder marking
-      P.hl(10, 15, 5, tone(acc, -0.25));
-      // neck (sways with idle frames)
-      const nx = mode === 'idle' ? (f === 2 ? 1 : 0) : 0;
-      for (let i = 0; i < 10; i++) {
-        const x = 18 + Math.round(i * 0.42) + nx, y = 15 - i;
-        P.r(x, y, 2, 1, i % 3 ? body : tone(body, 0.08));
+      const body = '#4a6a5c', belly = '#5f8371', acc = '#8fd0b0', hoof = '#2c4038';
+      const br = mode === 'idle' ? [0, 0.5, 0.8, 0.4][f] : 0;
+      const bob = mode === 'walk' ? (f % 2) : 0;
+      // articulated legs (hip→knee→foot)
+      const hips = [[9, 22], [12, 23], [17, 23], [20, 22]];
+      hips.forEach(([hx, hy], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        limb(P, hx, hy - bob, hx + g.dx, 36 + g.dy, i < 2 ? tone(body, -0.28) : tone(body, -0.2), i < 2 ? -1 : 1);
+        P.p(hx + g.dx, 37 + g.dy, hoof);
+      });
+      // haunch + chest (layered masses)
+      P.blob(11, 19 - bob, 5.4, 4.4 + br * 0.4, tone(body, -0.06), { tex: 1 });
+      P.blob(17, 18.5 - bob, 6, 4.6 + br * 0.5, body, { tex: 1 });
+      // belly gradient
+      P.blob(14, 21 - bob, 6.5, 2.2, belly, { lite: 0.24, dark: 0.1 });
+      // shoulder marking + spine rim
+      P.hl(14, 15 - bob, 6, tone(acc, -0.3));
+      rimlight(P, 15, 17 - bob, 7, 4, tone(body, 0.26));
+      // neck: tapered, mane filaments along the back edge
+      const nx = mode === 'idle' ? (f >= 2 ? 1 : 0) : 0;
+      for (let i = 0; i < 11; i++) {
+        const x = 20 + Math.round(i * 0.5) + nx, y = 15 - i - bob;
+        P.r(x, y, 2, 2, i % 3 ? body : tone(body, 0.08));
+        if (i % 2 === 0) P.p(x - 1, y, tone(acc, -0.45)); // mane wisp
       }
-      // head
-      P.blob(23 + nx, 4, 2.6, 1.9, tone(body, 0.12));
-      P.r(25 + nx, 4, 2, 1, tone(belly, 0.05)); // muzzle
+      // head + muzzle
+      P.blob(27 + nx, 4 - bob, 3, 2.2, tone(body, 0.12));
+      P.r(29 + nx, 4 - bob, 2, 1, tone(belly, 0.08));
+      P.p(30 + nx, 5 - bob, tone(body, -0.25)); // jaw
       // four-eye cluster
-      P.p(23 + nx, 3, '#dffcf4'); P.p(24 + nx, 3, '#bfeee0');
-      P.p(23 + nx, 4, '#bfeee0'); P.p(24 + nx, 4, '#dffcf4');
-      // sensory stalk
-      P.vl(22 + nx, 1, 2, tone(acc, -0.1)); P.p(22 + nx, 0, acc);
-      // tail wisp
-      P.r(5, 16, 2, 1, body); P.p(4, 17, tone(body, -0.15));
+      P.p(26 + nx, 3 - bob, '#dffcf4'); P.p(27 + nx, 3 - bob, '#bfeee0');
+      P.p(26 + nx, 4 - bob, '#bfeee0'); P.p(27 + nx, 4 - bob, '#dffcf4');
+      // sensor stalk with bud
+      P.vl(25 + nx, 1 - bob, 2, tone(acc, -0.1)); P.p(25 + nx, 0 - bob, acc);
+      // tail plume
+      P.r(5, 16 - bob, 3, 1, body); P.r(3, 17 - bob, 2, 1, tone(body, -0.12));
+      P.p(2, 18 - bob, tone(acc, -0.35));
     },
   },
 
-  // 2) SKITTERLING — tiny nervous scuttler, many legs, bright sensory points
+  // 2) SKITTERLING — chitin scuttler; segmented shell bands, articulated legs
   skitter: {
-    w: 12, h: 8, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 5, ry: 1.6, alpha: 0.3 },
+    w: 16, h: 10, idleFrames: 3, walkFrames: 4,
+    shadow: { rx: 6, ry: 1.8, alpha: 0.3 },
     paint(P, f, mode) {
-      const body = '#7a6a4a', acc = '#e0c080';
-      // six legs
-      const lo = mode === 'walk' ? (f % 2 ? 1 : 0) : 0;
-      [2, 4, 6, 8].forEach((x, i) => {
-        P.vl(x + ((i + lo) % 2), 5, 2, tone(body, -0.3));
+      const body = '#7a6a4a', shell = '#8d7c58', acc = '#e0c080';
+      // six legs with gait
+      [3, 5, 7, 9, 11].forEach((x, i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        P.vl(x + g.dx, 7 + g.dy, 2 - g.dy, tone(body, -0.32));
+        P.p(x + g.dx, 9, tone(body, -0.45));
       });
-      P.vl(1, 6, 1, tone(body, -0.3)); P.vl(10, 6, 1, tone(body, -0.3));
-      // abdomen + thorax
-      P.blob(4, 4, 3.4, 2.2, body, { tex: 1 });
-      P.blob(8, 3.6, 2.2, 1.7, tone(body, 0.14));
-      // sensory points
-      P.p(9, 3, acc); P.p(10, 4, tone(acc, 0.2));
-      // antennae (wiggle on idle)
+      // abdomen with chitin bands
+      P.blob(5.5, 5, 4.4, 2.8, body, { tex: 1 });
+      striate(P, 2, 4, 7, 4, shell, 2);
+      rimlight(P, 5, 5, 4, 2.5, tone(shell, 0.3));
+      // thorax + head
+      P.blob(10.5, 4.4, 2.6, 2, tone(shell, 0.1));
+      P.blob(13, 4.6, 1.8, 1.5, tone(shell, 0.16));
+      // mandibles
+      P.p(15, 5, tone(body, -0.2)); P.p(15, 4, tone(acc, -0.3));
+      // sensory points along flank
+      P.p(3, 4, tone(acc, -0.2)); P.p(12, 3, acc); P.p(13, 4, tone(acc, 0.2));
+      // antennae (wiggle)
       const aw = mode === 'idle' ? (f === 1 ? 1 : 0) : (f % 2);
-      P.p(10, 2 - aw, tone(body, -0.15)); P.p(11, 1 - aw, acc);
-      P.p(9, 1, tone(body, -0.15)); P.p(10, 0, tone(acc, -0.15));
+      P.p(13, 2 - aw, tone(body, -0.15)); P.p(14, 1 - aw, acc);
+      P.p(12, 1, tone(body, -0.15)); P.p(13, 0, tone(acc, -0.15));
     },
   },
 
-  // 3) THORNBACK BRAMBLER — low armoured browser fused with vegetation
+  // 3) THORNBACK BRAMBLER — armoured browser fused with living vegetation
   thornback: {
-    w: 22, h: 16, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 9, ry: 2.8, alpha: 0.34 },
+    w: 26, h: 18, idleFrames: 3, walkFrames: 4,
+    shadow: { rx: 10, ry: 3, alpha: 0.34 },
     paint(P, f, mode) {
-      const body = '#5c4a33', moss = '#4c6136', thorn = '#a08a50';
-      legs(P, [5, 8, 13, 16], 11, 15, 2, tone(body, -0.28), f, mode);
-      // heavy body
-      P.blob(11, 8.5, 8, 4.4, body, { tex: 1 });
-      P.blob(10, 11, 6, 2, tone(body, 0.12), { lite: 0.2 });
-      // mossy armour shell
-      P.blob(10, 6, 7, 2.6, moss, { tex: 1 });
-      // thorn/branch spikes (one twitches on idle f2)
-      const tw = mode === 'idle' && f === 2 ? 1 : 0;
-      [[4, 5], [7, 3], [10, 2], [13, 3], [16, 5]].forEach(([x, y], i) => {
-        P.vl(x, y - (i === 2 ? tw : 0), 2, thorn);
-        P.p(x, y - 1 - (i === 2 ? tw : 0), tone(thorn, 0.2));
+      const body = '#5c4a33', moss = '#4c6136', thorn = '#a08a50', beak = '#e8e0c8';
+      // heavy legs
+      [[6, 12], [9, 13], [15, 13], [18, 12]].forEach(([hx, hy], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        limb(P, hx, hy, hx + g.dx, 16 + g.dy, tone(body, -0.28), 0, 2);
       });
-      // browsing head, low
+      // wide low body
+      P.blob(12, 9.5, 9, 4.6, body, { tex: 1 });
+      P.blob(11, 12, 7, 2, tone(body, 0.12), { lite: 0.2 });
+      scales(P, 12, 10, 8, 4, body, 2);
+      // layered mossy shell
+      P.blob(11, 6.4, 8, 2.8, moss, { tex: 1 });
+      P.blob(9, 5, 5, 1.8, tone(moss, 0.12), { tex: 1 });
+      P.dither(5, 4, 13, 4, tone(moss, 0.28), 0.12, 4);
+      // shell rim AO
+      P.hl(4, 8, 15, tone(body, -0.3));
+      // thorn spikes with catch-light (one twitches)
+      const tw = mode === 'idle' && f === 2 ? 1 : 0;
+      [[5, 4], [8, 2], [12, 1], [16, 2], [19, 4]].forEach(([x, y], i) => {
+        P.vl(x, y - (i === 2 ? tw : 0), 3, thorn);
+        P.p(x, y - 1 - (i === 2 ? tw : 0), tone(thorn, 0.3));
+        P.p(x + 1, y + 1, tone(thorn, -0.25));
+      });
+      // browsing head with beak
       const hd = mode === 'idle' && f === 1 ? 1 : 0;
-      P.blob(19, 10 + hd, 2.6, 2, tone(body, 0.1));
-      P.p(20, 9 + hd, '#e8e0c8');
-      P.p(21, 11 + hd, tone(body, -0.2)); // jaw
+      P.blob(22, 11 + hd, 3, 2.4, tone(body, 0.1));
+      P.p(24, 10 + hd, beak); P.p(25, 11 + hd, tone(beak, -0.25));
+      P.p(22, 10 + hd, '#f5efdc'); // eye
+      P.r(23, 13 + hd, 3, 1, tone(body, -0.25)); // jaw
       // tail nub
-      P.r(2, 8, 2, 2, tone(moss, -0.1));
+      P.r(2, 9, 3, 2, tone(moss, -0.1)); P.p(1, 10, tone(moss, -0.25));
     },
   },
 
   // 4) HOLLOWCREST — angular crag dweller with resonant hollow crest
   hollowcrest: {
-    w: 20, h: 22, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 6, ry: 2.4, alpha: 0.3 },
+    w: 24, h: 26, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 7, ry: 2.6, alpha: 0.3 },
     paint(P, f, mode) {
       const body = '#4a5568', acc = '#9ab0d0', cy = '#7ccfd8';
-      // precise climbing legs (splayed stance)
-      const lo = mode === 'walk' ? (f % 2 ? 1 : 0) : 0;
-      P.vl(6 + lo, 15, 6, tone(body, -0.25)); P.p(5 + lo, 21, tone(body, -0.35));
-      P.vl(12 - lo, 15, 6, tone(body, -0.25)); P.p(13 - lo, 21, tone(body, -0.35));
-      P.vl(9, 16, 5, tone(body, -0.3));
-      // narrow angular body
-      P.blob(9, 12.5, 4.6, 3.4, body, { tex: 1 });
-      P.r(6, 10, 7, 1, tone(body, 0.14)); // spine light
-      // neck up to head
-      P.r(11, 8, 2, 4, body);
-      // head + hollow crest (crescent with gap)
-      const scan = mode === 'idle' ? (f === 2 ? 1 : 0) : 0;
-      P.blob(13 + scan, 6, 2.4, 1.8, tone(body, 0.12));
-      P.p(14 + scan, 5, '#e8f2ff');
-      // crest arc
-      P.r(9 + scan, 2, 6, 1, acc);
-      P.r(8 + scan, 3, 2, 1, acc); P.r(14 + scan, 3, 1, 2, acc);
-      P.p(11 + scan, 1, tone(acc, 0.2)); P.p(12 + scan, 1, tone(acc, 0.2));
-      // resonant hollow (dark void with cyan rim)
-      P.p(11 + scan, 3, '#101823'); P.p(12 + scan, 3, '#101823');
-      P.p(10 + scan, 3, cy);
-      // balance tail
-      P.r(3, 11, 3, 1, tone(body, -0.12)); P.p(2, 12, tone(body, -0.2));
-    },
-  },
-
-  // 5) MIREFIN LURKER — low ambush amphibian, broad dorsal fin, wetland glow
-  mirefin: {
-    w: 26, h: 12, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 11, ry: 2.2, alpha: 0.22, soft: true },
-    paint(P, f, mode) {
-      const body = '#2a4a44', acc = '#4ac0a8', deep = '#1d3833';
-      // low slung body
-      P.blob(12, 8, 10, 3.2, body, { tex: 1 });
-      P.blob(12, 9.5, 8, 1.6, deep, { lite: 0.06, dark: 0.1 });
-      // dorsal fin ridge (ripples with idle frames)
-      const fh = mode === 'idle' ? [0, 1, 0][f] : (f % 2);
-      for (let i = 0; i < 5; i++) {
-        const x = 7 + i * 3, hgt = 2 + ((i + fh) % 2);
-        P.vl(x, 5 - hgt, hgt, mixc(body, acc, 0.4));
-        P.p(x, 4 - hgt, tone(acc, -0.05));
-      }
-      // head w/ raised eyes
-      P.blob(20, 7.4, 4, 2.2, tone(body, 0.1));
-      P.p(21, 4, tone(acc, 0.25)); P.p(22, 5, '#eafff8');
-      P.r(23, 8, 3, 1, tone(deep, -0.05)); // jaw line
-      // lateral bioluminescent line
-      for (let i = 0; i < 4; i++) P.p(6 + i * 4, 8, i === f % 4 ? tone(acc, 0.3) : tone(acc, -0.2));
-      // tail
-      const ts = mode === 'walk' ? (f % 2 ? 1 : -1) : 0;
-      P.r(1, 7 + ts, 3, 2, body); P.p(0, 8 + ts, tone(body, -0.2));
-    },
-  },
-
-  // 6) BULWARK SILT TITAN — enormous peaceful wetland giant
-  silttitan: {
-    w: 36, h: 26, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 15, ry: 4.6, alpha: 0.4 },
-    paint(P, f, mode) {
-      const body = '#4a4238', hide = '#5b5244', wet = '#7d8a92';
-      // columnar legs
-      const lo = mode === 'walk' ? (f % 2 ? 1 : 0) : 0;
-      [[7, lo], [13, -lo], [21, -lo], [27, lo]].forEach(([x, o]) => {
-        P.slab(x + (o > 0 ? 1 : 0), 17, 4, 8, tone(body, -0.18), { tex: 1 });
-        P.r(x + (o > 0 ? 1 : 0), 24, 4, 1, tone(body, -0.4));
+      // splayed climbing limbs with claw tips
+      [[7, 16], [12, 17]].forEach(([hx, hy], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        limb(P, hx, hy, hx - 2 + g.dx, 24 + g.dy, tone(body, -0.25), -1);
+        limb(P, hx + 2, hy, hx + 4 + g.dx, 24 + g.dy, tone(body, -0.3), 1);
+        P.p(hx - 2 + g.dx, 25, tone(acc, -0.35)); P.p(hx + 4 + g.dx, 25, tone(acc, -0.4));
       });
-      // massive body (deep breathing)
-      const br = mode === 'idle' ? [0, 0.7, 0.3][f] : 0;
-      P.blob(17, 12 - br * 0.4, 13, 6.4 + br, hide, { tex: 1 });
-      P.blob(16, 15, 10, 2.8, tone(body, -0.05), { lite: 0.1 });
-      // wet-surface highlights along back
-      P.hl(9, 7, 6, tone(wet, 0.05)); P.hl(17, 6, 8, tone(wet, 0.12));
-      P.dither(8, 8, 18, 4, tone(hide, -0.12), 0.1, 3);
-      // low heavy head (slow sway)
-      const hs = mode === 'idle' ? [0, 0, 1][f] : 0;
-      P.blob(30, 13 + hs, 4.4, 3.4, tone(hide, 0.08), { tex: 1 });
-      P.r(33, 15 + hs, 3, 2, tone(body, -0.08)); // muzzle
-      P.p(31, 11 + hs, '#e8e4d8'); // small calm eye
-      // silt tusks
-      P.p(34, 17 + hs, tone(wet, 0.2)); P.p(33, 18 + hs, tone(wet, 0.05));
-      // tail stump
-      P.r(3, 12, 3, 3, tone(body, -0.1));
+      // angular faceted body
+      P.blob(10.5, 13.5, 5, 3.8, body, { tex: 1 });
+      P.r(7, 10.5, 8, 1, tone(body, 0.16)); // spine facet
+      P.r(6, 12, 3, 3, tone(body, 0.06)); // shoulder facet plane
+      P.r(13, 14, 3, 3, tone(body, -0.18)); // shaded flank facet
+      rimlight(P, 10, 13, 5, 3.5, tone(acc, -0.1));
+      // neck + alert head (scans on idle)
+      const scan = mode === 'idle' ? [0, 0, 1, 1][f] : 0;
+      P.r(13, 8, 2, 5, body);
+      P.blob(16 + scan, 6.5, 2.6, 2, tone(body, 0.12));
+      P.p(17 + scan, 5.5, '#e8f2ff'); // bright eye
+      P.p(19 + scan, 7, tone(body, -0.2)); // beak tip
+      // resonant crest: crescent with hollow void + cyan rim
+      P.r(11 + scan, 2, 7, 1, acc);
+      P.r(10 + scan, 3, 2, 2, acc); P.r(17 + scan, 3, 1, 3, acc);
+      P.p(13 + scan, 1, tone(acc, 0.25)); P.p(14 + scan, 1, tone(acc, 0.3));
+      P.r(13 + scan, 3, 3, 1, '#101823'); // hollow void
+      P.p(12 + scan, 3, cy); P.p(16 + scan, 3, tone(cy, -0.25)); // resonant rim
+      // balance tail
+      P.r(4, 12, 3, 1, tone(body, -0.12)); P.r(2, 13, 2, 1, tone(body, -0.2));
+      P.p(1, 14, tone(acc, -0.4));
     },
   },
 
-  // 7) PRISMA SHARDLING — living crystalline lithomorph, refracted internal glow
-  shardling: {
-    w: 14, h: 16, idleFrames: 4, walkFrames: 2,
-    shadow: { rx: 5, ry: 2, alpha: 0.28 },
+  // 5) MIREFIN LURKER — glossy ambush amphibian; membrane dorsal fin
+  mirefin: {
+    w: 30, h: 14, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 12, ry: 2.4, alpha: 0.22, soft: true },
     paint(P, f, mode) {
-      const base = '#5a7a9c', lite = '#a0d8f0', glow = '#8AA4FF';
-      // faceted leg shards
-      const lo = mode === 'walk' ? (f % 2) : 0;
-      P.vl(4 + lo, 12, 4, tone(base, -0.2)); P.vl(9 - lo, 12, 4, tone(base, -0.25));
-      P.p(4 + lo, 15, tone(base, -0.4)); P.p(9 - lo, 15, tone(base, -0.4));
-      // main crystal trunk (angular stack, one shard repositions on idle)
-      const sh = mode === 'idle' && f >= 2 ? 1 : 0;
-      // central prism
-      for (let y = 0; y < 9; y++) {
-        const w2 = y < 4 ? 1 + y : 9 - y + 1;
-        P.r(7 - Math.ceil(w2 / 2), 3 + y, w2 + 1, 1, y % 2 ? base : tone(base, 0.1));
+      const body = '#2a4a44', acc = '#4ac0a8', deep = '#1d3833', wet = '#9adfe8';
+      // low glossy body
+      P.blob(14, 9, 11.5, 3.6, body, { tex: 1 });
+      P.blob(14, 10.8, 9, 1.8, deep, { lite: 0.06, dark: 0.1 });
+      // wet specular streak
+      P.hl(8, 6, 7, tone(wet, -0.45)); P.p(16, 6, tone(wet, -0.3));
+      // dorsal fin: membrane web between ray spines (ripples)
+      const fh = mode === 'idle' ? [0, 1, 1, 0][f] : (f % 2);
+      for (let i = 0; i < 6; i++) {
+        const x = 7 + i * 3, hgt = 3 + ((i + fh) % 2);
+        P.vl(x, 6 - hgt, hgt, mixc(body, acc, 0.5)); // ray spine
+        if (i < 5) { // membrane fill between spines
+          P.r(x + 1, 6 - Math.min(3, hgt) + 1, 2, 2, mixc(body, acc, 0.22));
+        }
+        P.p(x, 5 - hgt, tone(acc, 0.05));
       }
-      // left facet (light side)
-      P.r(4, 6, 2, 4, tone(lite, -0.05));
-      // right facet (dark side)
-      P.r(8, 6, 2, 5, tone(base, -0.22));
-      // satellite shard (repositions)
-      P.r(11 - sh, 5 + sh, 2, 3, mixc(base, lite, 0.4));
-      P.p(11 - sh, 4 + sh, tone(lite, 0.2));
-      // apex tip
-      P.p(7, 2, tone(lite, 0.3)); P.p(7, 1, '#eaf6ff');
-      // internal refracted pulse (frame-cycled)
-      const px = [[6, 7], [7, 9], [8, 6], [6, 10]][f % 4];
-      P.glow(px[0], px[1], glow, 0.35);
-      P.p(7, 6, mixc(base, glow, 0.5));
+      // head: periscope eyes + jaw
+      P.blob(23, 8.2, 4.6, 2.6, tone(body, 0.1));
+      P.vl(24, 4, 2, tone(body, 0.05)); P.p(24, 4, tone(acc, 0.3)); // eye stalk L
+      P.vl(26, 3, 2, tone(body, 0.08)); P.p(26, 3, '#eafff8'); // eye stalk R
+      P.r(26, 9, 4, 1, tone(deep, -0.05)); // jaw seam
+      P.p(29, 10, tone(deep, -0.2));
+      // gill slits
+      P.vl(20, 8, 2, tone(deep, -0.15)); P.vl(22, 8, 2, tone(deep, -0.1));
+      // lateral bioluminescent line (chase cycle)
+      for (let i = 0; i < 5; i++) P.p(7 + i * 4, 9, i === f % 5 ? tone(acc, 0.35) : tone(acc, -0.2));
+      // tail with fin flag
+      const ts = mode === 'walk' ? (f % 2 ? 1 : -1) : 0;
+      P.r(1, 8 + ts, 4, 2, body);
+      P.vl(1, 6 + ts, 2, mixc(body, acc, 0.4)); P.p(0, 9 + ts, tone(body, -0.2));
     },
   },
 
-  // 8) MOSS WARDEN — symbiotic colossus, walking ecosystem
+  // 6) BULWARK SILT TITAN — colossal wetland giant; folded hide, wet sheen
+  silttitan: {
+    w: 42, h: 30, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 17, ry: 5, alpha: 0.4 },
+    paint(P, f, mode) {
+      const body = '#4a4238', hide = '#5b5244', wet = '#7d8a92', mud = '#3a3028';
+      // columnar legs with mud staining
+      [[8, 0], [15, 1], [25, 1], [32, 0]].forEach(([x, ph], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        P.slab(x + g.dx, 20 + g.dy, 5, 9 - g.dy, tone(body, -0.18), { tex: 1 });
+        P.r(x + g.dx, 26, 5, 3, mud); // mud stain
+        P.r(x + g.dx, 28, 5, 1, tone(mud, -0.3));
+        P.p(x + g.dx, 20, tone(body, 0.05)); // hip
+      });
+      // massive layered body with breathing
+      const br = mode === 'idle' ? [0, 0.5, 0.9, 0.5][f] : 0;
+      P.blob(20, 14 - br * 0.4, 15, 7.4 + br, hide, { tex: 1 });
+      P.blob(19, 18, 12, 3, tone(body, -0.05), { lite: 0.1 });
+      // hide fold creases
+      P.hl(10, 13, 8, tone(body, -0.25)); P.hl(14, 16, 10, tone(body, -0.2));
+      P.hl(24, 12, 8, tone(body, -0.22));
+      // wet sheen highlights along back
+      P.hl(10, 8, 7, tone(wet, 0.05)); P.hl(20, 7, 9, tone(wet, 0.14));
+      P.dither(9, 9, 22, 5, tone(hide, -0.12), 0.1, 3);
+      rimlight(P, 19, 13, 14, 6.5, tone(wet, 0.1));
+      // back ridge plates
+      for (let i = 0; i < 5; i++) {
+        P.r(11 + i * 5, 6 - (i % 2), 3, 2, tone(hide, -0.15));
+        P.p(12 + i * 5, 5 - (i % 2), tone(wet, -0.05));
+      }
+      // low heavy head with slow sway
+      const hs = mode === 'idle' ? [0, 0, 1, 1][f] : 0;
+      P.blob(35, 15 + hs, 5, 4, tone(hide, 0.08), { tex: 1 });
+      P.slab(38, 17 + hs, 4, 3, tone(body, -0.08)); // muzzle
+      P.p(36, 13 + hs, '#e8e4d8'); // small calm eye
+      P.p(37, 14 + hs, tone(body, -0.3)); // eye crease
+      // silt tusks (wet gleam)
+      P.vl(40, 19 + hs, 2, tone(wet, 0.2)); P.p(40, 21 + hs, tone(wet, 0.35));
+      P.vl(38, 20 + hs, 2, tone(wet, 0.02));
+      // tail stump
+      P.r(3, 13, 4, 4, tone(body, -0.1)); P.p(2, 15, tone(body, -0.25));
+    },
+  },
+
+  // 7) PRISMA SHARDLING — living crystal; facet planes + refracted core
+  shardling: {
+    w: 18, h: 20, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 6, ry: 2.2, alpha: 0.28 },
+    paint(P, f, mode) {
+      const base = '#5a7a9c', lite = '#a0d8f0', glow = '#8AA4FF', deepc = '#3a5470';
+      // angular leg shards
+      [[6, 0], [10, 1]].forEach(([x, i]) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        P.vl(x + g.dx, 15 + g.dy, 4 - g.dy, tone(base, -0.2));
+        P.p(x + g.dx - 1, 18, tone(deepc, -0.2)); P.p(x + g.dx, 19, tone(base, -0.45));
+      });
+      // central prism (row-built taper) with distinct facet planes
+      for (let y = 0; y < 12; y++) {
+        const w2 = y < 5 ? 2 + y : 13 - y;
+        P.r(9 - Math.ceil(w2 / 2), 3 + y, w2 + 1, 1, y % 2 ? base : tone(base, 0.08));
+      }
+      // lit facet (upper-left plane)
+      for (let y = 0; y < 6; y++) P.r(6, 6 + y, 2, 1, y % 2 ? tone(lite, -0.08) : tone(lite, -0.18));
+      // dark facet (lower-right plane)
+      for (let y = 0; y < 6; y++) P.r(10, 7 + y, 2, 1, tone(deepc, -(0.06 + y * 0.02)));
+      // fracture seam
+      P.vl(9, 5, 8, tone(deepc, 0.06));
+      // apex
+      P.p(9, 2, tone(lite, 0.3)); P.p(9, 1, '#eaf6ff'); P.p(8, 3, tone(lite, 0.12));
+      // twin satellite shards (orbit by frame)
+      const o1 = [[13, 5], [14, 6], [13, 7], [12, 6]][f % 4];
+      const o2 = [[3, 9], [2, 8], [3, 7], [4, 8]][f % 4];
+      P.r(o1[0], o1[1], 2, 3, mixc(base, lite, 0.45)); P.p(o1[0], o1[1] - 1, tone(lite, 0.25));
+      P.r(o2[0], o2[1], 2, 2, mixc(base, deepc, 0.5)); P.p(o2[0], o2[1] - 1, tone(lite, 0.05));
+      // internal refracted pulse
+      const px = [[8, 7], [9, 9], [10, 6], [8, 11]][f % 4];
+      P.glow(px[0], px[1], glow, 0.38);
+      P.p(9, 7, mixc(base, glow, 0.5)); P.p(8, 9, mixc(base, glow, 0.3));
+    },
+  },
+
+  // 8) MOSS WARDEN — walking ecosystem; bark limbs, moss canopy, spore lights
   mosswarden: {
-    w: 34, h: 30, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 14, ry: 4.4, alpha: 0.4 },
+    w: 38, h: 32, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 15, ry: 4.8, alpha: 0.4 },
     paint(P, f, mode) {
       const hide = '#3a5a40', moss = '#5a7a46', glow = '#6EF3C5', bark = '#4b4234';
-      // heavy limbs
-      const lo = mode === 'walk' ? (f % 2 ? 1 : 0) : 0;
-      [[8, lo], [14, -lo], [21, -lo], [26, lo]].forEach(([x, o]) => {
-        P.slab(x + (o > 0 ? 1 : 0), 21, 4, 8, tone(bark, -0.1), { tex: 1 });
+      // bark limbs with root toes
+      [[9, 0], [16, 1], [24, 1], [29, 0]].forEach(([x], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        P.slab(x + g.dx, 23 + g.dy, 5, 8 - g.dy, tone(bark, -0.1), { tex: 1 });
+        P.vl(x + g.dx, 23, 5, tone(bark, 0.12)); // bark ridge
+        P.p(x - 1 + g.dx, 30, tone(bark, -0.3)); P.p(x + 5 + g.dx, 30, tone(bark, -0.35)); // toes
       });
-      // colossal body (growth pulse)
-      const gp = mode === 'idle' ? [0, 0.6, 0.2][f] : 0;
-      P.blob(17, 15 - gp * 0.3, 13, 7.4 + gp, hide, { tex: 1 });
-      // integrated moss canopy layers
-      P.blob(15, 9.5, 10, 3.6, moss, { tex: 1 });
-      P.blob(21, 8, 6, 2.6, tone(moss, 0.1), { tex: 1 });
+      // colossal body with growth pulse
+      const gp = mode === 'idle' ? [0, 0.4, 0.7, 0.4][f] : 0;
+      P.blob(19, 16 - gp * 0.3, 15, 8 + gp, hide, { tex: 1 });
+      // moss canopy layers (integrated ecosystem)
+      P.blob(16, 10, 11, 4, moss, { tex: 1 });
+      P.blob(24, 8.6, 7, 3, tone(moss, 0.1), { tex: 1 });
+      P.blob(11, 8, 5, 2.4, tone(moss, -0.06), { tex: 1 });
+      P.dither(8, 6, 22, 5, tone(moss, 0.3), 0.1, 6);
       // vegetation tufts (sway)
-      const vs = mode === 'idle' ? (f === 1 ? 1 : 0) : 0;
-      [[9, 6], [14, 4], [20, 4], [25, 6]].forEach(([x, y], i) => {
-        P.vl(x + (i % 2 ? vs : 0), y, 3, tone(moss, 0.22));
-        P.p(x + (i % 2 ? vs : 0), y - 1, tone(moss, 0.35));
-      });
-      // rooted shelf plates on flank
-      P.hl(9, 14, 5, bark); P.hl(11, 17, 6, tone(bark, -0.1));
+      const vs = mode === 'idle' ? (f % 2) : 0;
+      filaments(P, 10, 6, 6, tone(moss, 0.2), 3, vs, tone(glow, -0.35));
+      filaments(P, 20, 5, 8, tone(moss, 0.24), 3, vs + 1);
+      // rooted bark shelf plates on flank
+      P.hl(10, 15, 6, bark); P.hl(12, 18, 7, tone(bark, -0.1));
+      P.r(9, 16, 3, 2, tone(bark, 0.06));
+      rimlight(P, 18, 14, 14, 7, tone(moss, 0.3));
       // symbiotic spore lights (pulse cycle)
-      [[11, 12], [17, 16], [23, 12], [26, 15]].forEach(([x, y], i) => {
-        if ((i + f) % 3 !== 0) P.p(x, y, tone(glow, -0.3));
+      [[12, 13], [19, 18], [26, 13], [30, 17], [15, 20]].forEach(([x, y], i) => {
+        if ((i + f) % 3 !== 0) P.p(x, y, tone(glow, -0.32));
         else P.glow(x, y, glow, 0.3);
       });
-      // small luminous eyes on low head ridge
-      const hd = mode === 'idle' && f === 2 ? 1 : 0;
-      P.blob(28, 14 + hd, 3.4, 2.6, tone(hide, 0.08), { tex: 1 });
-      P.p(29, 13 + hd, glow); P.p(31, 14 + hd, tone(glow, -0.15));
+      // low head ridge with luminous eyes
+      const hd = mode === 'idle' && f >= 2 ? 1 : 0;
+      P.blob(32, 16 + hd, 3.8, 3, tone(hide, 0.08), { tex: 1 });
+      P.p(33, 15 + hd, glow); P.p(35, 16 + hd, tone(glow, -0.15));
+      P.r(34, 18 + hd, 3, 1, tone(hide, -0.2)); // mouth seam
+      // dragging root tail
+      P.r(3, 18, 4, 2, tone(bark, -0.05)); P.p(2, 20, tone(bark, -0.25));
+      P.dither(2, 21, 6, 2, tone(moss, -0.2), 0.3, 8);
     },
   },
 };

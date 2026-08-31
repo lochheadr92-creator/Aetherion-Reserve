@@ -7,7 +7,7 @@ import { getSpeciesView, EVIDENCE_THRESHOLD, attrLabel } from '@/game/knowledge'
 import { hasResearch } from '@/game/state';
 import Portrait from '@/components/game/Portrait';
 
-const tierUnlocked = (s, tier) => tier === 1 || (tier === 2 && hasResearch(s, 'ops_field2')) || (tier === 3 && hasResearch(s, 'ops_field3'));
+const tierUnlocked = (s, tier) => tier === 1 || (tier === 2 && hasResearch(s, 'ops_field2')) || (tier === 3 && hasResearch(s, 'ops_field3')) || (tier === 4 && hasResearch(s, 'ops_field4'));
 
 // ---------- roster list (left column) ----------
 
@@ -24,7 +24,7 @@ function SpeciesListRow({ s, species, selected, onSelect }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium truncate" style={{ color: unlocked ? 'var(--text-1)' : 'var(--text-3)' }}>{unlocked ? species.name : 'SIGNAL DETECTED'}</div>
-        <div className="mono text-[9px] text-[var(--text-3)]">{unlocked ? `${species.family} · T${species.tier}` : `Requires Field Operations ${species.tier === 2 ? 'II' : 'III'}`}</div>
+        <div className="mono text-[9px] text-[var(--text-3)]">{unlocked ? `${species.family} · T${species.tier}` : `Requires Field Operations ${species.tier === 2 ? 'II' : species.tier === 3 ? 'III' : 'IV'}`}</div>
       </div>
       {unlocked && (
         <div className="mono text-[9px]" style={{ color: lvl.pct === 1 ? 'var(--success)' : 'var(--text-3)' }}>{(lvl.pct * 100).toFixed(0)}%</div>

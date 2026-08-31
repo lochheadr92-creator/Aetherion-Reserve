@@ -19,7 +19,7 @@ const TABS = [
   { id: 'contracts', label: 'CONTRACTS' },
 ];
 
-const tierUnlocked = (s, tier) => tier === 1 || (tier === 2 && hasResearch(s, 'ops_field2')) || (tier === 3 && hasResearch(s, 'ops_field3'));
+const tierUnlocked = (s, tier) => tier === 1 || (tier === 2 && hasResearch(s, 'ops_field2')) || (tier === 3 && hasResearch(s, 'ops_field3')) || (tier === 4 && hasResearch(s, 'ops_field4'));
 
 const dangerColor = (danger) => {
   if (danger >= 4) return 'var(--danger)';
@@ -58,7 +58,7 @@ function CardHeader({ sp, unlocked, owned }) {
       </div>
       <div className="min-w-0">
         <div className="text-xs font-semibold truncate">{unlocked ? sp.name : 'UNRESOLVED SIGNAL'}</div>
-        <div className="mono text-[9px] text-[var(--text-3)]">{unlocked ? `${sp.family} · ${sp.rarity}` : `Field Operations ${sp.tier === 2 ? 'II' : 'III'} required`}</div>
+        <div className="mono text-[9px] text-[var(--text-3)]">{unlocked ? `${sp.family} · ${sp.rarity}` : `Field Operations ${sp.tier === 2 ? 'II' : sp.tier === 3 ? 'III' : 'IV'} required`}</div>
         {unlocked && <CardBadges sp={sp} owned={owned} />}
       </div>
     </div>

@@ -124,7 +124,7 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     SPECIES_LIST.filter((s) => s.hiddenAttrs.length === 0).forEach((s) => { /* nothing hidden */ });
   }
   if (mode === 'sandbox') {
-    state.research.completed = ['bio_obs1', 'bio_obs2', 'bio_stress', 'env_flora', 'env_hydro', 'cont_reinforced', 'cont_heavy', 'cont_insulated', 'fac_tower', 'fac_gift', 'fac_marketing', 'ops_field2', 'ops_field3'];
+    state.research.completed = ['bio_obs1', 'bio_obs2', 'bio_stress', 'env_flora', 'env_hydro', 'cont_reinforced', 'cont_heavy', 'cont_insulated', 'fac_tower', 'fac_gift', 'fac_marketing', 'ops_field2', 'ops_field3', 'ops_field4'];
   }
   return state;
 }

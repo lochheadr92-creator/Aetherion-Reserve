@@ -1,6 +1,18 @@
 [
   {
-    "content": "Code Quality Refactor phase — all items completed and verified (testing agent iteration_8: 100%)",
+    "content": "Phase 11 final verification (suites + testing agent iteration_9, 100%)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 12: 4 Apex-class species implemented (data, research, expeditions, UI gating, art)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 12 verification (suites green + testing agent iteration_10, 100%)",
+    "status": "completed"
+  },
+  {
+    "content": "plan.md updated — Phases 11 & 12 marked COMPLETED",
     "status": "completed"
   }
 ]

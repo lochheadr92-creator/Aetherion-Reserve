@@ -115,6 +115,78 @@ export class Px {
   canvas() { return this.cv; }
 }
 
+// ---------- creature texture/anatomy helpers ----------
+// overlaid scale arcs within an ellipse region (reptilian hide)
+export function scales(P, cx, cy, rx, ry, base, seed = 0) {
+  for (let ring = 0; ring < 3; ring++) {
+    const rr = 0.35 + ring * 0.28;
+    const n = 3 + ring * 2;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + ring * 0.4 + seed;
+      const x = Math.round(cx + Math.cos(a) * rx * rr);
+      const y = Math.round(cy + Math.sin(a) * ry * rr);
+      P.p(x, y, tone(base, -0.16));
+      P.p(x, y - 1, tone(base, 0.1));
+    }
+  }
+}
+
+// chitin striation bands across a region
+export function striate(P, x, y, w, h, base, gap = 3) {
+  for (let yy = 0; yy < h; yy += gap) {
+    P.hl(x, y + yy, w, tone(base, -0.18));
+    if (yy + 1 < h) P.hl(x, y + yy - 1, w, tone(base, 0.08));
+  }
+}
+
+// fur / filament strokes rising from a baseline
+export function filaments(P, x, y, w, base, hgt, phase = 0, tipColor = null) {
+  for (let i = 0; i < w; i += 2) {
+    const hh = hgt - 1 + ((i / 2 + phase) % 2);
+    P.vl(x + i, y - hh, hh, i % 4 === 0 ? tone(base, 0.14) : base);
+    if (tipColor && (i / 2 + phase) % 3 === 0) P.p(x + i, y - hh - 1, tipColor);
+  }
+}
+
+// rim light along the top-left arc of an ellipse (readability at night)
+export function rimlight(P, cx, cy, rx, ry, color) {
+  for (let k = 0; k < 7; k++) {
+    const a = Math.PI * (0.95 + k * 0.05);
+    const x = Math.round(cx + Math.cos(a) * rx);
+    const y = Math.round(cy + Math.sin(a) * ry);
+    P.p(x, y, color);
+  }
+}
+
+// 4-frame quadruped/multiped gait offsets for leg i
+export function gait(f, i) {
+  const ph = (f + (i % 2) * 2) % 4;
+  return [
+    { dx: 1, dy: 0 },
+    { dx: 0, dy: -1 },
+    { dx: -1, dy: 0 },
+    { dx: 0, dy: 0 },
+  ][ph];
+}
+
+// articulated leg: hip → knee → foot with joint pixel
+export function limb(P, hipX, hipY, footX, footY, color, kneeBias = 0.5, thick = 1) {
+  const kx = Math.round(hipX + (footX - hipX) * 0.5 + kneeBias);
+  const ky = Math.round(hipY + (footY - hipY) * 0.45);
+  const seg = (x0, y0, x1, y1) => {
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (let s = 0; s <= n; s++) {
+      const x = Math.round(x0 + (x1 - x0) * (s / n || 0));
+      const y = Math.round(y0 + (y1 - y0) * (s / n || 0));
+      P.r(x, y, thick, 1, color);
+    }
+  };
+  seg(hipX, hipY, kx, ky);
+  seg(kx, ky, footX, footY);
+  P.p(kx, ky, tone(color, 0.15)); // knee joint
+  P.r(footX, footY, thick + 1, 1, tone(color, -0.3)); // foot
+}
+
 // ---------- iso helpers for buildings ----------
 // tile in art px: half of device (TILE_W 64 -> 32, TILE_H 32 -> 16)
 export const ISO_W = 32, ISO_H = 16;

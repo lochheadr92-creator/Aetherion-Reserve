@@ -324,6 +324,90 @@ S.emberoot = {
   question: 'Do I paint the world it wants, or let it repaint mine?',
 };
 
+// ---- Tier 4: Apex-class assets (Field Operations IV) ----
+
+S.nyxarr = {
+  id: 'nyxarr', name: 'Nyxarr Sovereign', code: 'AR-031 "MONARCH"', family: 'Titan Apex Predator', tier: 4,
+  rarity: 'Apex', cost: 48000, appeal: 130, danger: 5, size: 2.4, bodyType: 'quad',
+  colors: { body: '#3a2640', accent: '#ff5c7a', glow: '#b98ae0' },
+  diet: { type: 'Predator', station: 'meat' },
+  social: { type: 'Solitary', min: 1, ideal: 1, max: 1 },
+  env: {
+    spacePerHead: 80, minArea: 150,
+    terrain: { prefer: [2, 4, 5], avoid: [7], preferMin: 0.3 },
+    forest: { min: 0, max: 0.5 }, water: { drink: true, aquaticMin: 0 },
+    elevation: { min: 0, max: 6 }, shelter: true,
+  },
+  compat: { likes: [], hostile: ['karrgan', 'vantha', 'rhoak'], prey: ['veyra', 'thornback', 'aurox'], preyOf: [] },
+  containment: { tier: 4, estimate: 3 },
+  hiddenAttrs: ['shelter', 'containment', 'social'],
+  traits: ['Apex', 'Night Sovereign', 'Barrier-Breaker'],
+  specials: ['testsFences'],
+  activity: 'nocturnal',
+  lore: 'Recovery logs from Titanfall Reach end mid-sentence. The convoy that finally brought AR-031 in drove through the night with every light off — because it hunts what it can see.',
+  question: 'Can any fence I can afford actually hold the apex of apexes?',
+};
+
+S.zephyrmaw = {
+  id: 'zephyrmaw', name: 'Zephyrmaw Skyrender', code: 'AR-032 "SKYFALL"', family: 'Aerial Apex Predator', tier: 4,
+  rarity: 'Apex', cost: 42000, appeal: 115, danger: 5, size: 1.9, bodyType: 'winged',
+  colors: { body: '#31404f', accent: '#8AA4FF', glow: '#8AA4FF' },
+  diet: { type: 'Predator', station: 'meat' },
+  social: { type: 'Pair Bonded', min: 2, ideal: 2, max: 3 },
+  env: {
+    spacePerHead: 45, minArea: 100,
+    terrain: { prefer: [4, 5], avoid: [7, 6], preferMin: 0.35 },
+    forest: { min: 0, max: 0.2 }, water: { drink: true, aquaticMin: 0 },
+    elevation: { min: 4, max: 8 }, shelter: true,
+  },
+  compat: { likes: [], hostile: ['hollowcrest', 'nyxarr'], prey: ['veyra', 'skitter', 'lumen'], preyOf: [] },
+  containment: { tier: 4, estimate: 3 },
+  hiddenAttrs: ['elevation', 'terrain', 'containment'],
+  traits: ['Apex', 'Dive Hunter', 'Storm-Rider'],
+  lore: 'It rides charge-storm updrafts and folds into a spear to strike. The survey team recorded a dive at terminal velocity — then recorded nothing at all.',
+  question: 'How do I build a mountain indoors — and keep the sky from being an exit?',
+};
+
+S.aurox = {
+  id: 'aurox', name: 'Aurox Titanhorn', code: 'AR-033 "BASTION"', family: 'Titan Grazer', tier: 4,
+  rarity: 'Apex', cost: 30000, appeal: 100, danger: 3, size: 2.6, bodyType: 'quad',
+  colors: { body: '#4f463b', accent: '#f2c14e', glow: '#f2c14e' },
+  diet: { type: 'Grazer', station: 'forage' },
+  social: { type: 'Herd', min: 2, ideal: 4, max: 6 },
+  env: {
+    spacePerHead: 55, minArea: 140,
+    terrain: { prefer: [0, 1], avoid: [4, 9], preferMin: 0.4 },
+    forest: { min: 0, max: 0.35 }, water: { drink: true, aquaticMin: 0.1 },
+    elevation: { min: 0, max: 3 }, shelter: false,
+  },
+  compat: { likes: ['veyra', 'silttitan'], hostile: [], preyOf: ['nyxarr'] },
+  containment: { tier: 3, estimate: 2 },
+  hiddenAttrs: ['social', 'water'],
+  traits: ['Colossal', 'Seismic Charge', 'Placid Unless Provoked'],
+  lore: 'Seismographs registered the herd before the drones found it. It does not fear predators; predators budget for it.',
+  question: 'A fortress on four legs — but what does a fortress need to feel safe?',
+};
+
+S.sylvarr = {
+  id: 'sylvarr', name: 'Sylvarr Crownspire', code: 'AR-034 "CANOPY"', family: 'Canopy Colossus', tier: 4,
+  rarity: 'Apex', cost: 34000, appeal: 110, danger: 2, size: 2.8, bodyType: 'tall',
+  colors: { body: '#3c5548', accent: '#6EF3C5', glow: '#6EF3C5' },
+  diet: { type: 'Browser', station: 'forage' },
+  social: { type: 'Pair Bonded', min: 2, ideal: 2, max: 4 },
+  env: {
+    spacePerHead: 60, minArea: 150,
+    terrain: { prefer: [1, 8, 9], avoid: [3], preferMin: 0.35 },
+    forest: { min: 0.35, max: 0.9 }, water: { drink: true, aquaticMin: 0.05 },
+    elevation: { min: 0, max: 4 }, shelter: false,
+  },
+  compat: { likes: ['mosswarden', 'lumen'], hostile: [], preyOf: [] },
+  containment: { tier: 2, estimate: 2 },
+  hiddenAttrs: ['forest', 'diet'],
+  traits: ['Colossal', 'Gentle Giant', 'Living Beacon'],
+  lore: 'At night its neck-lights pulse in slow sequence, and every organism in the reserve turns to watch. We do not yet know what it is saying.',
+  question: 'The tallest living thing we have recovered — what forest is tall enough for it?',
+};
+
 export const SPECIES = S;
 export const SPECIES_LIST = Object.values(S);
 export const speciesById = (id) => S[id];

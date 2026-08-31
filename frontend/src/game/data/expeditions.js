@@ -34,6 +34,14 @@ export const EXPEDITION_ZONES = {
     speciesPool: ['emberoot', 'rhoak', 'voltari'],
     doubleFindChance: 0.25, artifactChance: 0.7, artifact: [1500, 3400],
   },
+  titanfall: {
+    id: 'titanfall', name: 'Titanfall Reach', code: 'ZONE T-1',
+    desc: 'A canyon system where the ground itself trembles. Titan-class biosignatures confirmed. Convoy-grade recovery only.',
+    cost: 16000, duration: 2600, risk: 3,
+    color: '#f2c14e',
+    speciesPool: ['aurox', 'sylvarr', 'zephyrmaw', 'nyxarr'],
+    doubleFindChance: 0.2, artifactChance: 0.75, artifact: [2500, 5000],
+  },
 };
 
 export const ZONE_LIST = Object.values(EXPEDITION_ZONES);

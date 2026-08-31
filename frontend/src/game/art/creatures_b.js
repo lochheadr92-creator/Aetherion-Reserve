@@ -1,240 +1,286 @@
-// ---- Creature pixel painters B: rhoak, vantha, karrgan, lumen, umbra, voltari, emberoot ----
-// All painted FACING RIGHT; renderer flips for direction. Ground = bottom row. Light: upper-left.
-import { tone, mixc } from './pixel';
-
-function legs(P, xs, yTop, yBot, w, color, f, mode) {
-  xs.forEach((x, i) => {
-    const off = mode === 'walk' ? ((i % 2 === f % 2) ? 1 : -1) : 0;
-    P.r(x + (off > 0 ? 1 : 0), yTop, w, yBot - yTop - (off < 0 ? 1 : 0), color);
-    P.r(x + (off > 0 ? 1 : 0), yBot - 1, w, 1, tone(color, -0.3));
-  });
-}
+// ---- Creature pixel painters B (redesigned production pass) ----
+// rhoak, vantha, karrgan, lumen, umbra, voltari, emberoot
+// All painted FACING RIGHT; renderer flips for direction. Ground = bottom row.
+// Light: upper-left key + lower-right AO. 4-frame gaits, layered anatomy.
+import { tone, mixc, scales, striate, filaments, rimlight, gait, limb } from './pixel';
 
 export const CREATURES_B = {
-  // 9) ASHMANE RHOAK — fast territorial strider with ash-plume mane
+  // 9) ASHMANE RHOAK — fast territorial strider; ash-filament mane, ember tips
   rhoak: {
-    w: 24, h: 20, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 9, ry: 3, alpha: 0.33 },
+    w: 28, h: 22, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 10, ry: 3.2, alpha: 0.33 },
     paint(P, f, mode) {
-      const body = '#5c3a33', mane = '#332e2c', ember = '#e08a5a';
-      legs(P, [7, 10, 15, 18], 13, 19, 2, tone(body, -0.25), f, mode);
-      // lean fast body
-      P.blob(12, 10, 8, 3.8, body, { tex: 1 });
-      P.blob(11, 12, 6, 1.8, tone(body, 0.1), { lite: 0.2 });
-      // ash mane along neck + back (filament rows)
-      const mv = mode === 'idle' ? [0, 1, 0][f] : (f % 2);
-      for (let i = 0; i < 6; i++) {
-        const x = 8 + i * 2, h = 2 + ((i + mv) % 2);
-        P.vl(x, 7 - h, h, mane);
-        // ember tips flicker
-        if ((i + f) % 3 === 0) P.p(x, 6 - h, ember);
-        else P.p(x, 6 - h, tone(mane, 0.2));
-      }
-      // neck + territorial head (motion on idle f2)
-      const hm = mode === 'idle' && f === 2 ? 1 : 0;
-      P.r(17, 6, 2, 4, body);
-      P.blob(20 + hm, 5, 3, 2.2, tone(body, 0.1));
-      P.p(23 + hm, 5, tone(body, -0.15)); // snout
-      P.p(21 + hm, 4, '#ffd9b0'); // eye
-      // brow crest
-      P.hl(19 + hm, 2, 3, mane); P.p(20 + hm, 1, ember);
-      // tail plume
-      P.r(3, 8, 3, 1, mane); P.p(2, 7, tone(mane, 0.15)); P.p(1, 8, ember);
+      const body = '#5c3a33', mane = '#332e2c', ember = '#e08a5a', claw = '#241a18';
+      const bob = mode === 'walk' ? (f % 2) : 0;
+      // long runner legs
+      [[9, 14], [12, 15], [17, 15], [20, 14]].forEach(([hx, hy], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        limb(P, hx, hy - bob, hx + g.dx * 2, 20 + g.dy, tone(body, -0.26), i < 2 ? -1 : 1);
+        P.p(hx + g.dx * 2, 21 + g.dy, claw);
+      });
+      // lean muscular body
+      P.blob(14, 11 - bob, 9, 4, body, { tex: 1 });
+      P.blob(13, 13 - bob, 6.5, 2, tone(body, 0.1), { lite: 0.2 });
+      P.blob(18.5, 10 - bob, 4.4, 3.4, tone(body, 0.04)); // chest mass
+      scales(P, 13, 11 - bob, 8, 3.6, body, 5);
+      rimlight(P, 14, 10 - bob, 8.5, 3.6, tone(body, 0.28));
+      // ash mane: filament crest along neck + back, ember tips flicker
+      const mv = mode === 'idle' ? [0, 1, 0, 1][f] : (f % 2);
+      filaments(P, 9, 7 - bob, 12, mane, 3, mv, ember);
+      P.hl(9, 7 - bob, 12, tone(mane, -0.2)); // mane root shadow
+      // neck + fierce head
+      const hm = mode === 'idle' && f >= 2 ? 1 : 0;
+      P.r(20, 6 - bob, 3, 5, body);
+      P.blob(24 + hm, 5 - bob, 3.4, 2.4, tone(body, 0.1));
+      P.r(27 + hm, 5 - bob, 2, 1, tone(body, -0.12)); // snout
+      P.p(28 + hm, 6 - bob, tone(claw, 0.2)); // nostril
+      P.p(25 + hm, 4 - bob, '#ffd9b0'); P.p(26 + hm, 4 - bob, tone('#ffd9b0', -0.35)); // eye + glint
+      // brow crest with ember bud
+      P.hl(23 + hm, 2 - bob, 4, mane); P.p(24 + hm, 1 - bob, ember);
+      // whip tail with plume
+      P.r(4, 9 - bob, 4, 1, mane); P.r(2, 8 - bob, 3, 1, tone(mane, 0.12));
+      P.p(1, 8 - bob, ember); P.p(2, 10 - bob, tone(mane, -0.15));
     },
   },
 
-  // 10) VANTHA DUSKRUNNER — coordinated low-light pack hunter, sensory band
+  // 10) VANTHA DUSKRUNNER — low-light pack hunter; sensor band, twin tail filaments
   vantha: {
-    w: 20, h: 14, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 8, ry: 2.4, alpha: 0.3 },
+    w: 24, h: 16, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 9, ry: 2.6, alpha: 0.3 },
     paint(P, f, mode) {
-      const body = '#3a3a4a', dark = '#2b2b3a', acc = '#8a6adf', cy = '#63d8e8';
-      // four running limbs + rear balancing appendage
-      legs(P, [5, 8, 12, 15], 9, 13, 1, tone(dark, -0.1), f, mode);
-      // streamlined body (tension crouch on idle f1)
+      const body = '#3a3a4a', dark = '#2b2b3a', acc = '#8a6adf', cyb = '#63d8e8';
+      // slim fast limbs
+      [[6, 10], [9, 11], [14, 11], [17, 10]].forEach(([hx, hy], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        limb(P, hx, hy, hx + g.dx * 2, 14 + g.dy, tone(dark, -0.12), i < 2 ? -1 : 1);
+      });
+      // streamlined body (tension crouch on idle)
       const cr = mode === 'idle' && f === 1 ? 1 : 0;
-      P.blob(10, 6.5 + cr * 0.5, 7.4, 2.8, body, { tex: 1 });
-      P.blob(9, 8, 5, 1.4, dark, { lite: 0.08 });
-      // dorsal streak
-      P.hl(5, 4 + cr, 9, tone(acc, -0.35));
-      // wedge head with sensory band (no conventional eyes)
-      const hs = mode === 'idle' && f === 2 ? 1 : 0;
-      P.blob(16 + hs, 5.4, 2.8, 2, tone(body, 0.1));
-      P.r(15 + hs, 5, 4, 1, cy); // sensor band
-      P.p(18 + hs, 5, tone(cy, 0.35));
-      // twin balancing tail filaments
+      P.blob(12, 7.5 + cr * 0.5, 8.4, 3, body, { tex: 1 });
+      P.blob(11, 9, 5.5, 1.4, dark, { lite: 0.08 });
+      P.blob(16, 7 + cr * 0.4, 3.6, 2.4, tone(body, 0.06)); // shoulder mass
+      // dorsal streak + rim
+      P.hl(6, 5 + cr, 10, tone(acc, -0.35));
+      rimlight(P, 12, 7 + cr * 0.5, 8, 2.8, tone(body, 0.3));
+      // wedge head with sensor band (no conventional eyes)
+      const hs = mode === 'idle' && f >= 2 ? 1 : 0;
+      P.blob(19 + hs, 6.2, 3.2, 2.2, tone(body, 0.1));
+      P.r(18 + hs, 5.6, 5, 1, cyb); // sensor band
+      P.p(22 + hs, 5.6, tone(cyb, 0.35)); // band hotspot
+      P.p(21 + hs, 7.5, tone(dark, -0.2)); // jaw seam
+      // twin balancing tail filaments (animated)
       const ts = mode === 'walk' ? (f % 2) : (f === 1 ? 1 : 0);
-      P.r(1, 5 + ts, 4, 1, dark); P.p(0, 4 + ts, acc);
-      P.r(2, 7 - ts, 3, 1, tone(dark, -0.1));
+      P.r(1, 5 + ts, 5, 1, dark); P.p(0, 4 + ts, acc);
+      P.r(2, 8 - ts, 4, 1, tone(dark, -0.1)); P.p(1, 8 - ts, tone(acc, -0.3));
     },
   },
 
-  // 11) KARRGAN MAW — apex predator: massive four-eyed jaw engine
+  // 11) KARRGAN MAW — apex predator; jaw engine, armour plates, four eyes
   karrgan: {
-    w: 32, h: 24, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 13, ry: 4.2, alpha: 0.42 },
+    w: 36, h: 26, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 14, ry: 4.4, alpha: 0.42 },
     paint(P, f, mode) {
       const body = '#4a3038', plate = '#2e2228', acc = '#e05a6a', amber = '#f2c14e';
-      // thick powerful legs
-      const lo = mode === 'walk' ? (f % 2 ? 1 : 0) : 0;
-      [[7, lo], [12, -lo], [19, -lo], [24, lo]].forEach(([x, o]) => {
-        P.slab(x + (o > 0 ? 1 : 0), 16, 3, 7, tone(body, -0.2), { tex: 1 });
-        P.r(x + (o > 0 ? 1 : 0), 22, 3, 1, tone(plate, -0.2));
-        P.p(x + (o > 0 ? 1 : 0), 21, tone(acc, -0.35)); // claw hint
+      // thick powerful legs with claws
+      [[9, 16], [14, 17], [21, 17], [26, 16]].forEach(([hx, hy], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        limb(P, hx, hy, hx + g.dx, 24 + g.dy, tone(body, -0.22), i < 2 ? -1 : 1, 2);
+        P.p(hx + g.dx, 25 + g.dy, tone(acc, -0.4)); P.p(hx + g.dx + 2, 25 + g.dy, tone(acc, -0.5));
       });
       // heavy body (slow breath)
-      const br = mode === 'idle' ? [0, 0.6, 0.2][f] : 0;
-      P.blob(15, 12 - br * 0.4, 11, 5.4 + br, body, { tex: 1 });
-      // dorsal armour plates
-      for (let i = 0; i < 5; i++) {
-        P.r(8 + i * 3, 6 - (i % 2), 3, 2, plate);
-        P.p(9 + i * 3, 5 - (i % 2), tone(plate, 0.22));
+      const br = mode === 'idle' ? [0, 0.4, 0.7, 0.4][f] : 0;
+      P.blob(17, 13 - br * 0.4, 12, 5.8 + br, body, { tex: 1 });
+      P.blob(16, 16, 9, 2.4, tone(body, -0.08), { lite: 0.08 });
+      scales(P, 16, 13, 11, 5, body, 3);
+      // interlocking dorsal armour plates
+      for (let i = 0; i < 6; i++) {
+        P.r(9 + i * 3, 7 - (i % 2), 3, 3, plate);
+        P.hl(9 + i * 3, 7 - (i % 2), 3, tone(plate, 0.24));
+        P.p(11 + i * 3, 9 - (i % 2), tone(plate, -0.25)); // joint pin
       }
-      // flank scar streak
-      P.hl(11, 13, 5, tone(acc, -0.4));
-      // MASSIVE head + jaw (jaw parts on idle f2)
-      const jaw = mode === 'idle' && f === 2 ? 1 : 0;
-      P.blob(25, 9, 5.4, 3.6, tone(body, 0.06), { tex: 1 });
-      P.slab(25, 11 + jaw, 7, 3 - jaw, tone(body, -0.12), { tex: 1 }); // lower jaw
-      // teeth row
-      for (let i = 0; i < 4; i++) P.p(25 + i * 2, 11 + jaw, '#e8ddd0');
+      // scar streaks
+      P.hl(12, 14, 5, tone(acc, -0.4)); P.p(14, 15, tone(acc, -0.5));
+      rimlight(P, 16, 12, 11, 5, tone(body, 0.26));
+      // MASSIVE head: skull + hinged jaw
+      const jaw = mode === 'idle' && f >= 2 ? 1 : 0;
+      P.blob(28, 10, 6, 4, tone(body, 0.06), { tex: 1 });
       // heavy brow plate
-      P.r(23, 5, 6, 2, plate); P.hl(23, 5, 6, tone(plate, 0.25));
-      // four amber eyes (tracking glint by frame)
-      const eyes = [[24, 7], [26, 7], [25, 8], [27, 8]];
-      eyes.forEach(([x, y], i) => P.p(x, y, i === f % 4 ? tone(amber, 0.35) : amber));
-      // tail
-      P.r(2, 10, 4, 2, tone(body, -0.1)); P.r(0, 11, 2, 1, plate);
+      P.r(25, 5, 7, 2, plate); P.hl(25, 5, 7, tone(plate, 0.3));
+      // four amber eyes (tracking glint)
+      const eyes = [[26, 8], [28, 8], [27, 9], [29, 9]];
+      eyes.forEach(([x, y], i) => P.p(x, y, i === f % 4 ? tone(amber, 0.4) : amber));
+      // lower jaw with hinge
+      P.slab(28, 12 + jaw, 8, 3 - jaw, tone(body, -0.14), { tex: 1 });
+      P.p(27, 12 + jaw, tone(plate, 0.15)); // hinge bolt
+      // teeth rows
+      for (let i = 0; i < 5; i++) P.p(27 + i * 2, 12 + jaw, '#e8ddd0');
+      if (jaw) for (let i = 0; i < 3; i++) P.p(29 + i * 2, 11, tone('#e8ddd0', -0.2)); // upper fangs on open
+      // snout ridge
+      P.hl(30, 7, 4, tone(body, 0.15));
+      // armoured tail with plate tip
+      P.r(3, 11, 5, 2, tone(body, -0.1)); P.r(1, 12, 3, 1, plate);
+      P.p(0, 12, tone(plate, 0.2));
     },
   },
 
-  // 12) LUMEN DRIFTER — floating aerial filter feeder, softly bioluminescent
+  // 12) LUMEN DRIFTER — floating filter feeder; translucent bell, glow organs
   lumen: {
-    w: 18, h: 26, idleFrames: 4, walkFrames: 0, bob: true,
-    shadow: { rx: 5, ry: 1.8, alpha: 0.16, soft: true, detached: true },
+    w: 20, h: 30, idleFrames: 4, walkFrames: 0, bob: true,
+    shadow: { rx: 5.5, ry: 2, alpha: 0.16, soft: true, detached: true },
     paint(P, f, mode) {
       const bell = '#3a5a7a', glow = '#2DE2E6', pale = '#9adfe8';
-      const pulse = [0, 0.6, 1, 0.6][f]; // bell pulse cycle
-      // translucent bell
-      P.blob(9, 5.5, 6 + pulse * 0.7, 4 - pulse * 0.4, bell, { lite: 0.3, dark: 0.2 });
-      P.blob(8, 4, 3.4, 1.8, tone(pale, -0.1), { lite: 0.3 });
-      // internal light organs (glow cycle)
-      P.glow(9, 5, glow, 0.3 + pulse * 0.12);
-      P.p(7, 6, mixc(bell, glow, 0.55)); P.p(11, 6, mixc(bell, glow, 0.4));
-      // bell rim
-      P.hl(4, 9, 11, tone(pale, -0.2));
-      // fine feeding tendrils (drift by frame)
-      for (let k = 0; k < 4; k++) {
-        const x0 = 5 + k * 3;
-        for (let y = 10; y < 21 - k % 2; y++) {
-          const sway = Math.round(Math.sin((y + f * 2 + k * 3) / 3) * 1.2);
-          P.p(x0 + sway, y, y % 3 === k % 3 ? mixc(bell, glow, 0.35) : tone(bell, -0.12));
-        }
-        P.p(x0, 21 - k % 2, tone(glow, -0.25));
+      const pulse = [0, 0.6, 1, 0.6][f];
+      // internal light organs painted FIRST (read through translucent bell)
+      P.glow(10, 6, glow, 0.3 + pulse * 0.15);
+      P.p(7, 7, mixc(bell, glow, 0.6)); P.p(13, 7, mixc(bell, glow, 0.45));
+      P.p(10, 8, mixc(bell, glow, 0.5));
+      // translucent bell (alpha layered over organs)
+      P.ctx.globalAlpha = 0.78;
+      P.blob(10, 6, 6.6 + pulse * 0.8, 4.4 - pulse * 0.5, bell, { lite: 0.32, dark: 0.2 });
+      P.ctx.globalAlpha = 1;
+      P.blob(8.5, 4, 3.6, 1.9, tone(pale, -0.1), { lite: 0.3 }); // apex sheen
+      rimlight(P, 10, 6, 6.4, 4, tone(pale, 0.1));
+      // scalloped bell rim
+      for (let k = 0; k < 6; k++) {
+        P.p(5 + k * 2, 10 + (k % 2), tone(pale, -0.25));
       }
-      // membrane skirt
-      P.hl(5, 10, 9, tone(bell, 0.1));
+      // fine feeding tendrils (drift phase)
+      for (let k = 0; k < 4; k++) {
+        const x0 = 6 + k * 3;
+        for (let y = 12; y < 24 - (k % 2) * 2; y++) {
+          const sway = Math.round(Math.sin((y + f * 2 + k * 3) / 3) * 1.4);
+          P.p(x0 + sway, y, y % 3 === k % 3 ? mixc(bell, glow, 0.4) : tone(bell, -0.12));
+        }
+        P.p(x0, 24 - (k % 2) * 2, tone(glow, -0.2)); // tendril bud
+      }
+      // inner membrane skirt
+      P.hl(6, 11, 9, tone(bell, 0.12));
+      P.hl(7, 12, 7, tone(bell, -0.1));
+      // drifting plankton motes
+      if (f % 2 === 0) { P.p(3, 15, tone(glow, -0.45)); P.p(17, 18, tone(glow, -0.5)); }
     },
   },
 
-  // 13) UMBRA VEILWING — shade stalker, folded membranes, controlled luminous markings
+  // 13) UMBRA VEILWING — shade stalker; folded membranes, rim-lit silhouette
   umbra: {
-    w: 22, h: 14, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 8, ry: 2.2, alpha: 0.26 },
+    w: 26, h: 16, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 9, ry: 2.4, alpha: 0.26 },
     paint(P, f, mode) {
       const body = '#232030', deep = '#191623', acc = '#8AA4FF';
-      // low silent limbs
-      legs(P, [6, 9, 13, 16], 10, 13, 1, deep, f, mode);
-      // sleek body
-      P.blob(11, 7.5, 8, 3, body, { lite: 0.12, dark: 0.3 });
-      // folded membrane layers (adjust on idle)
-      const mf = mode === 'idle' ? [0, 1, 0][f] : 0;
-      P.slab(5, 4 - mf, 9, 2, deep);
-      P.hl(5, 3 - mf, 9, tone(body, 0.14)); // rim light for readability
-      P.slab(7, 6, 8, 1, tone(deep, -0.05));
+      // silent limbs
+      [[7, 11], [10, 12], [15, 12], [18, 11]].forEach(([hx, hy], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        limb(P, hx, hy, hx + g.dx, 14 + g.dy, deep, i < 2 ? -1 : 1);
+      });
+      // sleek low body
+      P.blob(13, 8.5, 9, 3.2, body, { lite: 0.12, dark: 0.3 });
+      // folded membrane layers (planes with rim light)
+      const mf = mode === 'idle' ? [0, 1, 1, 0][f] : 0;
+      P.slab(6, 4 - mf, 11, 2, deep);
+      P.hl(6, 3 - mf, 11, tone(body, 0.2)); // membrane rim
+      P.slab(8, 6, 10, 2, tone(deep, -0.05));
+      P.hl(8, 6, 10, tone(body, 0.08));
+      P.p(16, 4 - mf, tone(acc, -0.5)); // membrane claw hook
       // narrow head
-      const hs = mode === 'idle' && f === 2 ? 1 : 0;
-      P.blob(17 + hs, 6, 2.6, 1.7, tone(body, 0.08));
-      // luminous markings (brief illumination on f1 only)
-      if (f === 1) { P.glow(18 + hs, 5, acc, 0.3); P.p(12, 6, tone(acc, -0.1)); P.p(8, 7, tone(acc, -0.25)); }
-      else { P.p(18 + hs, 5, tone(acc, -0.35)); P.p(12, 6, tone(acc, -0.5)); }
+      const hs = mode === 'idle' && f >= 2 ? 1 : 0;
+      P.blob(20 + hs, 7, 3, 1.9, tone(body, 0.08));
+      P.p(23 + hs, 7, tone(deep, -0.15)); // muzzle tip
+      // luminous markings (controlled pulse on f1/f3)
+      if (f % 2 === 1) {
+        P.glow(21 + hs, 6, acc, 0.32);
+        P.p(14, 7, tone(acc, -0.1)); P.p(9, 8, tone(acc, -0.25)); P.p(11, 5, tone(acc, -0.35));
+      } else {
+        P.p(21 + hs, 6, tone(acc, -0.35)); P.p(14, 7, tone(acc, -0.5));
+      }
       // membrane tail fold
-      P.r(2, 6, 3, 1, deep); P.p(1, 7, tone(deep, -0.1));
-      // top rim light along spine
-      P.hl(8, 5, 7, tone(body, 0.2));
+      P.r(2, 7, 4, 1, deep); P.p(1, 8, tone(deep, -0.1)); P.hl(2, 6, 4, tone(body, 0.12));
+      // spine rim light (silhouette readability)
+      P.hl(9, 5, 9, tone(body, 0.24));
     },
   },
 
-  // 14) VOLTARI ARCHLING — anomalous energivore, arcing serpentine form
+  // 14) VOLTARI ARCHLING — anomalous energivore; segmented arc serpent
   voltari: {
-    w: 24, h: 16, idleFrames: 4, walkFrames: 2, hover: 2,
-    shadow: { rx: 8, ry: 2, alpha: 0.2, soft: true },
+    w: 28, h: 18, idleFrames: 4, walkFrames: 4, hover: 2,
+    shadow: { rx: 9, ry: 2.2, alpha: 0.2, soft: true },
     paint(P, f, mode) {
-      const body = '#2a3a55', glow = '#2DE2E6', core = '#173048';
-      const ph = mode === 'walk' ? f * 2 : f; // wave phase
-      // serpentine arc body (3px thick wave)
+      const body = '#2a3a55', glow = '#2DE2E6', core = '#173048', plate = '#3d5170';
+      const ph = mode === 'walk' ? f * 1.5 : f;
+      // serpentine arc: segmented plates over energy core
       const spine = [];
-      for (let i = 0; i < 19; i++) {
+      for (let i = 0; i < 22; i++) {
         const x = 2 + i;
-        const y = 8 - Math.round(Math.sin((i + ph * 2) / 3) * 3);
+        const y = 9 - Math.round(Math.sin((i + ph * 2) / 3.2) * 3.4);
         spine.push([x, y]);
-        P.r(x, y - 1, 1, 3, i % 4 === 0 ? tone(body, 0.1) : body);
-        P.p(x, y + 2, core);
+        // segment plate every 2 px
+        if (i % 2 === 0) {
+          P.r(x, y - 2, 2, 4, plate);
+          P.p(x, y - 2, tone(plate, 0.22)); // plate top light
+          P.p(x + 1, y + 1, tone(plate, -0.25));
+        } else {
+          P.r(x, y - 1, 1, 3, body); // joint gap
+        }
+        P.p(x, y + 2, core); // ventral core line
       }
-      // top rim light
-      spine.forEach(([x, y], i) => { if (i % 2 === 0) P.p(x, y - 1, tone(body, 0.24)); });
-      // internal energy nodes along spine (pulse cycle)
+      // energy nodes along spine (pulse chase)
       spine.forEach(([x, y], i) => {
         if (i % 4 === 2) {
-          if ((i / 4 + f) % 3 < 1) P.glow(x, y, glow, 0.3);
+          if ((i / 4 + f) % 3 < 1) P.glow(x, y, glow, 0.32);
           else P.p(x, y, mixc(body, glow, 0.5));
         }
       });
-      // arced head w/ forked sensors
+      // arced head with fork sensors + crown node
       const [hx, hy] = spine[spine.length - 1];
-      P.blob(hx + 1, hy, 2.2, 1.8, tone(body, 0.14));
-      P.p(hx + 3, hy - 1, glow); P.p(hx + 3, hy + 1, tone(glow, -0.15));
-      P.p(hx + 1, hy - 2, tone(glow, 0.2)); // crown arc node
+      P.blob(hx + 2, hy, 2.6, 2, tone(body, 0.14));
+      P.p(hx + 4, hy - 1, glow); P.p(hx + 4, hy + 1, tone(glow, -0.15)); // fork sensors
+      P.p(hx + 2, hy - 2, tone(glow, 0.25)); // crown arc node
+      P.p(hx + 3, hy, tone(body, -0.2)); // jaw seam
       // trailing charge wisps
       P.p(1, spine[0][1], tone(glow, -0.3));
+      if (f % 2 === 0) P.p(0, spine[0][1] - 2, tone(glow, -0.45));
     },
   },
 
-  // 15) EMBEROOT GORGER — fungal colossus with spore cavities and root limbs
+  // 15) EMBEROOT GORGER — fungal colossus; layered caps, ember spore cavities
   emberoot: {
-    w: 26, h: 22, idleFrames: 3, walkFrames: 2,
-    shadow: { rx: 11, ry: 3.6, alpha: 0.38 },
+    w: 30, h: 24, idleFrames: 4, walkFrames: 4,
+    shadow: { rx: 12, ry: 3.8, alpha: 0.38 },
     paint(P, f, mode) {
       const cap = '#4a2a35', fungal = '#5c4038', ember = '#e0785a', spore = '#b98ae0';
-      // root-like limbs (heavy)
-      const lo = mode === 'walk' ? (f % 2 ? 1 : 0) : 0;
-      [[6, lo], [11, -lo], [17, -lo], [21, lo]].forEach(([x, o]) => {
-        P.slab(x + (o > 0 ? 1 : 0), 15, 3, 7, tone(fungal, -0.2), { tex: 1 });
-        P.p(x - 1 + (o > 0 ? 1 : 0), 21, tone(fungal, -0.35)); // splayed root toe
-        P.p(x + 3 + (o > 0 ? 1 : 0), 21, tone(fungal, -0.35));
+      // root limbs with splayed toes
+      [[7, 0], [13, 1], [20, 1], [25, 0]].forEach(([x], i) => {
+        const g = mode === 'walk' ? gait(f, i) : { dx: 0, dy: 0 };
+        P.slab(x + g.dx, 17 + g.dy, 3, 7 - g.dy, tone(fungal, -0.2), { tex: 1 });
+        P.vl(x + g.dx, 17, 4, tone(fungal, 0.08)); // root ridge
+        P.p(x - 1 + g.dx, 23, tone(fungal, -0.35)); P.p(x + 3 + g.dx, 23, tone(fungal, -0.4));
       });
       // thick fungal body (expansion pulse)
-      const gp = mode === 'idle' ? [0, 0.6, 0.2][f] : 0;
-      P.blob(13, 12 - gp * 0.3, 9.4, 4.6 + gp, fungal, { tex: 1 });
-      // layered cap plates
-      P.blob(12, 7, 8.4, 2.8, cap, { tex: 1 });
-      P.blob(15, 5, 5.4, 1.8, tone(cap, 0.12), { tex: 1 });
-      P.hl(8, 6, 4, tone(cap, 0.2));
-      // spore cavities (dark pores w/ inner ember warmth pulse)
-      [[9, 10], [14, 9], [19, 11]].forEach(([x, y], i) => {
-        P.r(x, y, 2, 2, '#170f14');
+      const gp = mode === 'idle' ? [0, 0.4, 0.7, 0.4][f] : 0;
+      P.blob(15, 13 - gp * 0.3, 10.4, 5 + gp, fungal, { tex: 1 });
+      striate(P, 8, 12, 14, 5, fungal, 3);
+      // layered cap plates with gill undersides
+      P.blob(14, 7.4, 9.4, 3, cap, { tex: 1 });
+      P.hl(6, 9, 16, tone(cap, -0.35)); // gill shadow line
+      for (let i = 0; i < 7; i++) P.p(7 + i * 2, 10, tone(cap, -0.2)); // gill slits
+      P.blob(17, 5, 6, 2, tone(cap, 0.12), { tex: 1 });
+      P.hl(9, 6, 5, tone(cap, 0.22));
+      rimlight(P, 14, 7, 9, 2.8, tone(cap, 0.3));
+      // spore cavities (dark pores w/ ember pulse)
+      [[10, 11], [16, 10], [22, 12]].forEach(([x, y], i) => {
+        P.r(x, y, 3, 2, '#170f14');
+        P.p(x, y, tone('#170f14', 0.3)); // pore rim
         if ((i + f) % 3 !== 2) P.p(x + 1, y + 1, tone(ember, -0.15));
-        else P.glow(x + 1, y + 1, ember, 0.28);
+        else P.glow(x + 1, y + 1, ember, 0.3);
       });
-      // feeding tendrils at front (movement)
-      const tm = mode === 'idle' ? (f === 1 ? 1 : 0) : (f % 2);
-      P.vl(22, 12 + tm, 4 - tm, tone(fungal, 0.05));
-      P.vl(24, 13 - tm, 4 + tm, tone(fungal, -0.08));
-      P.p(22, 11 + tm, ember); P.p(24, 12 - tm, tone(ember, -0.2));
-      // spore puff (f2 only, tiny)
-      if (f === 2) { P.p(16, 2, tone(spore, -0.1)); P.p(18, 1, tone(spore, -0.35)); }
+      // feeding tendrils at front (probing motion)
+      const tm = mode === 'idle' ? (f % 2) : (f % 2);
+      P.vl(26, 13 + tm, 5 - tm, tone(fungal, 0.05));
+      P.vl(28, 14 - tm, 5 + tm, tone(fungal, -0.08));
+      P.p(26, 12 + tm, ember); P.p(28, 13 - tm, tone(ember, -0.2));
+      // spore puff (occasional)
+      if (f === 2) { P.p(18, 2, tone(spore, -0.1)); P.p(20, 1, tone(spore, -0.35)); P.p(16, 1, tone(spore, -0.5)); }
       // drifting spore glints
-      P.p(6, 4, tone(spore, -0.3)); P.p(21, 5, tone(spore, -0.45));
+      P.p(6, 4, tone(spore, -0.3)); P.p(24, 5, tone(spore, -0.45));
     },
   },
 };

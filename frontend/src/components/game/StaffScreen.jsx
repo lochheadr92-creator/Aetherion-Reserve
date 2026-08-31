@@ -1,16 +1,29 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { X, UserPlus, UserMinus, Microscope, HeartPulse, ShieldCheck } from 'lucide-react';
+import { X, UserPlus, UserMinus, Microscope, HeartPulse, ShieldCheck, MapPin } from 'lucide-react';
 import { game } from '@/game/controller';
-import { hireStaff, fireStaff, dailyWages } from '@/game/staff';
+import { hireStaff, fireStaff, dailyWages, assignStaffEnclosure } from '@/game/staff';
+import { computeEnclosures } from '@/game/enclosures';
 import { STAFF_ROLE_LIST, STAFF_ROLES, TASK_LABELS } from '@/game/data/staffRoles';
 import { fmtMoney } from '@/game/constants';
 import { useGameTick } from '@/components/game/useGame';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ROLE_ICONS = { xenobiologist: Microscope, biomedical: HeartPulse, warden: ShieldCheck };
 const ROLE_COLORS = { xenobiologist: 'var(--accent-seaglass)', biomedical: 'var(--info)', warden: 'var(--warning)' };
+// role-relevant report card fields: [reportKey, label]
+const ROLE_REPORT = {
+  xenobiologist: [['feeds', 'fed'], ['cleans', 'cleaned'], ['observes', 'observed']],
+  biomedical: [['treats', 'treated']],
+  warden: [['repairs', 'repaired']],
+};
+
+function reportLine(st) {
+  const fields = ROLE_REPORT[st.role] || [];
+  return fields.map(([key, label]) => `${st.report?.[key] || 0} ${label}`).join(' · ');
+}
 
 function activityLabel(st) {
   if (st.state === 'working' && st.task) return TASK_LABELS[st.task.type] || 'Working';
@@ -47,9 +60,12 @@ function HireCard({ def, cash, onHire }) {
   );
 }
 
-function RosterRow({ st, onFire }) {
+function RosterRow({ st, encOptions, onAssign, onFire }) {
   const def = STAFF_ROLES[st.role];
   const Icon = ROLE_ICONS[st.role];
+  const assignedId = st.assignedEnclosureId;
+  // fence edits can briefly leave an assignment pointing at an open (unlisted) area
+  const stale = assignedId != null && !encOptions.some((e) => e.id === assignedId);
   return (
     <div data-testid={`staff-row-${st.id}`}
       className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel-2)]">
@@ -57,7 +73,34 @@ function RosterRow({ st, onFire }) {
       <div className="min-w-0 flex-1">
         <div className="text-[12px] font-medium text-[var(--text-1)]">{st.name}</div>
         <div className="mono text-[10px] text-[var(--text-3)]">{def.short} · hired cycle {st.hiredDay}</div>
+        <div className="mono text-[10px] text-[var(--accent-seaglass)]" data-testid={`staff-report-${st.id}`}>
+          {reportLine(st)} this cycle
+        </div>
       </div>
+      <Select
+        value={assignedId != null ? String(assignedId) : 'none'}
+        onValueChange={(v) => onAssign(st.id, v === 'none' ? null : Number(v))}>
+        <SelectTrigger data-testid={`staff-assign-select-${st.id}`}
+          className="h-7 w-[168px] shrink-0 px-2 text-[10px] mono border-[var(--line)] bg-[var(--panel-1)] text-[var(--text-2)]">
+          <MapPin size={11} className="mr-1 shrink-0" style={{ color: assignedId != null ? 'var(--accent-cyan)' : 'var(--text-3)' }} />
+          <SelectValue placeholder="General duties" />
+        </SelectTrigger>
+        <SelectContent className="border-[var(--line)] bg-[var(--panel-1)]">
+          <SelectItem value="none" data-testid={`staff-assign-none-${st.id}`} className="text-[11px] mono">
+            General duties
+          </SelectItem>
+          {stale && (
+            <SelectItem value={String(assignedId)} className="text-[11px] mono">
+              Enclosure #{assignedId} (area open)
+            </SelectItem>
+          )}
+          {encOptions.map((e) => (
+            <SelectItem key={e.id} value={String(e.id)} data-testid={`staff-assign-enc-${st.id}-${e.id}`} className="text-[11px] mono">
+              Enclosure #{e.id} · {e.residents} resident{e.residents === 1 ? '' : 's'}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <div className="mono text-[10px] text-[var(--text-2)]" data-testid={`staff-activity-${st.id}`}>{activityLabel(st)}</div>
       <div className="mono text-[10px] text-[var(--text-3)] w-20 text-right">{fmtMoney(def.wage)}/cyc</div>
       <button data-testid={`staff-fire-button-${st.id}`} onClick={() => onFire(st.id, st.name)}
@@ -84,9 +127,20 @@ export default function StaffScreen({ onClose }) {
     else toast.error(r.reason || 'Unable to dismiss.');
   }, []);
 
+  const doAssign = useCallback((id, encId) => {
+    const r = assignStaffEnclosure(game.state, id, encId);
+    if (r.ok) toast.success(encId == null ? 'Returned to general duties.' : `Assigned to Enclosure #${r.enclosureId} — it now gets priority care.`);
+    else toast.error(r.reason || 'Unable to assign.');
+  }, []);
+
   if (!s) return null;
   const roster = s.staff || [];
   const wages = dailyWages(s);
+  // enclosure list for keeper assignment (computeEnclosures is cached per fence edit)
+  const encOptions = computeEnclosures(s).enclosures.map((e) => ({
+    id: e.id,
+    residents: s.creatures.filter((c) => c.enclosureId === e.id).length,
+  }));
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center" style={{ background: 'rgba(5,7,11,0.8)' }} data-testid="staff-modal">
@@ -110,13 +164,18 @@ export default function StaffScreen({ onClose }) {
           </div>
 
           <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] pt-2">ACTIVE ROSTER</div>
+          {roster.length > 0 && (
+            <div className="text-[10px] text-[var(--text-3)]" data-testid="staff-priority-hint">
+              Assign a keeper to an enclosure to prioritise its care — they help elsewhere when their area needs nothing.
+            </div>
+          )}
           {roster.length === 0 && (
             <div className="text-xs text-[var(--text-3)] py-4" data-testid="staff-empty">
               No personnel on site. Hire staff to automate feeding, cleaning, treatment and barrier repair.
             </div>
           )}
           <div className="space-y-1.5">
-            {roster.map((st) => <RosterRow key={st.id} st={st} onFire={doFire} />)}
+            {roster.map((st) => <RosterRow key={st.id} st={st} encOptions={encOptions} onAssign={doAssign} onFire={doFire} />)}
           </div>
         </div>
       </div>

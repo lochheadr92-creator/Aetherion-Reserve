@@ -8,7 +8,7 @@ const STEPS = [
     icon: Compass,
     title: 'Welcome to the Aetherion Initiative',
     body: 'You run a containment facility for organisms humanity does not yet understand. Your job: build the worlds they need, learn how they live, keep them contained — and keep the lights on.',
-    tip: 'Camera: hold the RIGHT mouse button to pan. Scroll to zoom. SPACE pauses time; 1 and 3 set speed.',
+    tip: 'Camera: drag with the LEFT button (Select tool) or RIGHT button to pan. Scroll to zoom. RIGHT-CLICK cancels the active tool. SPACE pauses time; 1 and 3 set speed.',
   },
   {
     id: 'terrain',

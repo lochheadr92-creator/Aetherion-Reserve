@@ -3,7 +3,7 @@ import { GameRenderer } from '@/game/renderer';
 import { InputController } from '@/game/input';
 import { game } from '@/game/controller';
 
-export const GameCanvas = ({ onSelect, onToolResult, rendererRef, inputRef }) => {
+export const GameCanvas = ({ onSelect, onToolResult, onToolChange, rendererRef, inputRef }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -12,6 +12,7 @@ export const GameCanvas = ({ onSelect, onToolResult, rendererRef, inputRef }) =>
     const input = new InputController(canvas, renderer, () => game.state, {
       onSelect,
       onToolResult,
+      onToolChange,
     });
     if (rendererRef) rendererRef.current = renderer;
     if (inputRef) inputRef.current = input;

@@ -48,6 +48,8 @@ export function dailyRollover(state) {
     pushAlert(state, { type: 'warning', title: 'FINANCIAL WARNING', msg: `The facility has run at a loss for 3 consecutive cycles. Review Finances.`, target: { kind: 'finances' } });
   }
   state.finances.today = emptyDay();
+  // new cycle: reset keeper report cards
+  for (const st of state.staff || []) st.report = {};
   state.day++;
 }
 

@@ -11,10 +11,13 @@ function subscribeTicks(bump) {
   };
 }
 
+// Module-level state updater (keeps hook closures free of locals).
+const increment = (v) => v + 1;
+
 // Re-render subscription to the sim's UI refresh pulse.
 // Returns a monotonically increasing counter usable as a useMemo dependency.
 export function useGameTick() {
   const [n, setN] = useState(0);
-  useEffect(() => subscribeTicks(() => setN((v) => v + 1)), []);
+  useEffect(() => subscribeTicks(() => setN(increment)), [setN]);
   return n;
 }

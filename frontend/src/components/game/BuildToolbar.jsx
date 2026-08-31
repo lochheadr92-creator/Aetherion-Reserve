@@ -200,14 +200,20 @@ function BuildingsSection({ s, cat, is, setTool }) {
   );
 }
 
+// Static grouping computed once at module load — never re-filtered on render.
+const ATTRACTION_GROUP_LISTS = ATTRACTION_GROUPS.map((grp) => ({
+  ...grp,
+  buildings: BUILDING_LIST.filter((b) => b.cat === grp.key),
+}));
+
 function AttractionsSection({ s, is, setTool }) {
   return (
     <div className="space-y-2">
-      {ATTRACTION_GROUPS.map((grp) => (
+      {ATTRACTION_GROUP_LISTS.map((grp) => (
         <div key={grp.key}>
           <div className="mono text-[8px] tracking-[0.2em] text-[var(--text-3)] mb-1">{grp.label}</div>
           <div className="flex flex-wrap gap-1.5">
-            {BUILDING_LIST.filter((b) => b.cat === grp.key).map((b) => (
+            {grp.buildings.map((b) => (
               <BuildingButton key={b.id} b={b} s={s} is={is} setTool={setTool} />
             ))}
           </div>

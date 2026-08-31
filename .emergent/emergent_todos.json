@@ -1,26 +1,10 @@
 [
   {
-    "content": "Add sovereign_containment scenario to data/scenarios.js (goals, fails, mastery)",
+    "content": "Phase A: Code Quality Completion (iteration_14 = 100%)",
     "status": "completed"
   },
   {
-    "content": "Extend scenarios.js engine: damaged fences, starter buildings, escapeTicks/minCash tracking, mastery eval",
-    "status": "completed"
-  },
-  {
-    "content": "ScenarioTracker: mastery section in tracker + victory dialog badges",
-    "status": "completed"
-  },
-  {
-    "content": "MainMenu: BRUTAL difficulty color",
-    "status": "completed"
-  },
-  {
-    "content": "Update phase9 test (5 cards) + write phase17_sovereign_test.py",
-    "status": "completed"
-  },
-  {
-    "content": "Run full regression sweep + testing agent (iteration_12 = 100%)",
+    "content": "Phase B: Keeper Priorities feature (iteration_15 = 100%)",
     "status": "completed"
   }
 ]

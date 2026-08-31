@@ -30,7 +30,7 @@ export default function GameScreen({ onExit }) {
   return (
     <div className="relative w-full h-full" data-testid="game-screen">
       <div className="absolute inset-0">
-        <GameCanvas onSelect={ui.setSelection} onToolResult={ui.handleToolResult} rendererRef={ui.rendererRef} inputRef={ui.inputRef} />
+        <GameCanvas onSelect={ui.setSelection} onToolResult={ui.handleToolResult} onToolChange={ui.syncTool} rendererRef={ui.rendererRef} inputRef={ui.inputRef} />
       </div>
 
       {!photoMode && (

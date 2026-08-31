@@ -18,6 +18,7 @@ export class InputController {
     this.cb = cb; // { onSelect, onToolResult, onToolChange }
     this.dragging = false;
     this.panning = false;
+    this.leftPanPending = null;
     this.lastApplied = null;
     this.lineStart = null; // fence drag-line anchor vertex {vx, vy}
     this.attach();
@@ -63,9 +64,13 @@ export class InputController {
   onDown = (e) => {
     const rect = this.canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    if (e.button === 2 && this.dragging && this.lineStart) {
+      // right-click cancels an in-progress fence drag-line
+      this.cancelFenceDrag();
+      return;
+    }
     if (e.button === 2 || e.button === 1 || this.renderer.tool.mode === 'pan') {
-      this.panning = true;
-      this.panStart = { x: e.clientX, y: e.clientY, camX: this.renderer.cam.x, camY: this.renderer.cam.y };
+      this.startPan(e.clientX, e.clientY, e.button);
       return;
     }
     if (e.button === 0) {
@@ -77,17 +82,49 @@ export class InputController {
         this.updateFenceLinePreview(sx, sy);
         return;
       }
+      if (mode === 'select') {
+        // defer: a plain click selects on mouseup; dragging pans the camera
+        this.leftPanPending = { x: e.clientX, y: e.clientY, sx, sy };
+        return;
+      }
       this.dragging = true;
       this.applyTool(sx, sy, true);
     }
   };
 
+  startPan(cx, cy, button) {
+    this.panning = true;
+    this.panStart = { x: cx, y: cy, camX: this.renderer.cam.x, camY: this.renderer.cam.y, button, moved: false };
+    this.canvas.style.cursor = 'grabbing';
+  }
+
+  cancelFenceDrag() {
+    this.dragging = false;
+    this.lineStart = null;
+    this.renderer.fenceLinePreview = null;
+  }
+
+  // quick right-click (no drag): cancel the active tool, or clear the selection
+  rightClickCancel() {
+    if (this.renderer.tool.mode !== 'select') this.setTool({ mode: 'select' });
+    else this.setSelection(null);
+  }
+
   onMove = (e) => {
     const rect = this.canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    if (this.leftPanPending) {
+      // promote a select-mode left drag into a camera pan after a small threshold
+      if (Math.hypot(e.clientX - this.leftPanPending.x, e.clientY - this.leftPanPending.y) > 5) {
+        this.startPan(this.leftPanPending.x, this.leftPanPending.y, 0);
+        this.leftPanPending = null;
+      }
+    }
     if (this.panning) {
-      this.renderer.cam.x = this.panStart.camX + (e.clientX - this.panStart.x);
-      this.renderer.cam.y = this.panStart.camY + (e.clientY - this.panStart.y);
+      const dx = e.clientX - this.panStart.x, dy = e.clientY - this.panStart.y;
+      if (Math.hypot(dx, dy) > 4) this.panStart.moved = true;
+      this.renderer.cam.x = this.panStart.camX + dx;
+      this.renderer.cam.y = this.panStart.camY + dy;
       return;
     }
     const state = this.getState();
@@ -112,6 +149,12 @@ export class InputController {
   };
 
   onUp = (e) => {
+    if (this.leftPanPending) {
+      // plain left click in select mode → pick the object under the cursor
+      this.applyTool(this.leftPanPending.sx, this.leftPanPending.sy, true);
+      this.leftPanPending = null;
+    }
+    if (this.panning && this.panStart.button === 2 && !this.panStart.moved) this.rightClickCancel();
     if (this.lineStart && this.dragging) {
       const rect = this.canvas.getBoundingClientRect();
       this.commitFenceLine(e.clientX - rect.left, e.clientY - rect.top);
@@ -119,6 +162,7 @@ export class InputController {
     this.dragging = false;
     this.panning = false;
     this.lastApplied = null;
+    this.canvas.style.cursor = '';
   };
 
   // ---------- fence drag-line ----------

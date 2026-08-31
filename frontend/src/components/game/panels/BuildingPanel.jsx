@@ -8,6 +8,26 @@ import { platformVisibilityReport } from '@/game/guests';
 import { attractionReport } from '@/game/attractions';
 import { stationHasCar } from '@/game/transport';
 
+const ATTRACTION_CATS = ['experience', 'major', 'amenity'];
+
+// Derive every optional report/flag for a building in one flat pass.
+function buildReports(s, b, def) {
+  const isAttraction = ATTRACTION_CATS.includes(def.cat) || def.sells === 'gift';
+  const isStation = !!def.transport;
+  return {
+    visReport: def.viewRadius ? platformVisibilityReport(s, b) : null,
+    synReport: isAttraction ? attractionReport(s, b) : null,
+    isStation,
+    linked: isStation ? stationHasCar(s, b.id) : false,
+  };
+}
+
+function demolishWithRefund(s, b, def, onClose) {
+  demolishBuilding(s, b.id);
+  toast.info(`${def.name} demolished (+${fmtMoney(def.cost * 0.5)})`);
+  onClose();
+}
+
 function VisibilityReport({ report }) {
   return (
     <div>
@@ -46,22 +66,40 @@ function SynergyReport({ report }) {
   );
 }
 
+// Data-driven stat rows keep the main component free of per-field branching.
+function statRows(def) {
+  const rows = [{ label: 'Upkeep', value: `◈${def.upkeep}/cycle` }];
+  if (def.viewRadius) rows.push({ label: 'View radius', value: `${def.viewRadius} tiles` });
+  if (def.powerRadius) rows.push({ label: 'Power radius', value: `${def.powerRadius} tiles` });
+  if (def.sells && def.price > 0) rows.push({ label: 'Price', value: `◈${def.price}` });
+  return rows;
+}
+
+function StatsList({ def }) {
+  return (
+    <div className="text-[11px] space-y-1">
+      {statRows(def).map((r) => (
+        <div key={r.label} className="flex justify-between"><span className="text-[var(--text-3)]">{r.label}</span><span className="mono">{r.value}</span></div>
+      ))}
+    </div>
+  );
+}
+
+function StationStatus({ linked }) {
+  return (
+    <div className="text-[11px] rounded border px-2 py-1.5" data-testid="station-link-status"
+      style={{ borderColor: linked ? 'var(--success)' : 'var(--warning)', color: linked ? 'var(--success)' : 'var(--warning)' }}>
+      {linked ? 'LINE ACTIVE — an elevated car is shuttling guests over the park.' : 'NO LINE — build a second station of the same type (6+ tiles away) to open the route.'}
+    </div>
+  );
+}
+
 export default function BuildingPanel({ id, onClose }) {
   const s = game.state;
   const b = s.buildings.find((q) => q.id === id);
   if (!b) return <div className="p-4 text-xs text-[var(--text-3)]">Structure removed.</div>;
   const def = BUILDINGS[b.type];
-  const visReport = def.viewRadius ? platformVisibilityReport(s, b) : null;
-  const isAttraction = ['experience', 'major', 'amenity'].includes(def.cat) || def.sells === 'gift';
-  const synReport = isAttraction ? attractionReport(s, b) : null;
-  const isStation = !!def.transport;
-  const linked = isStation ? stationHasCar(s, b.id) : false;
-
-  const demolish = () => {
-    demolishBuilding(s, b.id);
-    toast.info(`${def.name} demolished (+${fmtMoney(def.cost * 0.5)})`);
-    onClose();
-  };
+  const { visReport, synReport, isStation, linked } = buildReports(s, b, def);
 
   return (
     <div className="flex flex-col gap-3 p-4" data-testid="building-panel">
@@ -69,21 +107,11 @@ export default function BuildingPanel({ id, onClose }) {
         <div className="text-base font-semibold">{def.name}</div>
         <div className="text-[11px] text-[var(--text-3)] mt-1">{def.desc}</div>
       </div>
-      <div className="text-[11px] space-y-1">
-        <div className="flex justify-between"><span className="text-[var(--text-3)]">Upkeep</span><span className="mono">◈{def.upkeep}/cycle</span></div>
-        {def.viewRadius && <div className="flex justify-between"><span className="text-[var(--text-3)]">View radius</span><span className="mono">{def.viewRadius} tiles</span></div>}
-        {def.powerRadius && <div className="flex justify-between"><span className="text-[var(--text-3)]">Power radius</span><span className="mono">{def.powerRadius} tiles</span></div>}
-        {def.sells && def.price > 0 && <div className="flex justify-between"><span className="text-[var(--text-3)]">Price</span><span className="mono">◈{def.price}</span></div>}
-      </div>
-      {isStation && (
-        <div className="text-[11px] rounded border px-2 py-1.5" data-testid="station-link-status"
-          style={{ borderColor: linked ? 'var(--success)' : 'var(--warning)', color: linked ? 'var(--success)' : 'var(--warning)' }}>
-          {linked ? 'LINE ACTIVE — an elevated car is shuttling guests over the park.' : 'NO LINE — build a second station of the same type (6+ tiles away) to open the route.'}
-        </div>
-      )}
+      <StatsList def={def} />
+      {isStation && <StationStatus linked={linked} />}
       {synReport && <SynergyReport report={synReport} />}
       {visReport && <VisibilityReport report={visReport} />}
-      <button data-testid="building-demolish-button" onClick={demolish}
+      <button data-testid="building-demolish-button" onClick={() => demolishWithRefund(s, b, def, onClose)}
         className="nl-tool h-8 text-[11px] flex items-center justify-center gap-1 !text-[var(--danger)]"><Trash2 size={12} /> Demolish (50% refund)</button>
     </div>
   );

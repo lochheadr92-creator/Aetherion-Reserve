@@ -22,6 +22,17 @@ const MODES = [
 
 // ---------- save slots: data hook + list components ----------
 
+// Module-level side effects keep the hook closures free of external singletons.
+async function deleteSaveSlot(id, refresh) {
+  try {
+    await game.deleteSave(id);
+    toast.info('Save deleted');
+    refresh();
+  } catch (err) {
+    toast.error('Delete failed');
+  }
+}
+
 function useSaveSlots() {
   const [saves, setSaves] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,19 +45,13 @@ function useSaveSlots() {
       setSaves([]);
     }
     setLoading(false);
-  }, []);
+  }, [setLoading, setSaves]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
   const remove = useCallback(async (id, e) => {
     e.stopPropagation();
-    try {
-      await game.deleteSave(id);
-      toast.info('Save deleted');
-      refresh();
-    } catch (err) {
-      toast.error('Delete failed');
-    }
+    await deleteSaveSlot(id, refresh);
   }, [refresh]);
 
   return { saves, loading, remove };

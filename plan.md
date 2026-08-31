@@ -13,27 +13,30 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- **Project is feature-complete through Phase 19 and fully verified.**
-- Next work is optional / future roadmap only (no committed tasks).
+- The game is feature-complete through **Phase 19**, and the post-Phase-19 QoL + code health goals are now **complete and verified**:
+  1) **Code Quality Analysis / Code Review remediation** + full re-verification.
+  2) **Keeper Priorities** feature (keeper→enclosure assignment, flexible prioritization).
+  3) **Staff Report Card + Input UX Improvements** (new QoL/UI polish round).
 
 **User confirmations (scope decisions):**
 - Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
 - Genetics: offspring variation via **per-creature hue/size/glow modifiers** (no hand-drawn morph variants).
-- Sequencing followed: **Verify Phases 13–16 first**, then **Phase 17 Sovereign Containment**, then **Photo Mode**.
+- Keeper Priorities behavior: **flexible mode** (assigned enclosure first, then help elsewhere if idle).
+- Input UX goals:
+  - Left click selects
+  - Left click + drag pans (in Select mode)
+  - Right click cancels active tool / clears selection
+  - Mouse wheel zoom
 
-**Status:**
-- **Phase 1–6 COMPLETE** and fully test-backed.
-- **Phase 7 COMPLETE** (visual/art overhaul) and fully verified.
-- **Phase 8 COMPLETE** (Keeper Staff) and verified.
-- **Phase 9 COMPLETE** (Scenario Missions) and verified.
-- **Phase 10 COMPLETE** (Code Quality / Code Review remediation) and **accepted**.
-- **Phase 11 COMPLETE** (High-End Visual Asset Redesign) and **fully verified**.
-- **Phase 12 COMPLETE** (4 Apex-class species) and **fully verified**.
-- **Phases 13–16 COMPLETE & VERIFIED** (genetics, events/rivalry, guest archetypes, ~30 buildings, attractions/transport).
-- **Phase 17 COMPLETE & VERIFIED** (Sovereign Containment scenario + mastery system).
-- **Phase 19 COMPLETE & VERIFIED** (Photo Mode).
+**Status (high-level):**
+- **Phase 1–19 COMPLETE & VERIFIED historically** (see testing baselines below).
+- **Post-Phase 19 work:**
+  - Phase A (Code Quality Completion) ✅ COMPLETE + VERIFIED.
+  - Phase B (Keeper Priorities) ✅ COMPLETE + VERIFIED.
+  - Phase C (Staff Report Card + Input UX Improvements) ✅ COMPLETE + VERIFIED.
+- **Project health:** ✅ **Green** (fully re-verified after refactors and QoL changes).
 
-> Constraint (hard): new content must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
+> Constraint (hard): changes must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
 **Testing baselines:**
 - iteration_5: pre-Phase 7 green baseline.
@@ -45,6 +48,9 @@
 - **iteration_11: post-Phase 13–16 verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 100%; regression 100%).
 - **iteration_12: post-Phase 17 verification** (**testing_agent_v3 100% overall**; backend 10/10; frontend 100% + regression 5/5).
 - **iteration_13: post-Phase 19 verification** (**testing_agent_v3 100% overall**; backend/frontend/integration 100%; Photo Mode fully verified).
+- **iteration_14: post-Phase A Code-Quality Completion verification** (**testing_agent_v3 100% overall**; backend 11/11; frontend green; smoke + visual suites pass).
+- **iteration_15: post-Phase B Keeper Priorities verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 21/21; feature tests pass).
+- **iteration_16: post-Phase C Input UX + Staff Report Card verification** (**testing_agent_v3 100% overall**; all new feature tests + regressions pass).
 
 ---
 
@@ -293,18 +299,179 @@ Verified via `testing_agent_v3` iteration_11.
 
 **Verification:**
 - New test: `/app/tests/phase19_photo_test.py` (**10/10 PASS**).
-- Visual validation at night with glowing species (screenshots produced during dev).
-- Full regression sweep green: smoke, phase8, phase9, phase16_visual, phase17.
+- Visual validation at night with glowing species.
+- Full regression sweep green.
 - `testing_agent_v3` **iteration_13 = 100%** (backend/frontend/integration).
 
 ---
 
+### Phase A — Code Quality Completion & Re-Verification (post-Phase 19) ✅ COMPLETE (verified)
+**Goal:** address remaining Code Quality Analysis findings and restore a fully verified green baseline after the recent React refactors.
+
+**Completed fixes:**
+1. React hook dependency fixes:
+   - `/app/frontend/src/hooks/use-toast.js`
+   - `/app/frontend/src/components/game/hooks/useGame.js`
+   - `/app/frontend/src/components/game/hooks/useHotkeys.js`
+   - `/app/frontend/src/components/game/hooks/useGameScreenActions.js`
+   - `/app/frontend/src/components/game/StaffScreen.jsx`
+   - `/app/frontend/src/components/game/MainMenu.jsx`
+2. Performance fixes:
+   - `BuildToolbar.jsx`: memoization (`useMemo`) to reduce recompute work.
+3. Cyclomatic complexity refactors:
+   - `/app/frontend/src/components/game/PhotoMode.jsx`
+   - `/app/frontend/src/components/game/ScenarioTracker.jsx`
+   - `/app/frontend/src/components/game/panels/BuildingPanel.jsx`
+   - `/app/frontend/src/components/game/panels/CreaturePanel.jsx`
+4. Backend test fixes (code quality + correctness):
+   - File: `/app/backend/backend_test.py`
+   - `run_test` flattened via `requests.request` dispatch.
+   - `test_scenario_fields_persistence` split into helpers.
+   - Scenario assertions are data-driven via `SCENARIO_FIELDS` dict and use `==`.
+   - Removed `tests_passed -= 1` hack; added `record_check` to count assertions cleanly.
+   - Local run: **11/11 PASS**.
+5. Procedural art API cleanup:
+   - File: `/app/frontend/src/game/art/buildings.js`
+   - Converted long positional-parameter helper functions to config-object / geo-bundle signatures:
+     - `plinth`, `wallDetail`, `roofSlab`, `doorway`, `windowBand`, `pipeRun`, `awning`
+   - Updated all call sites (~40).
+   - Verification: esbuild clean; `/app/tests/smoke_game.py` PASS; `/app/tests/phase16_visual.py` PASS.
+
+**Mandatory verification completed:**
+- `testing_agent_v3` **iteration_14 = 100%**.
+
+---
+
+### Phase B — Feature: Keeper Priorities (post-Phase 19) ✅ COMPLETE (verified)
+**Goal:** let players assign each keeper to a specific enclosure so care goes where it matters most, without making the staff system brittle.
+
+**Scope (confirmed):**
+- Each keeper can be assigned to **one enclosure** (or unassigned).
+- Behavior: **prioritize assigned enclosure first, then help elsewhere if idle**.
+
+**Delivered:**
+1. Simulation logic (authoritative):
+   - File: `/app/frontend/src/game/staff.js`
+   - Staff fields added:
+     - `assignedEnclosureId: number|null`
+     - `assignedAnchor: {x,y}|null` (tile anchor keeps assignment stable across fence-edit region renumbering)
+   - New controlled mutators:
+     - `assignStaffEnclosure(state, staffId, enclosureId|null)`
+     - `resolveAssignment(state, st)`
+   - Task acquisition refactor:
+     - Role finders: `tryXenoTasks`, `tryMedTasks`, `tryWardenTasks`
+     - Two-pass selection:
+       1) Assignment-filtered pass (assigned enclosure)
+       2) Global pass (`PASS_ANY`) for flexible fallback
+   - Assigned staff idle/patrol inside their enclosure when available.
+
+2. UI:
+   - File: `/app/frontend/src/components/game/StaffScreen.jsx`
+   - Roster row includes assignment dropdown (Shadcn Select):
+     - `staff-assign-select-{id}`
+     - `General duties` option: `staff-assign-none-{id}`
+     - Per-enclosure options: `staff-assign-enc-{id}-{encId}` with resident counts
+     - “Area open” stale fallback item if enclosure list no longer contains assigned ID
+   - Hint text displayed when roster is non-empty: `staff-priority-hint`.
+
+3. Persistence:
+   - Automatic via `serialize(state)`; backward compatibility: old saves load with missing fields and default to unassigned.
+
+**Verification:**
+- New test: `/app/tests/keeper_priorities_test.py` (**9/9 PASS**).
+- Regression: `/app/tests/phase8_staff_test.py` PASS.
+- `testing_agent_v3` **iteration_15 = 100%**.
+- Additional test added by testing agent: `/app/tests/backend_regression_test.py`.
+
+---
+
+### Phase C — QoL: Staff Report Card + Input UX Improvements ✅ COMPLETE (verified)
+**Goal:** improve day-to-day usability and feedback loops:
+- Provide a per-cycle **staff report card** so players can see what each staff member actually did.
+- Make **mouse interaction** more modern and forgiving (drag to pan, right click cancel), while preserving existing tool workflows.
+
+#### Phase C1 — Staff Report Card ✅ COMPLETE
+**Delivered:**
+- Simulation:
+  - File: `/app/frontend/src/game/staff.js`
+  - Per-keeper counter object `staff.report` (role-relevant tallies):
+    - xenobiologist: `feeds`, `cleans`, `observes`
+    - biomedical: `treats`
+    - warden: `repairs`
+  - `bumpReport(st, key)` increments on:
+    - `applyWork` for feed/clean/treat/observe
+    - `repairTick` on completion
+  - `hireStaff` initializes `report: {}`.
+- Daily reset:
+  - File: `/app/frontend/src/game/economy.js`
+  - On `dailyRollover`, resets `st.report = {}` for all staff **before** `state.day++`.
+- UI:
+  - File: `/app/frontend/src/components/game/StaffScreen.jsx`
+  - Each roster row shows a role-relevant stats line:
+    - `data-testid="staff-report-{id}"`
+    - Text forms:
+      - Xenobiologist: `X fed · Y cleaned · Z observed this cycle`
+      - Biomedical: `X treated this cycle`
+      - Warden: `X repaired this cycle`
+
+#### Phase C2 — Input UX Improvements ✅ COMPLETE
+**Delivered:**
+- Input:
+  - File: `/app/frontend/src/game/input.js`
+  - Select tool:
+    - **Left click** selects (selection fires on mouseup).
+    - **Left click + drag** pans camera (threshold 5px via `leftPanPending`).
+  - Right mouse:
+    - **Quick right-click** (no drag) cancels the active tool back to Select, or clears selection when already in Select.
+    - **Right-drag** pans without cancelling the current tool.
+    - During fence drag-line placement, right-click cancels the pending line (`cancelFenceDrag`).
+  - Cursor becomes `grabbing` while panning.
+  - Mouse wheel zoom unchanged.
+- Tool state sync:
+  - Files:
+    - `/app/frontend/src/components/game/GameCanvas.jsx`
+    - `/app/frontend/src/components/game/GameScreen.jsx`
+    - `/app/frontend/src/components/game/hooks/useGameScreenActions.js`
+  - New `onToolChange` callback is passed to the `InputController`.
+  - `useGameScreenActions.syncTool` keeps React `activeTool` in sync when the input layer cancels tools.
+- Tutorial:
+  - File: `/app/frontend/src/components/game/TutorialOverlay.jsx`
+  - Updated camera tip to mention left-drag pan and right-click cancel.
+
+**Verification:**
+- New test: `/app/tests/input_ux_test.py` (**12/12 PASS**), covering:
+  - wheel zoom
+  - select-mode drag-pan without selection
+  - click-to-select preserved
+  - right-click clear selection
+  - right-click cancel tool + toolbar sync
+  - right-drag pan preserving tool
+  - staff report card increments and resets on new cycle
+- Regressions green:
+  - `/app/tests/keeper_priorities_test.py` PASS
+  - `/app/tests/phase8_staff_test.py` PASS
+  - `/app/tests/smoke_game.py` PASS
+  - `/app/tests/fence_drag_test.py` PASS
+- `testing_agent_v3` **iteration_16 = 100%**.
+
+**Operational note:**
+- Playwright browser binaries may occasionally need reinstall between sessions:
+  - `playwright install chromium`
+
+---
+
 ## 3) Next Actions (immediate)
-No required work. Optional roadmap items (not committed):
-1. **Photo Gallery (persistence):** store recent captures (localStorage or backend save attachments).
-2. **Scenario medals:** bronze/silver/gold grading or mastery badge persistence/leaderboards.
-3. **Keeper priorities:** assign keepers to specific enclosures with priority sliders.
-4. **More apex scenarios:** additional handcrafted missions leveraging genetics/rivalry/transport.
+1. **P0 Backlog:** Sovereign Breeding Scenario (NOT STARTED)
+   - Add a second apex scenario where players must **breed a healthy Nyxarr bloodline under pressure**.
+   - Define victory/failure conditions, mastery goals, deterministic setup, and in-scenario guidance.
+   - Add at least one dedicated scenario test.
+
+2. **Maintenance:** keep CI-quality checks green
+   - When any future refactor/feature is added, re-run:
+     - `yarn --cwd /app/frontend build`
+     - `python /app/tests/smoke_game.py`
+     - (if needed) `playwright install chromium`
+     - `testing_agent_v3` and produce the next iteration report.
 
 ---
 
@@ -314,10 +481,20 @@ No required work. Optional roadmap items (not committed):
 - **Unknown biology enforced:** UI cannot infer undiscovered traits.
 - **No fake systems:** every UI metric corresponds to actual sim causes.
 - **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns.
+- **Code quality restored:** no known Code Quality Analysis findings outstanding; tests reflect correct semantics; art API is maintainable.
+- **Keeper Priorities delivered:** per-keeper enclosure assignment with **flexible prioritization**, persisted via save/load.
+- **QoL controls delivered:** modern mouse interaction (drag-pan, right-click cancel) with toolbar sync and preserved workflows.
+- **Staff report cards delivered:** per-cycle per-staff tallies that reset on day rollover.
 
-**Verified milestones:**
+**Verified milestones (historical):**
 - Phase 11 acceptance: ✅ met (iteration_9 = 100%).
 - Phase 12 acceptance: ✅ met (iteration_10 = 100%).
 - Phase 13–16 acceptance: ✅ met (iteration_11 = 100% + `phase16_visual.py` PASS).
 - Phase 17 acceptance: ✅ met (iteration_12 = 100% + `phase17_sovereign_test.py` PASS).
 - Phase 19 acceptance: ✅ met (iteration_13 = 100% + `phase19_photo_test.py` PASS).
+- Phase A acceptance: ✅ met (iteration_14 = 100%).
+- Phase B acceptance: ✅ met (iteration_15 = 100%).
+- Phase C acceptance: ✅ met (iteration_16 = 100%).
+
+**Next verification to produce:**
+- **iteration_17:** after implementing the next feature (e.g., Sovereign Breeding Scenario), via `testing_agent_v3`.

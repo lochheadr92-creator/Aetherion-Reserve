@@ -102,48 +102,127 @@ const TRAIT_COLORS = {
   bio: 'var(--accent-seaglass)',
 };
 
+// ---- genetics section (split into flat sub-components to keep complexity low)
+
+function lineageLabel(g) {
+  return g.gen === 0 ? 'Wild-recovered (Generation 0)' : `Generation ${g.gen} — park-bred`;
+}
+
+function LineageRows({ g }) {
+  return (
+    <div className="space-y-1 text-[11px]">
+      <div className="flex gap-2">
+        <span className="text-[var(--text-3)] w-20 shrink-0">Lineage</span>
+        <span className="text-[var(--text-2)]" data-testid="creature-generation">{lineageLabel(g)}</span>
+      </div>
+      {g.parents && (
+        <div className="flex gap-2">
+          <span className="text-[var(--text-3)] w-20 shrink-0">Parents</span>
+          <span className="text-[var(--text-2)]" data-testid="creature-parents">{g.parents.mName} × {g.parents.fName}</span>
+        </div>
+      )}
+      {g.inbreed >= 0.25 && (
+        <div className="flex gap-2">
+          <span className="text-[var(--text-3)] w-20 shrink-0">Diversity</span>
+          <span className="text-[var(--danger)]" data-testid="creature-inbreed-warning">Inbred line — fertility and hardiness reduced. Introduce fresh blood.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function geneChipStyle(t, morph) {
+  const isMorph = t.kind === 'morph' && morph;
+  return {
+    borderColor: isMorph ? morph.glow : 'var(--line-2)',
+    color: isMorph ? morph.glow : (TRAIT_COLORS[t.kind] || 'var(--text-2)'),
+    boxShadow: isMorph ? `0 0 8px ${morph.glow}44` : 'none',
+  };
+}
+
+function GeneTraitChips({ traits, morph }) {
+  if (!traits.length) return null;
+  return (
+    <div className="flex gap-1.5 mt-1.5 flex-wrap" data-testid="creature-gene-traits">
+      {traits.map((t) => (
+        <span key={t.label} className="text-[10px] px-2 py-0.5 rounded-full border" style={geneChipStyle(t, morph)}>
+          {t.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function GeneticsSection({ c }) {
   const g = c.genes;
   if (!g) return null;
-  const traits = traitLabels(g);
-  const morph = morphOf(c);
   return (
     <div data-testid="creature-genetics-section">
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1.5">GENETICS &amp; LINEAGE</div>
-      <div className="space-y-1 text-[11px]">
-        <div className="flex gap-2">
-          <span className="text-[var(--text-3)] w-20 shrink-0">Lineage</span>
-          <span className="text-[var(--text-2)]" data-testid="creature-generation">
-            {g.gen === 0 ? 'Wild-recovered (Generation 0)' : `Generation ${g.gen} — park-bred`}
-          </span>
+      <LineageRows g={g} />
+      <GeneTraitChips traits={traitLabels(g)} morph={morphOf(c)} />
+    </div>
+  );
+}
+
+function StatusBadge({ testId, color, children }) {
+  return (
+    <span data-testid={testId}
+      className="mono text-[9px] tracking-[0.15em] px-1.5 py-0.5 rounded border"
+      style={{ borderColor: color, color }}>
+      {children}
+    </span>
+  );
+}
+
+function CreatureHeader({ c, sp, view }) {
+  return (
+    <div className="flex gap-3">
+      <Portrait speciesId={sp.id} size={72} />
+      <div className="min-w-0">
+        <div className="text-base font-semibold text-[var(--text-1)] flex items-center gap-2">
+          {c.name}
+          {c.juvenile && (
+            <StatusBadge testId="creature-juvenile-badge" color="var(--accent-seaglass)">
+              JUVENILE {Math.round((c.growth || 0) * 100)}%
+            </StatusBadge>
+          )}
+          {c.cloaked && <StatusBadge testId="creature-cloaked-badge" color="var(--accent-violet)">CLOAKED</StatusBadge>}
         </div>
-        {g.parents && (
-          <div className="flex gap-2">
-            <span className="text-[var(--text-3)] w-20 shrink-0">Parents</span>
-            <span className="text-[var(--text-2)]" data-testid="creature-parents">{g.parents.mName} × {g.parents.fName}</span>
-          </div>
-        )}
-        {g.inbreed >= 0.25 && (
-          <div className="flex gap-2">
-            <span className="text-[var(--text-3)] w-20 shrink-0">Diversity</span>
-            <span className="text-[var(--danger)]" data-testid="creature-inbreed-warning">Inbred line — fertility and hardiness reduced. Introduce fresh blood.</span>
-          </div>
-        )}
+        <div className="mono text-[10px] text-[var(--text-3)]">{sp.code}</div>
+        <TraitChips view={view} sp={sp} trait={c.trait} />
       </div>
-      {traits.length > 0 && (
-        <div className="flex gap-1.5 mt-1.5 flex-wrap" data-testid="creature-gene-traits">
-          {traits.map((t) => (
-            <span key={t.label} className="text-[10px] px-2 py-0.5 rounded-full border"
-              style={{
-                borderColor: t.kind === 'morph' && morph ? morph.glow : 'var(--line-2)',
-                color: t.kind === 'morph' && morph ? morph.glow : (TRAIT_COLORS[t.kind] || 'var(--text-2)'),
-                boxShadow: t.kind === 'morph' && morph ? `0 0 8px ${morph.glow}44` : 'none',
-              }}>
-              {t.label}
-            </span>
-          ))}
-        </div>
-      )}
+    </div>
+  );
+}
+
+function VitalsBars({ c }) {
+  return (
+    <div className="space-y-2">
+      <Bar label="Welfare" value={c.welfare} testId="creature-welfare" />
+      <Bar label="Stress" value={c.stress} color={c.stress > 0.6 ? 'var(--danger)' : 'var(--accent-violet)'} testId="creature-stress" />
+      <div className="grid grid-cols-3 gap-2 pt-1">
+        <Bar label="Food" value={c.needs.hunger} testId="creature-hunger" />
+        <Bar label="Water" value={c.needs.thirst} testId="creature-thirst" />
+        <Bar label="Rest" value={c.needs.energy} testId="creature-energy" />
+      </div>
+    </div>
+  );
+}
+
+function transferCreature(s, c, sp, onClose) {
+  earn(s, sp.cost * 0.4, 'grants', `Transferred ${c.name} to partner facility`);
+  removeCreature(s, c.id);
+  toast.info(`${c.name} transferred (+${fmtMoney(sp.cost * 0.4)})`);
+  onClose();
+}
+
+function ActionRow({ c, sp, onNavigate, onOpenSpecies, onTransfer }) {
+  return (
+    <div className="flex gap-2 pt-1">
+      <button data-testid="creature-locate-button" onClick={() => onNavigate({ kind: 'creature', id: c.id })} className="nl-tool flex-1 h-8 text-[11px] flex items-center justify-center gap-1"><MapPin size={12} /> Locate</button>
+      <button data-testid="creature-species-button" onClick={() => onOpenSpecies(sp.id)} className="nl-tool flex-1 h-8 text-[11px] flex items-center justify-center gap-1"><BookOpen size={12} /> Species</button>
+      <button data-testid="creature-sell-button" onClick={onTransfer} className="nl-tool flex-1 h-8 text-[11px] flex items-center justify-center gap-1 !text-[var(--danger)]"><Trash2 size={12} /> Transfer</button>
     </div>
   );
 }
@@ -159,63 +238,17 @@ export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }
   const enc = computeEnclosures(s).enclosures.find((e) => e.id === c.enclosureId);
   const habitat = evaluateHabitat(s, c, enc);
 
-  const sell = () => {
-    earn(s, sp.cost * 0.4, 'grants', `Transferred ${c.name} to partner facility`);
-    removeCreature(s, c.id);
-    toast.info(`${c.name} transferred (+${fmtMoney(sp.cost * 0.4)})`);
-    onClose();
-  };
-
   return (
     <div className="flex flex-col gap-3 p-4" data-testid="creature-panel">
-      <div className="flex gap-3">
-        <Portrait speciesId={sp.id} size={72} />
-        <div className="min-w-0">
-          <div className="text-base font-semibold text-[var(--text-1)] flex items-center gap-2">
-            {c.name}
-            {c.juvenile && (
-              <span data-testid="creature-juvenile-badge"
-                className="mono text-[9px] tracking-[0.15em] px-1.5 py-0.5 rounded border"
-                style={{ borderColor: 'var(--accent-seaglass)', color: 'var(--accent-seaglass)' }}>
-                JUVENILE {Math.round((c.growth || 0) * 100)}%
-              </span>
-            )}
-            {c.cloaked && (
-              <span data-testid="creature-cloaked-badge"
-                className="mono text-[9px] tracking-[0.15em] px-1.5 py-0.5 rounded border"
-                style={{ borderColor: 'var(--accent-violet)', color: 'var(--accent-violet)' }}>
-                CLOAKED
-              </span>
-            )}
-          </div>
-          <div className="mono text-[10px] text-[var(--text-3)]">{sp.code}</div>
-          <TraitChips view={view} sp={sp} trait={c.trait} />
-        </div>
-      </div>
-
+      <CreatureHeader c={c} sp={sp} view={view} />
       {c.escaped && <EscapeBanner creature={c} />}
-
       <div className="text-[11px] mono text-[var(--accent-cyan)]">▸ {ACTIVITY[c.state] || c.state}</div>
-
-      <div className="space-y-2">
-        <Bar label="Welfare" value={c.welfare} testId="creature-welfare" />
-        <Bar label="Stress" value={c.stress} color={c.stress > 0.6 ? 'var(--danger)' : 'var(--accent-violet)'} testId="creature-stress" />
-        <div className="grid grid-cols-3 gap-2 pt-1">
-          <Bar label="Food" value={c.needs.hunger} testId="creature-hunger" />
-          <Bar label="Water" value={c.needs.thirst} testId="creature-thirst" />
-          <Bar label="Rest" value={c.needs.energy} testId="creature-energy" />
-        </div>
-      </div>
-
+      <VitalsBars c={c} />
       <HabitatFactors habitat={habitat} />
       <GeneticsSection c={c} />
       <BiologySection view={view} knownEntries={knownEntries} />
-
-      <div className="flex gap-2 pt-1">
-        <button data-testid="creature-locate-button" onClick={() => onNavigate({ kind: 'creature', id: c.id })} className="nl-tool flex-1 h-8 text-[11px] flex items-center justify-center gap-1"><MapPin size={12} /> Locate</button>
-        <button data-testid="creature-species-button" onClick={() => onOpenSpecies(sp.id)} className="nl-tool flex-1 h-8 text-[11px] flex items-center justify-center gap-1"><BookOpen size={12} /> Species</button>
-        <button data-testid="creature-sell-button" onClick={sell} className="nl-tool flex-1 h-8 text-[11px] flex items-center justify-center gap-1 !text-[var(--danger)]"><Trash2 size={12} /> Transfer</button>
-      </div>
+      <ActionRow c={c} sp={sp} onNavigate={onNavigate} onOpenSpecies={onOpenSpecies}
+        onTransfer={() => transferCreature(s, c, sp, onClose)} />
     </div>
   );
 }

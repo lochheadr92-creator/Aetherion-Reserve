@@ -38,7 +38,8 @@ const GLASS = '#16323a';
 const mkPt = (ox, oy) => (tx, ty) => [ox + (tx - ty) * 16, oy + (tx + ty) * 8];
 
 // concrete foundation plinth: expanded ground diamond ring + 3px riser
-function plinth(P, ox, oy, w, h, e = 2, fh = 3) {
+// cfg: { ox, oy, w, h, edge?, riser? }
+function plinth(P, { ox, oy, w, h, edge: e = 2, riser: fh = 3 }) {
   const pt = mkPt(ox, oy);
   const [ax, ay] = pt(0, 0), [bx, by] = pt(w, 0), [cx, cy] = pt(w, h), [dx, dy] = pt(0, h);
   const A = [ax, ay - e], B = [bx + e * 2, by], C = [cx, cy + e], D = [dx - e * 2, dy];
@@ -59,12 +60,12 @@ function plinth(P, ox, oy, w, h, e = 2, fh = 3) {
 }
 
 // framed wall detailing over an isoBox face
-// side: 'L' (D->C, lit) or 'R' (C->B, shaded)
-function wallDetail(P, pt, w, h, z, base, side, opts = {}) {
+// geo: { pt, w, h, z } · cfg: { base, side ('L' D->C lit | 'R' C->B shaded), dirty? }
+function wallDetail(P, geo, { base, side, dirty = false }) {
+  const { pt, w, h, z } = geo;
   const ctx = P.ctx;
   const [x0, y0] = side === 'L' ? pt(0, h) : pt(w, h);
   const [x1, y1] = side === 'L' ? pt(w, h) : pt(w, 0);
-  const n = Math.round(Math.hypot(x1 - x0, y1 - y0));
   const col = side === 'L' ? tone(base, -0.02) : tone(base, -0.2);
   // horizontal panel seams
   for (let k = 1; k <= 2; k++) {
@@ -80,14 +81,16 @@ function wallDetail(P, pt, w, h, z, base, side, opts = {}) {
     ctx.fillRect(Math.round(px) - (t === 1 ? 1 : 0), Math.round(py) - z, 1, z);
   }
   // grime accumulation at wall base
-  P.dither(Math.min(x0, x1), Math.max(y0, y1) - 4, Math.abs(x1 - x0), 4, 'rgba(6,10,14,0.5)', opts.dirty ? 0.3 : 0.16, 7);
+  P.dither(Math.min(x0, x1), Math.max(y0, y1) - 4, Math.abs(x1 - x0), 4, 'rgba(6,10,14,0.5)', dirty ? 0.3 : 0.16, 7);
   // ground AO band
   ctx.fillStyle = 'rgba(4,7,11,0.35)';
   ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x1, y1 + 1.6); ctx.lineTo(x0, y0 + 1.6); ctx.closePath(); ctx.fill();
 }
 
 // roof slab: parapet lip with thickness + inner deck
-function roofSlab(P, pt, w, h, z, roofCol) {
+// geo: { pt, w, h, z }
+function roofSlab(P, geo, roofCol) {
+  const { pt, w, h, z } = geo;
   const ctx = P.ctx;
   const [ax, ay] = pt(0, 0), [bx, by] = pt(w, 0), [cx, cy] = pt(w, h), [dx, dy] = pt(0, h);
   // parapet thickness (2px drop on the two visible rims)
@@ -112,7 +115,9 @@ function roofSlab(P, pt, w, h, z, roofCol) {
 }
 
 // inset doorway with frame, steps and interior glow, on left face
-function doorway(P, pt, w, h, z, lit) {
+// geo: { pt, w, h } (z unused — door sits at ground level)
+function doorway(P, geo, lit) {
+  const { pt, w, h } = geo;
   const ctx = P.ctx;
   const [dx, dy] = pt(0, h), [cx, cy] = pt(w, h);
   const mx = Math.round((dx + cx) / 2), my = Math.round((dy + cy) / 2);
@@ -133,8 +138,8 @@ function doorway(P, pt, w, h, z, lit) {
 }
 
 // glazed window band with emissive interior
-function windowBand(P, x0, y0, x1, y1, liftZ, lit, f, seg = 2) {
-  const ctx = P.ctx;
+// cfg: { x0, y0, x1, y1, liftZ, lit, f, seg? }
+function windowBand(P, { x0, y0, x1, y1, liftZ, lit, f, seg = 2 }) {
   const n = Math.round(Math.hypot(x1 - x0, y1 - y0) / (seg + 3));
   for (let i = 1; i < n; i++) {
     const t = i / n;
@@ -158,17 +163,20 @@ function roofVent(P, x, y, wd = 4) {
   P.hl(x, y, wd, tone(DARKMETAL, -0.3));
 }
 
-function pipeRun(P, x0, y0, len, vertical, col = STEEL) {
+// cfg: { x, y, len, vertical?, col? }
+function pipeRun(P, { x, y, len, vertical = false, col = STEEL }) {
   if (vertical) {
-    P.vl(x0, y0, len, col); P.vl(x0 + 1, y0, len, tone(col, -0.3));
-    P.p(x0, y0, tone(col, 0.2)); P.p(x0, y0 + len - 1, tone(col, -0.15));
+    P.vl(x, y, len, col); P.vl(x + 1, y, len, tone(col, -0.3));
+    P.p(x, y, tone(col, 0.2)); P.p(x, y + len - 1, tone(col, -0.15));
   } else {
-    P.hl(x0, y0, len, col); P.hl(x0, y0 + 1, len, tone(col, -0.3));
+    P.hl(x, y, len, col); P.hl(x, y + 1, len, tone(col, -0.3));
   }
 }
 
 // striped industrial awning with thickness + support struts
-function awning(P, pt, w, h, z, colA, colB) {
+// geo: { pt, w, h, z } · cfg: { colA, colB }
+function awning(P, geo, { colA, colB }) {
+  const { pt, w, h, z } = geo;
   const ctx = P.ctx;
   const [dx, dy] = pt(0, h), [cx, cy] = pt(w, h);
   const n = Math.max(5, Math.round((cx - dx) / 4));
@@ -195,7 +203,8 @@ function roofCenter(pt, w, h, z) {
 const DETAIL = {
   admin(P, g, z, f, def) {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.05));
+    const geo = { pt, w, h, z };
+    roofSlab(P, geo, tone(def.color, -0.05));
     // upper command block (second storey massing)
     const [rx, ry] = roofCenter(pt, w, h, z);
     P.slab(rx - 8, ry - 8, 14, 8, tone(def.color, 0.1), { tex: 1 });
@@ -211,9 +220,9 @@ const DETAIL = {
     roofVent(P, rx - 12, ry + 3);
     // windows both faces + door
     const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
-    windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.62), def.light, f, 3);
-    windowBand(P, cx0, cy0, bx0, by0, Math.round(z * 0.62), def.light, f + 1, 2);
-    doorway(P, pt, w, h, z, def.light);
+    windowBand(P, { x0: dx0, y0: dy0, x1: cx0, y1: cy0, liftZ: Math.round(z * 0.62), lit: def.light, f, seg: 3 });
+    windowBand(P, { x0: cx0, y0: cy0, x1: bx0, y1: by0, liftZ: Math.round(z * 0.62), lit: def.light, f: f + 1, seg: 2 });
+    doorway(P, geo, def.light);
     // identity stripe
     const [lx, ly] = pt(0, h);
     P.hl(lx + 2, ly - z + 4, 9, def.light);
@@ -221,7 +230,8 @@ const DETAIL = {
   },
   lab(P, g, z, f, def) {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.04));
+    const geo = { pt, w, h, z };
+    roofSlab(P, geo, tone(def.color, -0.04));
     // glazed atrium wing on right face
     const [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
     const gx = Math.round((cx0 + bx0) / 2), gy = Math.round((cy0 + by0) / 2);
@@ -237,7 +247,7 @@ const DETAIL = {
     P.slab(rx + 6, ry - 4, 4, 5, mixc(DARKMETAL, def.light, 0.2));
     P.hl(rx + 6, ry - 4, 4, tone(def.light, -0.1));
     P.vl(rx - 10, ry - 8, 8, STEEL); P.p(rx - 10, ry - 9, tone(def.light, 0.2));
-    pipeRun(P, rx + 10, ry - 2, 6, true);
+    pipeRun(P, { x: rx + 10, y: ry - 2, len: 6, vertical: true });
     // scan band on left face (animated) + door
     const [dx0, dy0] = pt(0, h);
     const [cx1, cy1] = pt(w, h);
@@ -248,11 +258,11 @@ const DETAIL = {
       const sweep = (i + f * 2) % 6 === 0;
       P.r(x, y, 3, 3, sweep ? tone(def.light, 0.3) : mixc(GLASS, def.light, 0.32));
     }
-    doorway(P, pt, w, h, z, def.light);
+    doorway(P, geo, def.light);
   },
   power(P, g, z, f, def) {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.08));
+    roofSlab(P, { pt, w, h, z }, tone(def.color, -0.08));
     const [rx, ry] = roofCenter(pt, w, h, z);
     // relay core: heavy coil stack
     P.slab(rx - 4, ry - 12, 8, 12, '#3a4453', { tex: 1 });
@@ -279,8 +289,9 @@ const DETAIL = {
   },
   security_post(P, g, z, f, def) {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.06));
-    doorway(P, pt, w, h, z, def.light);
+    const geo = { pt, w, h, z };
+    roofSlab(P, geo, tone(def.color, -0.06));
+    doorway(P, geo, def.light);
     // armour plating overlay on left face
     const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
     P.r(Math.round((dx0 + cx0) / 2) + 5, Math.round((dy0 + cy0) / 2) - 10, 6, 7, tone('#2e2228', 0.05));
@@ -333,7 +344,7 @@ const DETAIL = {
     const { pt, w, h } = g;
     const ctx = P.ctx;
     // deck plating
-    roofSlab(P, pt, w, h, z, tone(def.color, 0.02));
+    roofSlab(P, { pt, w, h, z }, tone(def.color, 0.02));
     // perimeter railing with posts
     const corners = [[0, 0], [w, 0], [w, h], [0, h]];
     const railPts = corners.map(([tx, ty]) => pt(tx, ty));
@@ -364,11 +375,12 @@ const DETAIL = {
   },
   restroom(P, g, z, f, def) {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.05));
-    doorway(P, pt, w, h, z, '#9adfe8');
+    const geo = { pt, w, h, z };
+    roofSlab(P, geo, tone(def.color, -0.05));
+    doorway(P, geo, '#9adfe8');
     const [rx, ry] = roofCenter(pt, w, h, z);
     roofVent(P, rx - 3, ry, 4);
-    pipeRun(P, rx + 5, ry - 4, 5, true);
+    pipeRun(P, { x: rx + 5, y: ry - 4, len: 5, vertical: true });
     // pictogram sign
     const [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
     const sx = Math.round((cx0 + bx0) / 2), sy = Math.round((cy0 + by0) / 2);
@@ -379,8 +391,9 @@ const DETAIL = {
   },
   gift_shop(P, g, z, f, def) {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.04));
-    doorway(P, pt, w, h, z, def.light);
+    const geo = { pt, w, h, z };
+    roofSlab(P, geo, tone(def.color, -0.04));
+    doorway(P, geo, def.light);
     // large lit display window with curio silhouettes
     const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h);
     const mx = Math.round((dx0 + cx0) / 2), my = Math.round((dy0 + cy0) / 2);
@@ -423,7 +436,8 @@ const DETAIL = {
 function stallDetail(glyph) {
   return (P, g, z, f, def) => {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.05));
+    const geo = { pt, w, h, z };
+    roofSlab(P, geo, tone(def.color, -0.05));
     // counter opening on left face with shelf + goods
     const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h);
     const mx = Math.round((dx0 + cx0) / 2), my = Math.round((dy0 + cy0) / 2);
@@ -432,7 +446,7 @@ function stallDetail(glyph) {
     P.hl(mx - 5, my - 9, 11, tone(DARKMETAL, 0.35));
     glyph(P, mx, my - 5, def);
     // thick striped awning + struts
-    awning(P, pt, w, h, z, tone(def.light, -0.12), '#1a222e');
+    awning(P, geo, { colA: tone(def.light, -0.12), colB: '#1a222e' });
     // roof signage + vent
     const [rx, ry] = roofCenter(pt, w, h, z);
     P.r(rx - 3, ry - 6, 7, 5, DARKMETAL);
@@ -499,7 +513,8 @@ DETAIL.feeder_energy = (P, g, z, f, def) => {
 function domeDetail(glowT = 0.4) {
   return (P, g, z, f, def) => {
     const { pt, w, h } = g;
-    roofSlab(P, pt, w, h, z, tone(def.color, -0.05));
+    const geo = { pt, w, h, z };
+    roofSlab(P, geo, tone(def.color, -0.05));
     const [rx, ry] = roofCenter(pt, w, h, z);
     const r = (w + h) * 3.2;
     P.blob(rx, ry - 2, r, r * 0.62, mixc(GLASS, def.light, 0.18), { lite: 0.3, dark: 0.2 });
@@ -510,15 +525,16 @@ function domeDetail(glowT = 0.4) {
     }
     P.glow(rx, ry - 2 - r * 0.6, def.light, f === 0 ? glowT : glowT * 0.5);
     const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h);
-    windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.55), def.light, f, 3);
-    doorway(P, pt, w, h, z, def.light);
+    windowBand(P, { x0: dx0, y0: dy0, x1: cx0, y1: cy0, liftZ: Math.round(z * 0.55), lit: def.light, f, seg: 3 });
+    doorway(P, geo, def.light);
   };
 }
 
 // exhibition halls: banner facade + skylight strip + roof gear
 function museumDetail(P, g, z, f, def) {
   const { pt, w, h } = g;
-  roofSlab(P, pt, w, h, z, tone(def.color, -0.04));
+  const geo = { pt, w, h, z };
+  roofSlab(P, geo, tone(def.color, -0.04));
   const [rx, ry] = roofCenter(pt, w, h, z);
   // skylight strip
   for (let k = 0; k < 3; k++) P.r(rx - 6 + k * 5, ry - 2 + k, 4, 2, mixc(GLASS, def.light, (k + f) % 3 === 0 ? 0.5 : 0.3));
@@ -529,28 +545,30 @@ function museumDetail(P, g, z, f, def) {
   P.r(bx - 2, by - z + 3, 5, Math.round(z * 0.6), tone(def.light, -0.35));
   P.hl(bx - 2, by - z + 3, 5, tone(def.light, 0.1));
   P.p(bx, by - z + 5, tone(def.light, 0.3));
-  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.5), def.light, f, 2);
-  doorway(P, pt, w, h, z, def.light);
+  windowBand(P, { x0: dx0, y0: dy0, x1: cx0, y1: cy0, liftZ: Math.round(z * 0.5), lit: def.light, f, seg: 2 });
+  doorway(P, geo, def.light);
 }
 
 // dining venues: awning + rooftop condensers + menu sign
 function dinerDetail(P, g, z, f, def) {
   const { pt, w, h } = g;
-  roofSlab(P, pt, w, h, z, tone(def.color, -0.06));
-  awning(P, pt, w, h, z, tone(def.light, -0.25), tone(def.color, 0.25));
+  const geo = { pt, w, h, z };
+  roofSlab(P, geo, tone(def.color, -0.06));
+  awning(P, geo, { colA: tone(def.light, -0.25), colB: tone(def.color, 0.25) });
   const [rx, ry] = roofCenter(pt, w, h, z);
   roofVent(P, rx - 6, ry, 5); roofVent(P, rx + 3, ry + 2, 4);
   P.vl(rx + 9, ry - 5, 5, STEEL);
   P.p(rx + 9, ry - 6, f === 0 ? def.light : tone(def.light, -0.4)); // sign lamp
   const [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
-  windowBand(P, cx0, cy0, bx0, by0, Math.round(z * 0.5), def.light, f, 3);
-  doorway(P, pt, w, h, z, def.light);
+  windowBand(P, { x0: cx0, y0: cy0, x1: bx0, y1: by0, liftZ: Math.round(z * 0.5), lit: def.light, f, seg: 3 });
+  doorway(P, geo, def.light);
 }
 
 // hotel: upper storey + dense window grid + entry canopy
 function hotelDetail(P, g, z, f, def) {
   const { pt, w, h } = g;
-  roofSlab(P, pt, w, h, z, tone(def.color, -0.05));
+  const geo = { pt, w, h, z };
+  roofSlab(P, geo, tone(def.color, -0.05));
   const [rx, ry] = roofCenter(pt, w, h, z);
   P.slab(rx - 9, ry - 10, 17, 10, tone(def.color, 0.12), { tex: 1 });
   P.hl(rx - 9, ry - 10, 17, tone(def.color, 0.35));
@@ -558,16 +576,17 @@ function hotelDetail(P, g, z, f, def) {
   for (let k = 0; k < 5; k++) P.p(rx - 7 + k * 3, ry - 4, (k + f) % 4 ? mixc(GLASS, def.light, 0.4) : GLASS);
   beacon(P, rx + 8, ry - 10, def.light, f === 0);
   const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
-  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.6), def.light, f, 3);
-  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.32), def.light, f + 2, 3);
-  windowBand(P, cx0, cy0, bx0, by0, Math.round(z * 0.6), def.light, f + 1, 2);
-  doorway(P, pt, w, h, z, def.light);
+  windowBand(P, { x0: dx0, y0: dy0, x1: cx0, y1: cy0, liftZ: Math.round(z * 0.6), lit: def.light, f, seg: 3 });
+  windowBand(P, { x0: dx0, y0: dy0, x1: cx0, y1: cy0, liftZ: Math.round(z * 0.32), lit: def.light, f: f + 2, seg: 3 });
+  windowBand(P, { x0: cx0, y0: cy0, x1: bx0, y1: by0, liftZ: Math.round(z * 0.6), lit: def.light, f: f + 1, seg: 2 });
+  doorway(P, geo, def.light);
 }
 
 // transport stations: platform canopy + guideway pylon with cable arm
 function stationDetail(P, g, z, f, def) {
   const { pt, w, h } = g;
-  roofSlab(P, pt, w, h, z, tone(def.color, -0.02));
+  const geo = { pt, w, h, z };
+  roofSlab(P, geo, tone(def.color, -0.02));
   const [rx, ry] = roofCenter(pt, w, h, z);
   // guideway pylon rising above the roof — the line anchors here
   P.slab(rx - 1, ry - 16, 3, 16, tone(STEEL, -0.05));
@@ -582,8 +601,8 @@ function stationDetail(P, g, z, f, def) {
     const t = k / 4;
     P.p(Math.round(dx0 + (cx0 - dx0) * t), Math.round(dy0 + (cy0 - dy0) * t) + 1, (k + f) % 2 ? def.light : tone(def.light, -0.4));
   }
-  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.5), def.light, f, 3);
-  doorway(P, pt, w, h, z, def.light);
+  windowBand(P, { x0: dx0, y0: dy0, x1: cx0, y1: cy0, liftZ: Math.round(z * 0.5), lit: def.light, f, seg: 3 });
+  doorway(P, geo, def.light);
 }
 
 // open-air grounds: planters, parasols and benches on a plinth (no walls)
@@ -744,7 +763,7 @@ export function getBuildingSprite(type, w, h) {
     const base = def.color;
     const g = { w, h, pt: mkPt(ox, oy) };
     if (BOXY.has(type)) {
-      plinth(P, ox, oy, w, h, 2, 3);
+      plinth(P, { ox, oy, w, h, edge: 2, riser: 3 });
       if (type === 'tower') {
         // open lattice: slender legs instead of solid walls
         const ptf = g.pt;
@@ -762,8 +781,9 @@ export function getBuildingSprite(type, w, h) {
         isoBox(P, ox, oy - z + 4, w, h, 4, tone(base, 0.26), tone(base, -0.14), tone(base, 0.05), { tex: 1 });
       } else {
         isoBox(P, ox, oy - 3, w, h, z - 3, tone(base, 0.3), tone(base, -0.12), tone(base, 0.07), { tex: 1 });
-        wallDetail(P, g.pt, w, h, z, base, 'L', { dirty: type === 'power' });
-        wallDetail(P, g.pt, w, h, z, base, 'R', { dirty: type === 'power' });
+        const wallGeo = { pt: g.pt, w, h, z };
+        wallDetail(P, wallGeo, { base, side: 'L', dirty: type === 'power' });
+        wallDetail(P, wallGeo, { base, side: 'R', dirty: type === 'power' });
       }
     }
     (DETAIL[type] || DETAIL.restroom)(P, g, z, f, def);

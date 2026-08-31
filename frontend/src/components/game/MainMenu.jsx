@@ -5,7 +5,7 @@ import { game } from '@/game/controller';
 import { fmtMoney } from '@/game/constants';
 import { SCENARIO_LIST } from '@/game/data/scenarios';
 
-const DIFF_COLORS = { EASY: 'var(--success)', MEDIUM: 'var(--accent-amber)', HARD: 'var(--danger)', EXPERT: 'var(--accent-violet)' };
+const DIFF_COLORS = { EASY: 'var(--success)', MEDIUM: 'var(--accent-amber)', HARD: 'var(--danger)', EXPERT: 'var(--accent-violet)', BRUTAL: 'var(--accent-rose)' };
 
 const MENU_BG = { background: 'radial-gradient(1200px 700px at 70% 20%, #0d1523 0%, #070a0e 55%, #05070b 100%)' };
 const GRID_BG = {

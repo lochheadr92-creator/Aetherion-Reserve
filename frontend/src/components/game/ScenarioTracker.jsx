@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, CheckCircle2, Circle, Trophy, Skull, Target } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle2, Circle, Trophy, Skull, Target, Gem } from 'lucide-react';
 import { game } from '@/game/controller';
 import { SCENARIOS } from '@/game/data/scenarios';
 import { ackScenario } from '@/game/scenarios';
@@ -27,6 +27,7 @@ const endDialogBody = (won, def, sc) => {
 
 function EndDialog({ def, sc, onDismiss, onExit }) {
   const won = sc.status === 'won';
+  const mastery = won && def.mastery ? def.mastery : null;
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center" style={BACKDROP_STYLE}
       data-testid={won ? 'scenario-victory-dialog' : 'scenario-defeat-dialog'}>
@@ -41,6 +42,24 @@ function EndDialog({ def, sc, onDismiss, onExit }) {
           <div className="text-xl font-bold text-[var(--text-1)] mt-1">{def.name}</div>
         </div>
         <p className="text-sm text-[var(--text-2)] leading-relaxed">{endDialogBody(won, def, sc)}</p>
+        {mastery && (
+          <div className="text-left rounded border border-[var(--line)] bg-[var(--panel-2)] p-3 space-y-1.5" data-testid="scenario-mastery-results">
+            <div className="mono text-[9px] tracking-[0.25em] text-[var(--accent-amber)] flex items-center gap-1.5">
+              <Gem size={11} /> MASTERY · {mastery.filter((m) => sc.mastery?.[m.id]).length}/{mastery.length}
+            </div>
+            {mastery.map((m) => {
+              const earned = !!sc.mastery?.[m.id];
+              return (
+                <div key={m.id} className="flex gap-2 items-start" data-testid={`scenario-mastery-${m.id}`} data-earned={earned ? 'true' : 'false'}>
+                  {earned
+                    ? <CheckCircle2 size={12} className="text-[var(--accent-amber)] mt-0.5 shrink-0" />
+                    : <Circle size={12} className="text-[var(--text-3)] mt-0.5 shrink-0" />}
+                  <span className={`text-[11px] leading-snug ${earned ? 'text-[var(--text-1)]' : 'text-[var(--text-3)]'}`}>{m.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
         <div className="flex gap-3 justify-center pt-1">
           <Button data-testid="scenario-continue-button" onClick={onDismiss}
             className="h-9 px-4 text-xs bg-[var(--accent-cyan)] text-[#04141A] hover:bg-[var(--accent-cyan)]/85">
@@ -67,7 +86,7 @@ function GoalRow({ goal, done }) {
   );
 }
 
-function TrackerBody({ def, sc }) {
+function TrackerBody({ def, sc, s }) {
   return (
     <div className="px-3 py-2 space-y-1.5">
       {def.goals.map((g) => <GoalRow key={g.id} goal={g} done={!!sc.progress[g.id]} />)}
@@ -76,6 +95,22 @@ function TrackerBody({ def, sc }) {
           <div key={f.id} className="text-[10px] mono text-[var(--danger)] opacity-80">✕ FAIL: {f.label}</div>
         ))}
       </div>
+      {def.mastery && (
+        <div className="pt-1.5 mt-0.5 border-t border-[var(--line)] space-y-1" data-testid="scenario-mastery-tracker">
+          <div className="mono text-[9px] tracking-[0.25em] text-[var(--accent-amber)] flex items-center gap-1">
+            <Gem size={10} /> MASTERY · OPTIONAL
+          </div>
+          {def.mastery.map((m) => {
+            const onTrack = s ? !!m.check(s) : false;
+            return (
+              <div key={m.id} className="flex gap-1.5 items-start" data-testid={`scenario-mastery-row-${m.id}`}>
+                <Gem size={10} className={`mt-0.5 shrink-0 ${onTrack ? 'text-[var(--accent-amber)]' : 'text-[var(--text-3)] opacity-50'}`} />
+                <span className={`text-[10px] leading-snug ${onTrack ? 'text-[var(--text-2)]' : 'text-[var(--text-3)]'}`}>{m.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -107,7 +142,7 @@ export default function ScenarioTracker({ onExit }) {
             </span>
             {open ? <ChevronUp size={14} className="text-[var(--text-3)]" /> : <ChevronDown size={14} className="text-[var(--text-3)]" />}
           </button>
-          {open && <TrackerBody def={def} sc={sc} />}
+          {open && <TrackerBody def={def} sc={sc} s={s} />}
         </div>
       </div>
       {ended && !dismissed && !sc.ack && (

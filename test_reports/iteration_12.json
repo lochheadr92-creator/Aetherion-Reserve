@@ -1,0 +1,51 @@
+{
+  "summary": "Phase 17 'Sovereign Containment' scenario testing complete - all features working correctly. Tested scenario picker (5 cards including BRUTAL sovereign_containment with 40k reward), setup template (30k cash, nyxarr, damaged fences, buildings, research), mission tracker (4 goals + 4 mastery objectives), victory/defeat flows with mastery grading, escapeTicks/minCash tracking, and save/load persistence. Regression tests confirm other scenarios, sandbox, and management modes still work.",
+  
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "Backend API health check (10/10 tests passed)",
+    "Scenario fields persistence (escapeTicks, minCash, mastery) in save/load API",
+    "Phase17 comprehensive test suite (14/14 tests passed)",
+    "Scenario picker shows 5 cards including sovereign_containment with BRUTAL difficulty and 40,000 reward",
+    "Setup template correctly applies: 30k cash, 1 nyxarr, damaged tier-4 perimeter (tier-1 patches + weakened segments), admin/lab/feeder_meat/shelter buildings, cont_insulated research",
+    "Mission tracker displays 4 goals, 3 fail conditions, and MASTERY section with 4 optional objectives",
+    "Perimeter goal detection works after setting all fences to tier 4 full hp",
+    "Victory flow: scenario.status='won', victory dialog with mastery results, all 4 mastery badges earned, 40k reward granted",
+    "Defeat flow: escapeTicks >= 3000 triggers scenario.status='lost' with failedBy='loose', defeat dialog shown",
+    "escapeTicks accumulates by 100 per scenarioTick when creatures escaped",
+    "minCash tracks lowest cash value seen",
+    "Regression: Skitter Bloom scenario starts correctly (4 skitterlings, 40k cash)",
+    "Regression: Sandbox mode boots (unlimited funds, all research unlocked)",
+    "Regression: Management mode boots (150k cash, no scenario)",
+    "Save/Load UI integration: scenario fields (escapeTicks=750, minCash=27500, mastery=null) survive save+reload round-trip"
+  ],
+  
+  "test_report_links": [
+    "/app/backend/backend_test.py",
+    "/app/tests/phase17_sovereign_test.py"
+  ],
+  
+  "success_percentage": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (14/14 phase17 tests + 5/5 regression tests passed)"
+  },
+  
+  "updated_files": [
+    "/app/backend/backend_test.py"
+  ],
+  
+  "action_item_for_main_agent": "",
+  
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false
+}

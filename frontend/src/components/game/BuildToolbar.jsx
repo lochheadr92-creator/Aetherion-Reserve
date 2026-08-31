@@ -17,6 +17,7 @@ const CATS = [
   { id: 'fences', label: 'Fences' },
   { id: 'habitat', label: 'Habitat' },
   { id: 'facilities', label: 'Facilities' },
+  { id: 'attractions', label: 'Attractions' },
 ];
 
 const MATERIAL_LIST = Object.values(MATERIALS);
@@ -179,26 +180,53 @@ function FencesSection({ s, is, setTool, activeTool }) {
   );
 }
 
+const ATTRACTION_CATS = ['experience', 'major', 'amenity', 'transport'];
+const ATTRACTION_GROUPS = [
+  { key: 'experience', label: 'CREATURE EXPERIENCES' },
+  { key: 'major', label: 'MAJOR ATTRACTIONS' },
+  { key: 'amenity', label: 'GUEST AMENITIES' },
+  { key: 'transport', label: 'TRANSPORT — BUILD 2+ STATIONS TO OPEN A LINE' },
+];
+
 function BuildingsSection({ s, cat, is, setTool }) {
   const list = useMemo(
-    () => BUILDING_LIST.filter((b) => (cat === 'habitat' ? b.cat === 'habitat' : b.cat !== 'habitat')),
+    () => BUILDING_LIST.filter((b) => (cat === 'habitat' ? b.cat === 'habitat' : !ATTRACTION_CATS.includes(b.cat) && b.cat !== 'habitat')),
     [cat],
   );
   return (
     <div className="flex flex-wrap gap-1.5">
-      {list.map((b) => {
-        const locked = b.locked && !hasResearch(s, b.locked);
-        return (
-          <ToolButton key={b.id} testId={`building-${b.id}`} disabled={locked} active={is('building', { buildingType: b.id })}
-            onClick={() => setTool({ mode: 'building', buildingType: b.id })}
-            title={locked ? 'Requires research' : `${b.name} — ◈${b.cost} · upkeep ◈${b.upkeep}/cycle · ${b.desc}`}>
-            <Building2 size={16} style={{ color: b.light }} />
-            <span className="text-center leading-tight">{b.name}</span>
-            <span className="mono text-[var(--text-3)]">{locked ? <Lock size={9} className="inline" /> : `◈${b.cost}`}</span>
-          </ToolButton>
-        );
-      })}
+      {list.map((b) => <BuildingButton key={b.id} b={b} s={s} is={is} setTool={setTool} />)}
     </div>
+  );
+}
+
+function AttractionsSection({ s, is, setTool }) {
+  return (
+    <div className="space-y-2">
+      {ATTRACTION_GROUPS.map((grp) => (
+        <div key={grp.key}>
+          <div className="mono text-[8px] tracking-[0.2em] text-[var(--text-3)] mb-1">{grp.label}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {BUILDING_LIST.filter((b) => b.cat === grp.key).map((b) => (
+              <BuildingButton key={b.id} b={b} s={s} is={is} setTool={setTool} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BuildingButton({ b, s, is, setTool }) {
+  const locked = b.locked && !hasResearch(s, b.locked);
+  return (
+    <ToolButton testId={`building-${b.id}`} disabled={locked} active={is('building', { buildingType: b.id })}
+      onClick={() => setTool({ mode: 'building', buildingType: b.id })}
+      title={locked ? 'Requires research' : `${b.name} — ◈${b.cost} · upkeep ◈${b.upkeep}/cycle · ${b.desc}`}>
+      <Building2 size={16} style={{ color: b.light }} />
+      <span className="text-center leading-tight">{b.name}</span>
+      <span className="mono text-[var(--text-3)]">{locked ? <Lock size={9} className="inline" /> : `◈${b.cost}`}</span>
+    </ToolButton>
   );
 }
 
@@ -263,6 +291,7 @@ const SECTIONS = {
   fences: FencesSection,
   habitat: BuildingsSection,
   facilities: BuildingsSection,
+  attractions: AttractionsSection,
 };
 
 export default function BuildToolbar({ activeTool, setTool }) {

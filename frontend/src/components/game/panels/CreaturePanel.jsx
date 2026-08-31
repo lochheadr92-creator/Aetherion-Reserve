@@ -6,6 +6,7 @@ import { getSpeciesView } from '@/game/knowledge';
 import { speciesById } from '@/game/data/species';
 import { fmtMoney } from '@/game/constants';
 import { recallCreature, removeCreature } from '@/game/creatures';
+import { traitLabels, morphOf } from '@/game/genetics';
 import { earn } from '@/game/economy';
 import Portrait from '@/components/game/Portrait';
 import Bar from '@/components/game/panels/Bar';
@@ -15,6 +16,7 @@ export const ACTIVITY = {
   seekFood: 'Heading to feeder', eating: 'Feeding', seekGraze: 'Foraging', grazing: 'Grazing', seekFilterFeed: 'Drifting to water', filterFeeding: 'Filter feeding',
   resting: 'Resting', seekShelter: 'Heading to shelter', sheltering: 'Sheltering', seekTerrain: 'Seeking preferred ground', settling: 'Settling in',
   social: 'Approaching kin', seekSocial: 'Approaching kin', socialising: 'Socialising', hungry: 'HUNGRY — no reachable food source', thirsty: 'THIRSTY — no reachable water', flee: 'Fleeing',
+  rivalApproach: 'Stalking a rival at the boundary', rivalDisplay: 'THREAT DISPLAY — rival across the fence', rivalClash: 'CLASHING with a rival!',
 };
 
 function TraitChips({ view, sp, trait }) {
@@ -92,6 +94,60 @@ function knownBiologyEntries(view) {
   return view ? Object.entries(view.known).filter(([key]) => !key.startsWith('_')) : [];
 }
 
+const TRAIT_COLORS = {
+  morph: null, // uses the morph glow colour
+  warning: 'var(--warning)',
+  danger: 'var(--danger)',
+  behaviour: 'var(--text-2)',
+  bio: 'var(--accent-seaglass)',
+};
+
+function GeneticsSection({ c }) {
+  const g = c.genes;
+  if (!g) return null;
+  const traits = traitLabels(g);
+  const morph = morphOf(c);
+  return (
+    <div data-testid="creature-genetics-section">
+      <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1.5">GENETICS &amp; LINEAGE</div>
+      <div className="space-y-1 text-[11px]">
+        <div className="flex gap-2">
+          <span className="text-[var(--text-3)] w-20 shrink-0">Lineage</span>
+          <span className="text-[var(--text-2)]" data-testid="creature-generation">
+            {g.gen === 0 ? 'Wild-recovered (Generation 0)' : `Generation ${g.gen} — park-bred`}
+          </span>
+        </div>
+        {g.parents && (
+          <div className="flex gap-2">
+            <span className="text-[var(--text-3)] w-20 shrink-0">Parents</span>
+            <span className="text-[var(--text-2)]" data-testid="creature-parents">{g.parents.mName} × {g.parents.fName}</span>
+          </div>
+        )}
+        {g.inbreed >= 0.25 && (
+          <div className="flex gap-2">
+            <span className="text-[var(--text-3)] w-20 shrink-0">Diversity</span>
+            <span className="text-[var(--danger)]" data-testid="creature-inbreed-warning">Inbred line — fertility and hardiness reduced. Introduce fresh blood.</span>
+          </div>
+        )}
+      </div>
+      {traits.length > 0 && (
+        <div className="flex gap-1.5 mt-1.5 flex-wrap" data-testid="creature-gene-traits">
+          {traits.map((t) => (
+            <span key={t.label} className="text-[10px] px-2 py-0.5 rounded-full border"
+              style={{
+                borderColor: t.kind === 'morph' && morph ? morph.glow : 'var(--line-2)',
+                color: t.kind === 'morph' && morph ? morph.glow : (TRAIT_COLORS[t.kind] || 'var(--text-2)'),
+                boxShadow: t.kind === 'morph' && morph ? `0 0 8px ${morph.glow}44` : 'none',
+              }}>
+              {t.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }) {
   const s = game.state;
   const c = s.creatures.find((q) => q.id === id);
@@ -152,6 +208,7 @@ export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }
       </div>
 
       <HabitatFactors habitat={habitat} />
+      <GeneticsSection c={c} />
       <BiologySection view={view} knownEntries={knownEntries} />
 
       <div className="flex gap-2 pt-1">

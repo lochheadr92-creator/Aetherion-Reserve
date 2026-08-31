@@ -21,7 +21,7 @@ async def main():
         await page.click('[data-testid="mode-scenario"]')
         await page.wait_for_timeout(300)
         cards = await page.locator('[data-testid^="scenario-card-"]').count()
-        print("TEST 1a scenario picker shows 4 missions:", "PASS" if cards == 4 else f"FAIL ({cards})")
+        print("TEST 1a scenario picker shows 5 missions:", "PASS" if cards == 5 else f"FAIL ({cards})")
         await page.click('[data-testid="scenario-card-skitter_bloom"]')
         desc = await page.locator('[data-testid="scenario-desc"]').inner_text()
         print("TEST 1b description updates:", "PASS" if "Skitterling" in desc else "FAIL")

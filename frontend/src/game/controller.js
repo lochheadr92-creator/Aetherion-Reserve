@@ -4,6 +4,7 @@ import { TICK_MS } from './constants';
 import { createNewGame, serialize, deserialize, emit, on, setTimeControls } from './state';
 import { tickOnce, initObjectives } from './sim';
 import { applyScenario } from './scenarios';
+import { ensureGenes } from './genetics';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
 
@@ -24,6 +25,7 @@ class GameController {
     this.state = createNewGame(opts);
     initObjectives(this.state);
     if (opts && opts.scenarioId) applyScenario(this.state, opts.scenarioId);
+    ensureGenes(this.state);
     this.saveId = null;
     this.saveName = null;
     clearUndo();
@@ -104,6 +106,7 @@ class GameController {
     const res = await axios.get(`${API}/saves/${saveId}`);
     this.state = deserialize(res.data.state);
     initObjectives(this.state);
+    ensureGenes(this.state);
     this.saveId = saveId;
     this.saveName = res.data.name;
     clearUndo();

@@ -180,6 +180,100 @@ class APITester:
                 print(f"   Test save found in list: {found}")
         return success
 
+    def test_scenario_fields_persistence(self):
+        """Test that scenario fields (escapeTicks, minCash, mastery) survive save/load"""
+        test_state = {
+            "tick": 500,
+            "cash": 25000,
+            "rating": 0.6,
+            "heights": [0] * 4096,
+            "materials": [0] * 4096,
+            "water": [0] * 4096,
+            "paths": [False] * 4096,
+            "veg": [0] * 4096,
+            "fences": {},
+            "buildings": [],
+            "creatures": [],
+            "guests": [],
+            "entrance": {"x": 32, "y": 32},
+            "scenario": {
+                "id": "sovereign_containment",
+                "status": "active",
+                "startDay": 1,
+                "progress": {"perimeter": True, "welfare": False},
+                "ack": False,
+                "escapeTicks": 1500,
+                "minCash": 22000,
+                "mastery": None
+            }
+        }
+        
+        # Create save with scenario fields
+        success, response = self.run_test(
+            "Create Save with Scenario Fields",
+            "POST",
+            "saves",
+            200,
+            data={
+                "name": f"Scenario Test {datetime.now().strftime('%H%M%S')}",
+                "park_name": "Sovereign Test",
+                "mode": "management",
+                "day": 5,
+                "cash": 25000,
+                "rating": 0.6,
+                "creatures": 1,
+                "state": test_state
+            }
+        )
+        
+        if not success or 'id' not in response:
+            return False
+        
+        scenario_save_id = response['id']
+        print(f"   Created scenario save with ID: {scenario_save_id}")
+        
+        # Retrieve and verify scenario fields
+        success, response = self.run_test(
+            "Get Save and Verify Scenario Fields",
+            "GET",
+            f"saves/{scenario_save_id}",
+            200
+        )
+        
+        if success and 'state' in response:
+            scenario = response['state'].get('scenario', {})
+            has_escape_ticks = 'escapeTicks' in scenario
+            has_min_cash = 'minCash' in scenario
+            has_mastery = 'mastery' in scenario
+            
+            escape_ticks_correct = scenario.get('escapeTicks') == 1500
+            min_cash_correct = scenario.get('minCash') == 22000
+            mastery_correct = scenario.get('mastery') is None
+            
+            print(f"   escapeTicks present: {has_escape_ticks}, value correct: {escape_ticks_correct}")
+            print(f"   minCash present: {has_min_cash}, value correct: {min_cash_correct}")
+            print(f"   mastery present: {has_mastery}, value correct: {mastery_correct}")
+            
+            all_correct = (has_escape_ticks and escape_ticks_correct and 
+                          has_min_cash and min_cash_correct and 
+                          has_mastery and mastery_correct)
+            
+            if all_correct:
+                print("   ✅ All scenario fields preserved correctly")
+            else:
+                print("   ❌ Some scenario fields missing or incorrect")
+                self.tests_passed -= 1  # Adjust count since we marked it passed initially
+        
+        # Clean up
+        self.run_test(
+            "Delete Scenario Test Save",
+            "DELETE",
+            f"saves/{scenario_save_id}",
+            200
+        )
+        
+        return success
+
     def test_delete_save(self):
         """Delete the created save"""
         if not self.save_id:
@@ -208,6 +302,7 @@ def main():
     tester.test_get_save()
     tester.test_update_save()
     tester.test_list_saves_with_data()
+    tester.test_scenario_fields_persistence()
     tester.test_delete_save()
 
     # Print results

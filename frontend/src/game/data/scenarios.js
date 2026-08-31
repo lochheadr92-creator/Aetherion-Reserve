@@ -1,13 +1,23 @@
 // ---- Scenario mission definitions ----
 // Each scenario defines: setup mutations (applied to a fresh management game),
 // win goals (ALL must pass) and fail conditions (ANY ends the mission).
+// Optional mastery objectives are graded at the moment of victory.
 // Check functions read authoritative state only — no side effects.
 import { speciesById } from './species';
+import { computeEnclosures } from '../enclosures';
 
 const toursTotal = (s) => {
   let sum = s.finances.today.income.tours || 0;
   for (const h of s.finances.history) sum += h.income?.tours || 0;
   return sum;
+};
+
+// the enclosure currently holding the (single) creature of a species, or null
+const holdingEnclosure = (s, speciesId) => {
+  const c = s.creatures.find((q) => q.speciesId === speciesId);
+  if (!c || c.escaped || !c.enclosureId) return null;
+  const { enclosures } = computeEnclosures(s);
+  return enclosures.find((e) => e.id === c.enclosureId) || null;
 };
 
 export const SCENARIOS = {
@@ -93,6 +103,51 @@ export const SCENARIOS = {
     ],
     fails: [
       { id: 'bankrupt', label: 'Debt exceeds ◈8,000', check: (s) => s.cash < -8000 },
+    ],
+  },
+
+  sovereign_containment: {
+    id: 'sovereign_containment', name: 'Sovereign Containment', difficulty: 'BRUTAL', reward: 40000,
+    tagline: 'AR-031 is already in the pen. The pen is failing.',
+    desc: 'A decommissioned research annex holds a Nyxarr Sovereign behind a storm-battered perimeter — tier-1 patch jobs, segments at 15% integrity, and a budget that will not cover mistakes. Rebuild a full Insulated (Tier 4) wall before it walks out, keep the apex thriving, and turn the most dangerous organism on record into the reserve\u2019s crown exhibit.',
+    setup: {
+      cash: 30000,
+      research: ['bio_obs1', 'cont_reinforced', 'cont_heavy', 'cont_insulated'],
+      starterEnclosure: {
+        x0: 44, y0: 26, x1: 57, y1: 39, tier: 4, feeder: 'feeder_meat', shelter: true,
+        damage: { patchTier: 1, patchEvery: 9, weakenEvery: 7, weakenTo: 0.15 },
+      },
+      buildings: [
+        { type: 'admin', x: 37, y: 42 },
+        { type: 'lab', x: 41, y: 42 },
+      ],
+      creatures: [{ speciesId: 'nyxarr', x: 50, y: 32 }],
+    },
+    goals: [
+      { id: 'perimeter', label: 'Contain the Sovereign behind a full Insulated (Tier 4) perimeter, no damaged segments', check: (s) => {
+        const enc = holdingEnclosure(s, 'nyxarr');
+        return !!enc && enc.minFenceTier >= 4 && enc.damagedSegments === 0;
+      } },
+      { id: 'welfare', label: 'Sovereign welfare 65%+', check: (s) => {
+        const c = s.creatures.find((q) => q.speciesId === 'nyxarr');
+        return !!c && !c.escaped && c.welfare >= 0.65;
+      } },
+      { id: 'guests', label: 'Welcome 60 total guests', check: (s) => s.stats.guestsTotal >= 60 },
+      { id: 'rating', label: 'Reach a 3.0★ park rating', check: (s) => s.rating.overall >= 0.6 },
+    ],
+    fails: [
+      { id: 'bankrupt', label: 'Debt exceeds ◈5,000', check: (s) => s.cash < -5000 },
+      { id: 'breaches', label: '4 containment breaches', check: (s) => (s.stats.breaches || 0) >= 4 },
+      { id: 'loose', label: 'Organisms at large for 5+ cumulative minutes', check: (s) => (s.scenario?.escapeTicks || 0) >= 3000 },
+    ],
+    mastery: [
+      { id: 'ironwall', label: 'Iron Wall — zero containment breaches', check: (s) => (s.stats.breaches || 0) === 0 },
+      { id: 'solvent', label: 'Solvent — never dipped into debt', check: (s) => (s.scenario?.minCash ?? 0) >= 0 },
+      { id: 'court', label: 'Sovereign Court — apex welfare 85%+ at victory', check: (s) => {
+        const c = s.creatures.find((q) => q.speciesId === 'nyxarr');
+        return !!c && c.welfare >= 0.85;
+      } },
+      { id: 'spectacle', label: 'Spectacle — 120+ total guests welcomed', check: (s) => s.stats.guestsTotal >= 120 },
     ],
   },
 };

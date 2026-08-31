@@ -22,6 +22,7 @@ function prepareGround(state, x0, y0, x1, y1) {
 function placeStarterBuilding(state, typeId, x, y) {
   const def = BUILDINGS[typeId];
   if (!def) return null;
+  prepareGround(state, x, y, x + def.w - 1, y + def.h - 1);
   for (let dy = 0; dy < def.h; dy++) for (let dx = 0; dx < def.w; dx++) {
     if (!inMap(x + dx, y + dy)) return null;
     state.veg[idx(x + dx, y + dy)] = 0;
@@ -30,6 +31,25 @@ function placeStarterBuilding(state, typeId, x, y) {
   state.buildings.push(b);
   state._occDirty = true; state._encDirty = true; state._terrainDirty = true;
   return b;
+}
+
+// deterministic pre-damage for crisis scenarios: downgrade every Nth segment
+// to a cheap patch tier and weaken every Mth to a fraction of its max HP
+function applyFenceDamage(state, edges, spec, gateKey) {
+  const { patchTier = 1, patchEvery = 0, weakenEvery = 0, weakenTo = 0.2 } = spec;
+  let i = 0;
+  for (const e of edges) {
+    i++;
+    const key = edgeKey(e.x, e.y, e.d);
+    const f = state.fences[key];
+    if (!f || key === gateKey || f.gate) continue;
+    if (patchEvery && i % patchEvery === 0) {
+      f.tier = patchTier;
+      f.hp = Math.round(FENCES[patchTier].hp * 0.5);
+    } else if (weakenEvery && i % weakenEvery === 0) {
+      f.hp = Math.max(8, Math.round(FENCES[f.tier].hp * weakenTo));
+    }
+  }
 }
 
 function buildStarterEnclosure(state, spec) {
@@ -44,6 +64,7 @@ function buildStarterEnclosure(state, spec) {
   const gx = Math.floor((x0 + x1) / 2);
   const gateKey = edgeKey(gx, y1 - 1, 'S');
   if (state.fences[gateKey]) state.fences[gateKey].gate = true;
+  if (spec.damage) applyFenceDamage(state, edges, spec.damage, gateKey);
   if (spec.feeder) placeStarterBuilding(state, spec.feeder, x0 + 1, y0 + 1);
   if (spec.shelter) placeStarterBuilding(state, 'shelter', x1 - 3, y0 + 1);
   state._encDirty = true;
@@ -62,10 +83,16 @@ export function applyScenario(state, scenarioId) {
   }
   if (su.policies) Object.assign(state.policies, su.policies);
   if (su.starterEnclosure) buildStarterEnclosure(state, su.starterEnclosure);
+  if (su.buildings) {
+    for (const b of su.buildings) placeStarterBuilding(state, b.type, b.x, b.y);
+  }
   if (su.creatures) {
     for (const c of su.creatures) addCreature(state, c.speciesId, c.x, c.y);
   }
-  state.scenario = { id: scenarioId, status: 'active', startDay: state.day, progress: {}, ack: false };
+  state.scenario = {
+    id: scenarioId, status: 'active', startDay: state.day, progress: {}, ack: false,
+    escapeTicks: 0, minCash: state.cash, mastery: null,
+  };
   logCause(state, 'Command', `Scenario briefing accepted: ${def.name}`);
   return state;
 }
@@ -80,6 +107,10 @@ export function scenarioTick(state) {
   if (!sc || sc.status !== 'active') return;
   const def = SCENARIOS[sc.id];
   if (!def) return;
+  // rolling trackers (used by fail conditions and mastery grading)
+  // called every 100 ticks — accumulate cumulative time-at-large
+  if (state.creatures.some((c) => c.escaped)) sc.escapeTicks = (sc.escapeTicks || 0) + 100;
+  sc.minCash = Math.min(sc.minCash ?? state.cash, state.cash);
   // fail conditions first — any one ends the mission
   for (const f of def.fails) {
     if (f.check(state)) {
@@ -101,6 +132,11 @@ export function scenarioTick(state) {
   }
   if (allDone) {
     sc.status = 'won';
+    // grade optional mastery objectives at the moment of victory
+    if (def.mastery) {
+      sc.mastery = {};
+      for (const m of def.mastery) sc.mastery[m.id] = !!m.check(state);
+    }
     state.cash += def.reward;
     state.finances.today.income.grants += def.reward;
     pushAlert(state, {

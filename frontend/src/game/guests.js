@@ -7,13 +7,21 @@ import { getSpeciesView } from './knowledge';
 import { earn } from './economy';
 import { visibilityWeatherMult, spawnWeatherMult, getDayPhase, isStorm } from './weather';
 import { wasteNear } from './staff';
+import { synergyScore } from './attractions';
+import { activeEvents, hottestEvent } from './events';
+import { geneAppealMult } from './genetics';
 
+// 7 visitor archetypes with distinct interests: what they seek, what they pay
 const ARCHETYPES = [
-  { key: 'family', name: 'Family', color: '#e0c080', spendMult: 1.0, wantsSafety: true },
-  { key: 'researcher', name: 'Researcher', color: '#6ef3c5', spendMult: 0.8, lovesUnknown: true },
-  { key: 'thrill', name: 'Thrill Seeker', color: '#ff8a7a', spendMult: 1.1, lovesDanger: true },
-  { key: 'nature', name: 'Nature Lover', color: '#8fd0b0', spendMult: 0.9, lovesWelfare: true },
+  { key: 'family', name: 'Family', color: '#e0c080', spendMult: 1.0, wantsSafety: true, eventAff: 0.35, dangerAff: 0.1, rarityAff: 0.3, luxAff: 0.15, lovesJuveniles: true },
+  { key: 'researcher', name: 'Researcher', color: '#6ef3c5', spendMult: 0.8, lovesUnknown: true, eventAff: 0.4, dangerAff: 0.3, rarityAff: 0.6, luxAff: 0.1 },
+  { key: 'thrill', name: 'Thrill Seeker', color: '#ff8a7a', spendMult: 1.1, lovesDanger: true, eventAff: 0.8, dangerAff: 0.95, rarityAff: 0.4, luxAff: 0.2 },
+  { key: 'nature', name: 'Conservationist', color: '#8fd0b0', spendMult: 0.9, lovesWelfare: true, eventAff: 0.4, dangerAff: 0.15, rarityAff: 0.5, luxAff: 0.15 },
+  { key: 'photographer', name: 'Photographer', color: '#8AA4FF', spendMult: 1.0, lovesMorphs: true, eventAff: 0.65, dangerAff: 0.4, rarityAff: 0.8, luxAff: 0.2 },
+  { key: 'luxury', name: 'Luxury Tourist', color: '#F2C14E', spendMult: 1.6, lovesLuxury: true, eventAff: 0.4, dangerAff: 0.3, rarityAff: 0.6, luxAff: 0.95 },
+  { key: 'enthusiast', name: 'Creature Enthusiast', color: '#b98ae0', spendMult: 1.15, lovesRarity: true, eventAff: 0.6, dangerAff: 0.5, rarityAff: 0.95, luxAff: 0.25 },
 ];
+const archOf = (g) => ARCHETYPES.find((a) => a.key === g.archetype) || ARCHETYPES[0];
 
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -66,6 +74,8 @@ export function spawnGuests(state) {
   }, 0);
   let rate = 0.25 + Math.min(1.2, appealSum / 150) + state.rating.overall * 0.8;
   if (hasResearch(state, 'fac_marketing')) rate *= 1.4;
+  // park buzz: recent dramatic events spread by word of mouth
+  rate *= 1 + (state.stats.buzz || 0) * 0.6;
   // weather and time of day govern arrivals (storms nearly stop them)
   let wm = spawnWeatherMult(state);
   const night = getDayPhase(state.tick).phase === 'night';
@@ -91,6 +101,7 @@ export function spawnGuests(state) {
 
 export function tickGuestMovement(state, g) {
   g.ticksInPark++;
+  if (g.riding) return; // aboard a transport car — position managed by transport.js
   if (g.path && g.path.length) {
     const t = g.path[0];
     const dx = t.x + 0.5 - g.x, dy = t.y + 0.5 - g.y;
@@ -136,14 +147,17 @@ function visibilityFrom(state, b, def) {
       if (state.heights[idx(px, py)] >= state.heights[idx(Math.floor(cx), Math.floor(cy))] + 3) block += 0.3;
     }
     let vis = Math.max(0, (1 - d / R)) * Math.max(0.05, 1 - block);
-    if (def.id === 'tower') vis = Math.max(vis, (1 - d / R) * 0.5); // elevation sees over cover
+    if (def.id === 'tower' || def.elevated) vis = Math.max(vis, (1 - d / R) * 0.5); // elevation sees over cover
     const ct = idx(Math.floor(c.x), Math.floor(c.y));
-    if (state.water[ct] === 2) vis *= 0.55; // submerged
+    if (state.water[ct] === 2) vis *= def.aquaBonus ? 1.3 : 0.55; // domes turn submersion into the show
     // weather + day-night: storms/darkness reduce visibility, but at night
     // bioluminescent species glow through the dark
     let wm = visibilityWeatherMult(state);
     const csp = speciesById(c.speciesId);
-    if (getDayPhase(state.tick).phase === 'night' && csp.colors.glow && !isStorm(state)) wm = Math.max(wm, 1.2);
+    const night = getDayPhase(state.tick).phase === 'night';
+    if (night && csp.colors.glow && !isStorm(state)) wm = Math.max(wm, 1.2);
+    if (night && def.nightBonus) wm = Math.max(wm, csp.activity === 'nocturnal' || csp.colors.glow ? 1.45 : 1.1);
+    if (def.closeup && d <= R * 0.6) vis = Math.min(1, vis * def.closeup); // glass tunnels: intimate range
     vis *= wm;
     if (vis > 0.08) out.push({ creature: c, vis });
   }
@@ -163,11 +177,23 @@ function arriveAtTarget(state, g) {
   const b = state.buildings.find((bb) => bb.id === t.id);
   if (!b) return;
   const def = BUILDINGS[b.type];
+  const arch = archOf(g);
+
+  // transport stations: wait on the platform for the next car
+  if (def.transport) {
+    g.waitStation = b.id;
+    g._waitTicks = 0;
+    return;
+  }
+
   if (def.viewRadius) {
     const seen = visibilityFrom(state, b, def);
     const score = seen.reduce((s, e) => {
-      const base = speciesById(e.creature.speciesId).appeal;
-      return s + (e.creature.juvenile ? base * 1.4 : base) * e.vis;
+      const sp = speciesById(e.creature.speciesId);
+      let base = sp.appeal * geneAppealMult(e.creature);
+      if (e.creature.juvenile) base *= def.juvenileBonus ? 1.9 : 1.4;
+      if (def.dangerBonus && sp.danger >= 4) base *= 1.5;
+      return s + base * e.vis;
     }, 0);
     const night = getDayPhase(state.tick).phase === 'night';
     if (score > 12) {
@@ -176,21 +202,46 @@ function arriveAtTarget(state, g) {
       const best = seen.sort((a, b2) => b2.vis - a.vis)[0];
       const sp = speciesById(best.creature.speciesId);
       const view = getSpeciesView(state, sp.id);
-      const glowSeen = seen.some((e) => speciesById(e.creature.speciesId).colors.glow);
+      const glowSeen = seen.some((e) => speciesById(e.creature.speciesId).colors.glow || e.creature.genes?.morph);
       const juvSeen = seen.find((e) => e.creature.juvenile);
-      if (night && glowSeen) {
+      const morphSeen = seen.find((e) => e.creature.genes?.morph);
+      const dangerSeen = seen.find((e) => speciesById(e.creature.speciesId).danger >= 4);
+      // live event at this exhibit? front-row drama
+      const nearbyEvent = activeEvents(state).find((e) => Math.hypot(e.x - (b.x + b.w / 2), e.y - (b.y + b.h / 2)) <= e.radius + def.viewRadius);
+      if (nearbyEvent) {
+        g.needs.fun = Math.min(1, g.needs.fun + 0.2 + nearbyEvent.magnitude * 0.2);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.08 + nearbyEvent.magnitude * 0.06);
+        addOpinion(state, g, nearbyEvent.type === 'rivalry'
+          ? `Two apex titans facing off RIGHT THERE. Unbelievable.`
+          : `I was here for the ${nearbyEvent.name.toLowerCase()} — what a moment!`, true);
+      } else if (morphSeen && arch.lovesMorphs) {
+        const msp = speciesById(morphSeen.creature.speciesId);
+        addOpinion(state, g, `I photographed the rare ${msp.name} morph — worth the whole trip alone.`, true);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.14);
+        state.stats.buzz = Math.min(1, (state.stats.buzz || 0) + 0.08); // photos travel fast
+      } else if (morphSeen) {
+        addOpinion(state, g, `That ${speciesById(morphSeen.creature.speciesId).name} has colours I have never seen anywhere.`, true);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.07);
+      } else if (night && glowSeen) {
         addOpinion(state, g, `The ${sp.name} glowing in the dark is unforgettable.`, true);
         g.satisfaction = Math.min(1, g.satisfaction + (g.nightTour ? 0.09 : 0.05));
       } else if (g.nightTour && !glowSeen) {
         addOpinion(state, g, 'I paid a night tour premium and nothing here even glows...', false);
-      } else if (juvSeen) {
+      } else if (juvSeen && arch.lovesJuveniles) {
         addOpinion(state, g, `The baby ${speciesById(juvSeen.creature.speciesId).name} is adorable!`, true);
-        g.satisfaction = Math.min(1, g.satisfaction + 0.06);
-      } else if (g.archetype === 'researcher' && view.unknown.length) {
+        g.satisfaction = Math.min(1, g.satisfaction + 0.08);
+      } else if (dangerSeen && arch.lovesDanger) {
+        addOpinion(state, g, `The ${speciesById(dangerSeen.creature.speciesId).name} looked right at me. Worth every credit.`, true);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.07);
+      } else if (arch.lovesUnknown && view.unknown.length) {
         addOpinion(state, g, `I observed an unclassified organism — ${sp.name}. Incredible.`, true);
         g.satisfaction = Math.min(1, g.satisfaction + 0.06);
-      } else if (g.archetype === 'thrill' && sp.danger >= 3) {
-        addOpinion(state, g, `The ${sp.name} looked right at me. Worth every credit.`, true);
+      } else if (arch.lovesWelfare && best.creature.welfare >= 0.75) {
+        addOpinion(state, g, `You can tell the ${sp.name} is genuinely thriving here. This place cares.`, true);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.06);
+      } else if (arch.lovesRarity && sp.tier >= 3) {
+        addOpinion(state, g, `A ${sp.name} in captivity — tier ${sp.tier}! My checklist is complete.`, true);
+        g.satisfaction = Math.min(1, g.satisfaction + 0.07);
       } else {
         addOpinion(state, g, `Amazing view of the ${sp.name} habitat!`, true);
       }
@@ -206,15 +257,80 @@ function arriveAtTarget(state, g) {
     } else {
       addOpinion(state, g, `Couldn't see a single creature from the ${def.name}.`, false);
     }
-  } else if (def.sells === 'food') { g.needs.hunger = 1; earn(state, def.price * archMult(g), 'food', null); }
-  else if (def.sells === 'drink') { g.needs.thirst = 1; earn(state, def.price * archMult(g), 'drink', null); }
-  else if (def.sells === 'restroom') { g.needs.restroom = 1; }
-  else if (def.sells === 'gift') { earn(state, def.price * archMult(g), 'gift', null); g.needs.fun = Math.min(1, g.needs.fun + 0.1); addOpinion(state, g, 'The curio shop is delightful.', true); }
+    // premium venues with a view also sell (lounge / sky dining handled below)
+    if (!def.sells) return;
+  }
+
+  const syn = def.sells && ['attraction', 'show', 'tour', 'lounge', 'food', 'gift'].includes(def.sells) ? synergyScore(state, b) : 1;
+  switch (def.sells) {
+    case 'food':
+      g.needs.hunger = 1;
+      earn(state, def.price * archMult(g) * (def.luxury ? syn : 1), 'food', null);
+      if (def.luxury && arch.lovesLuxury) { addOpinion(state, g, `${def.name} — finally, standards worthy of the ticket price.`, true); }
+      else if (def.scenic && syn > 1.2) { addOpinion(state, g, 'Lunch with a view of the exhibits. Perfect.', true); }
+      break;
+    case 'drink': g.needs.thirst = 1; earn(state, def.price * archMult(g), 'drink', null); break;
+    case 'restroom': g.needs.restroom = 1; break;
+    case 'gift': {
+      earn(state, def.price * archMult(g) * syn * 0.9, 'gift', null);
+      g.needs.fun = Math.min(1, g.needs.fun + 0.1);
+      if (syn > 1.25 && rnd() < 0.4) addOpinion(state, g, 'They sell plushes of the creature RIGHT THERE. Took three.', true);
+      else if (rnd() < 0.25) addOpinion(state, g, 'The curio shop is delightful.', true);
+      break;
+    }
+    case 'attraction':
+    case 'show':
+    case 'tour': {
+      if (def.needsStaff && !(state.staff || []).length) { addOpinion(state, g, `${def.name} is closed — no staff to run it.`, false); break; }
+      const night = getDayPhase(state.tick).phase === 'night';
+      if (def.nightBonus && !night) { g.needs.fun = Math.min(1, g.needs.fun + 0.05); break; } // day visit to a night venue is a dud
+      earn(state, def.price * archMult(g) * syn, def.sells === 'tour' ? 'tours' : 'attractions', null);
+      g.needs.fun = Math.min(1, g.needs.fun + 0.25 + (syn - 1) * 0.3);
+      g.satisfaction = Math.min(1, g.satisfaction + 0.03 + Math.max(0, syn - 1) * 0.08);
+      if (syn >= 1.4 && rnd() < 0.5) addOpinion(state, g, `${def.name} is world-class. Everyone should see this.`, true);
+      else if (syn <= 0.7 && rnd() < 0.5) addOpinion(state, g, `${def.name} felt empty. It needs something alive around it.`, false);
+      break;
+    }
+    case 'lounge': {
+      earn(state, def.price * archMult(g) * syn, 'attractions', null);
+      g.needs.fun = Math.min(1, g.needs.fun + 0.3);
+      g.needs.hunger = Math.min(1, g.needs.hunger + 0.4);
+      if (arch.lovesLuxury) { g.satisfaction = Math.min(1, g.satisfaction + 0.12); addOpinion(state, g, 'A private lounge above the habitat. THIS is how you watch titans.', true); }
+      break;
+    }
+    case 'lodging': {
+      if (!g._lodged) {
+        g._lodged = true;
+        earn(state, def.price * archMult(g), 'lodging', null);
+        g.ticksInPark = Math.max(0, g.ticksInPark - 3000); // checked in — the visit continues
+        g.needs.restroom = 1;
+        g.satisfaction = Math.min(1, g.satisfaction + 0.06);
+        if (rnd() < 0.4) addOpinion(state, g, 'We booked a room — staying for the night safari!', true);
+      }
+      break;
+    }
+    case 'rest': {
+      g.needs.restroom = Math.min(1, g.needs.restroom + 0.6);
+      g.needs.fun = Math.min(1, g.needs.fun + 0.08);
+      g.satisfaction = Math.min(1, g.satisfaction + 0.03);
+      break;
+    }
+    case 'info': {
+      if (!g._informed) {
+        g._informed = true;
+        g._noRoute = true; // guided guests stop complaining about wayfinding
+        g.satisfaction = Math.min(1, g.satisfaction + 0.04);
+      }
+      break;
+    }
+    default: break;
+  }
 }
 
 function archMult(g) { return ARCHETYPES.find((a) => a.key === g.archetype)?.spendMult || 1; }
 
 export function decideGuest(state, g) {
+  if (g.riding || g.waitStation) return; // on the platform or aboard a car
   // panic check runs even mid-route: dangerous escapes trigger an immediate stampede
   if (!g.panic) {
     const parkWide = state.creatures.some((c) => c.escaped && speciesById(c.speciesId).danger >= 3);
@@ -242,6 +358,7 @@ export function decideGuest(state, g) {
     g.despawn = true; return;
   }
   // needs decay handled in needs tick; choose most pressing
+  const arch = archOf(g);
   const wants = [];
   if (g.needs.hunger < 0.35) wants.push(['food', 'hunger']);
   if (g.needs.thirst < 0.35) wants.push(['drink', 'thirst']);
@@ -256,17 +373,65 @@ export function decideGuest(state, g) {
         addOpinion(state, g, sell === 'restroom' ? 'There are no restrooms anywhere!' : `Nowhere to get ${sell === 'food' ? 'a meal' : 'a drink'}...`, false);
       }
       if (g.needs[needKey] < 0.1) { g.leaving = true; return; }
-    } else targetB = options[Math.floor(rnd() * options.length)];
+    } else {
+      // luxury tourists seek premium venues; families favour affordable ones
+      const weight = (b) => {
+        const d = BUILDINGS[b.type];
+        let w = 1;
+        if (arch.lovesLuxury) w += (d.luxury || 0) * 2;
+        else if (arch.key === 'family' && (d.price || 0) <= 16) w += 0.8;
+        return w + rnd();
+      };
+      targetB = options.sort((a, b) => weight(b) - weight(a))[0];
+    }
   }
   if (!targetB) {
-    // entertainment: viewing platforms
-    const platforms = state.buildings.filter((b) => BUILDINGS[b.type].viewRadius);
-    if (platforms.length && g.needs.fun < 0.85) {
-      targetB = platforms[Math.floor(rnd() * platforms.length)];
+    // LIVE EVENT CHASE: dramatic moments pull guests across the whole park
+    const hot = hottestEvent(state);
+    if (hot && hot.magnitude >= 0.45 && rnd() < arch.eventAff && !g._chasedEvent) {
+      const viewers = state.buildings.filter((b) => BUILDINGS[b.type].viewRadius);
+      let best = null, bestD = Infinity;
+      for (const b of viewers) {
+        const d = Math.hypot(b.x + b.w / 2 - hot.x, b.y + b.h / 2 - hot.y);
+        if (d <= hot.radius + BUILDINGS[b.type].viewRadius && d < bestD) { bestD = d; best = b; }
+      }
+      if (best) { targetB = best; g._chasedEvent = true; }
+    }
+  }
+  if (!targetB && g.needs.fun < 0.85) {
+    // interest-driven destination: platforms, attractions, transport — weighted by archetype
+    const night = getDayPhase(state.tick).phase === 'night';
+    const options = state.buildings.filter((b) => {
+      const d = BUILDINGS[b.type];
+      return d.viewRadius || ['attraction', 'show', 'tour', 'lounge', 'lodging'].includes(d.sells) || d.transport;
+    });
+    if (options.length) {
+      const weight = (b) => {
+        const d = BUILDINGS[b.type];
+        let w = 1;
+        if (d.viewRadius) w += 0.6;
+        if (d.dangerBonus) w += arch.dangerAff * 1.4;
+        if (d.juvenileBonus && arch.lovesJuveniles) w += 1.2;
+        if (d.nightBonus) w += night ? 1.2 : -0.8;
+        if (d.sells === 'lounge' || (d.luxury || 0) >= 2) w += arch.luxAff * 2;
+        if (['attraction', 'show', 'tour'].includes(d.sells)) w += 0.5 + arch.rarityAff * 0.4;
+        if (d.sells === 'lodging') w += g.ticksInPark > 2500 && !g._lodged ? 1.0 : -1.2;
+        if (d.transport) w += 0.7; // rides are broadly popular
+        if (arch.lovesMorphs && d.viewRadius) {
+          // photographers hunt rare morphs specifically
+          const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+          if (state.creatures.some((c) => c.genes?.morph && !c.escaped && Math.hypot(c.x - cx, c.y - cy) <= d.viewRadius)) w += 2.2;
+        }
+        return w + rnd() * 0.8;
+      };
+      targetB = options.sort((a, b) => weight(b) - weight(a))[0];
     } else if (g.ticksInPark > 1500 || g.needs.fun >= 0.85) {
       g.leaving = true;
       return;
     }
+  } else if (!targetB && (g.ticksInPark > 1500 || g.needs.fun >= 0.85)) {
+    g.leaving = true;
+    return;
   }
   if (targetB) {
     const set = pathTilesAdjacentTo(state, targetB);
@@ -291,11 +456,14 @@ export function guestNeedsTick(state, g) {
   // rolling satisfaction pressure from unmet needs
   const unmet = Math.min(g.needs.hunger, g.needs.thirst, g.needs.restroom);
   if (unmet < 0.15) g.satisfaction = Math.max(0, g.satisfaction - 0.01);
+  // ready to chase the next dramatic event once the park quiets down
+  if (g._chasedEvent && !activeEvents(state).length) g._chasedEvent = false;
 }
 
 export function cullGuests(state) {
   const before = state.guests.length;
   state.guests = state.guests.filter((g) => {
+    if (g.riding) return true; // never cull mid-ride
     const atExit = g.exiting && !g.path.length;
     if (atExit || g.despawn || g.ticksInPark > 6000) {
       // record satisfaction

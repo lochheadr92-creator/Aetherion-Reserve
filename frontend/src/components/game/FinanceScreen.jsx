@@ -7,7 +7,7 @@ import { useGameTick } from '@/components/game/useGame';
 import { fmtMoney } from '@/game/constants';
 import { parkValue } from '@/game/economy';
 
-const INCOME_LABELS = { tickets: 'Entry tickets', tours: 'Night tour premiums', food: 'Food sales', drink: 'Drink sales', gift: 'Curio sales', grants: 'Grants & salvage' };
+const INCOME_LABELS = { tickets: 'Entry tickets', tours: 'Tours & premiums', food: 'Food sales', drink: 'Drink sales', gift: 'Curio sales', grants: 'Grants & salvage', attractions: 'Attraction tickets', transport: 'Transport fares', lodging: 'Hotel lodging' };
 const EXPENSE_LABELS = { upkeep: 'Facility upkeep', feed: 'Creature feed', wages: 'Staff wages', construction: 'Construction', terrain: 'Terraforming', acquisition: 'Acquisitions', research: 'Research', response: 'Emergency response' };
 
 const BACKDROP_STYLE = { background: 'rgba(5,7,11,0.8)' };

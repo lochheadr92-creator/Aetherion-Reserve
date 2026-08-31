@@ -5,6 +5,8 @@ import { BUILDINGS } from '@/game/data/buildings';
 import { fmtMoney } from '@/game/constants';
 import { demolishBuilding } from '@/game/construction';
 import { platformVisibilityReport } from '@/game/guests';
+import { attractionReport } from '@/game/attractions';
+import { stationHasCar } from '@/game/transport';
 
 function VisibilityReport({ report }) {
   return (
@@ -23,12 +25,37 @@ function VisibilityReport({ report }) {
   );
 }
 
+function SynergyReport({ report }) {
+  const pct = Math.round(report.score * 100);
+  return (
+    <div data-testid="building-synergy-report">
+      <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1.5">ATTRACTION RATING</div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-lg font-semibold mono" style={{ color: report.score >= 1.3 ? 'var(--success)' : report.score <= 0.75 ? 'var(--danger)' : 'var(--text-1)' }}>{pct}%</span>
+        <span className="text-[10px] text-[var(--text-3)]">of base value — placement matters</span>
+      </div>
+      <div className="space-y-0.5 mt-1">
+        {report.parts.map((p) => (
+          <div key={p.label} className="flex justify-between text-[10px]">
+            <span className="text-[var(--text-3)]">{p.label}</span>
+            <span className="mono" style={{ color: p.value >= 0 ? 'var(--success)' : 'var(--danger)' }}>{p.value >= 0 ? '+' : ''}{Math.round(p.value * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function BuildingPanel({ id, onClose }) {
   const s = game.state;
   const b = s.buildings.find((q) => q.id === id);
   if (!b) return <div className="p-4 text-xs text-[var(--text-3)]">Structure removed.</div>;
   const def = BUILDINGS[b.type];
   const visReport = def.viewRadius ? platformVisibilityReport(s, b) : null;
+  const isAttraction = ['experience', 'major', 'amenity'].includes(def.cat) || def.sells === 'gift';
+  const synReport = isAttraction ? attractionReport(s, b) : null;
+  const isStation = !!def.transport;
+  const linked = isStation ? stationHasCar(s, b.id) : false;
 
   const demolish = () => {
     demolishBuilding(s, b.id);
@@ -48,6 +75,13 @@ export default function BuildingPanel({ id, onClose }) {
         {def.powerRadius && <div className="flex justify-between"><span className="text-[var(--text-3)]">Power radius</span><span className="mono">{def.powerRadius} tiles</span></div>}
         {def.sells && def.price > 0 && <div className="flex justify-between"><span className="text-[var(--text-3)]">Price</span><span className="mono">◈{def.price}</span></div>}
       </div>
+      {isStation && (
+        <div className="text-[11px] rounded border px-2 py-1.5" data-testid="station-link-status"
+          style={{ borderColor: linked ? 'var(--success)' : 'var(--warning)', color: linked ? 'var(--success)' : 'var(--warning)' }}>
+          {linked ? 'LINE ACTIVE — an elevated car is shuttling guests over the park.' : 'NO LINE — build a second station of the same type (6+ tiles away) to open the route.'}
+        </div>
+      )}
+      {synReport && <SynergyReport report={synReport} />}
       {visReport && <VisibilityReport report={visReport} />}
       <button data-testid="building-demolish-button" onClick={demolish}
         className="nl-tool h-8 text-[11px] flex items-center justify-center gap-1 !text-[var(--danger)]"><Trash2 size={12} /> Demolish (50% refund)</button>

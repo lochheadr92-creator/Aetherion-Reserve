@@ -12,6 +12,10 @@ import { getStaffSprite } from './art/staff';
 import { getTileTexture, drawCliff, drawPathTile, h2 } from './art/terrain_tex';
 import { getFloraSprite } from './art/flora';
 import { getGuestSprite } from './art/guests';
+import { EVENT_META } from './events';
+import { MORPHS } from './genetics';
+
+const MORPH_LOOKUP = Object.fromEntries(MORPHS.map((m) => [m.id, m]));
 
 const OX = (MAP_SIZE * TILE_W) / 2 + TILE_W;
 const OY = MAX_H * H_STEP + TILE_H;
@@ -307,9 +311,95 @@ export class GameRenderer {
 
     // entrance marker
     this.drawEntrance(ctx);
+    this.drawEventBeacons(ctx);
+    this.drawTransport(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawAtmosphere(ctx, W, H);
+  }
+
+  // live park events: pulsing ground beacon + label so players can find the action
+  drawEventBeacons(ctx) {
+    const s = this.state;
+    if (!s.events || !s.events.length) return;
+    for (const e of s.events) {
+      if (s.tick >= e.expires) continue;
+      const meta = EVENT_META[e.type] || { label: e.name, color: '#8AA4FF' };
+      const ti = idx(Math.floor(e.x), Math.floor(e.y));
+      const h = s.heights[ti] || 0;
+      const p = worldPx(e.x, e.y, h);
+      const pulse = 0.5 + 0.5 * Math.sin(this.frame / 9);
+      const life = Math.min(1, (e.expires - s.tick) / 300);
+      ctx.save();
+      ctx.globalAlpha = (0.35 + 0.3 * pulse) * life;
+      ctx.strokeStyle = meta.color;
+      ctx.lineWidth = 1.6;
+      const r = 14 + pulse * 6 + e.magnitude * 8;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, r, r * 0.5, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.28 * life;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 0.6, r * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+      // label chip
+      ctx.globalAlpha = 0.9 * life;
+      ctx.font = '600 8px "Roboto Mono", monospace';
+      const label = e.name.toUpperCase();
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(6,10,16,0.82)';
+      ctx.fillRect(p.x - tw / 2 - 5, p.y - 38, tw + 10, 12);
+      ctx.strokeStyle = meta.color; ctx.lineWidth = 0.6;
+      ctx.strokeRect(p.x - tw / 2 - 5, p.y - 38, tw + 10, 12);
+      ctx.fillStyle = meta.color;
+      ctx.fillText(label, p.x - tw / 2, p.y - 29);
+      ctx.restore();
+    }
+  }
+
+  // elevated transport: track between stations + shuttle car with arc lift.
+  // The car rises well above fence height mid-route (safe over enclosures)
+  // and lowers to the platform at each station.
+  drawTransport(ctx) {
+    const s = this.state;
+    const cars = s.transport?.cars || [];
+    if (!cars.length) return;
+    for (const car of cars) {
+      const ha = s.heights[idx(car.a.x, car.a.y)] || 0;
+      const hb = s.heights[idx(car.b.x, car.b.y)] || 0;
+      const pa = worldPx(car.a.x + 0.5, car.a.y + 0.5, ha);
+      const pb = worldPx(car.b.x + 0.5, car.b.y + 0.5, hb);
+      // guideway: dashed elevated line with support glow at ends
+      ctx.save();
+      ctx.strokeStyle = car.color || 'rgba(45,226,230,0.5)';
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y - 14);
+      const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2 - 46;
+      ctx.quadraticCurveTo(mx, my, pb.x, pb.y - 14);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // car position along quadratic bezier (t ping-pongs 0..1)
+      const t = car.t;
+      const bx = (1 - t) * (1 - t) * pa.x + 2 * (1 - t) * t * mx + t * t * pb.x;
+      const by = (1 - t) * (1 - t) * (pa.y - 14) + 2 * (1 - t) * t * my + t * t * (pb.y - 14);
+      ctx.globalAlpha = 1;
+      // capsule car
+      ctx.fillStyle = '#16222e';
+      ctx.strokeStyle = car.color || '#2DE2E6';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(bx, by, 10, 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      // window band + running light
+      ctx.fillStyle = 'rgba(45,226,230,0.6)';
+      ctx.fillRect(bx - 6, by - 2.4, 12, 2);
+      ctx.fillStyle = this.frame % 20 < 10 ? '#F2C14E' : 'rgba(242,193,78,0.3)';
+      ctx.fillRect(bx + (car.dir > 0 ? 9 : -10), by - 1, 1.6, 1.6);
+      // passenger pips
+      const n = (car.riders || []).length;
+      for (let k = 0; k < Math.min(4, n); k++) {
+        ctx.fillStyle = '#b7c4d6';
+        ctx.fillRect(bx - 4 + k * 2.6, by - 0.6, 1.4, 1.4);
+      }
+      ctx.restore();
+    }
   }
 
   // day-night grade, rain and lightning — screen-space, drawn last
@@ -679,7 +769,8 @@ export class GameRenderer {
     const p = worldPx(c.x, c.y, h);
     const sheet = getCreatureSheet(c.speciesId);
     const grow = c.juvenile ? 0.5 + 0.5 * (c.growth || 0) : 1;
-    const S = SPRITE_SCALE * grow * (inWater ? 0.85 : 1);
+    const geneSize = c.genes?.size || 1;
+    const S = SPRITE_SCALE * grow * geneSize * (inWater ? 0.85 : 1);
     const moving = c.path && c.path.length > 0;
     const frames = moving && sheet.walk ? sheet.walk : sheet.idle;
     const fi = Math.floor(this.frame / (moving ? 7 : 16) + (c.id % 5)) % frames.length;
@@ -704,17 +795,27 @@ export class GameRenderer {
     }
     ctx.translate(p.x, gy + bob - lift);
     ctx.scale(c.dir, 1);
+    // genetics: morph glow overrides species glow at night
+    const morph = c.genes?.morph ? MORPH_LOOKUP[c.genes.morph] : null;
+    const glowColor = (morph && morph.glow) || sp.colors.glow;
     // camouflage: near-invisible shimmer; thermal optics keeps a readable heat signature
     if (c.cloaked) {
       const thermal = this.state.research?.completed?.includes('sec_thermal');
       ctx.globalAlpha = thermal ? 0.55 : 0.1 + 0.06 * Math.sin(this.frame / 6 + c.id);
       if (thermal) { ctx.shadowColor = '#FF8A5C'; ctx.shadowBlur = 8; }
-    } else if (sp.colors.glow && this._phase === 'night') {
-      // selective bioluminescence at night (restrained)
-      ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = 7;
+    } else if (glowColor && this._phase === 'night') {
+      // selective bioluminescence at night (restrained; morphs glow brighter)
+      ctx.shadowColor = glowColor; ctx.shadowBlur = morph ? 10 : 7;
     }
     ctx.imageSmoothingEnabled = false;
+    // genetics: heritable hue/saturation recolouring (rare morphs shift dramatically)
+    const hueShift = (c.genes?.hue || 0) + (morph ? morph.hue : 0);
+    const satMult = morph ? morph.sat : (c.genes?.sat ?? 1);
+    if (hueShift !== 0 || Math.abs(satMult - 1) > 0.02) {
+      ctx.filter = `hue-rotate(${hueShift}deg) saturate(${satMult})`;
+    }
     ctx.drawImage(frames[fi], -dw / 2, -dh + 2, dw, dh);
+    ctx.filter = 'none';
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -747,6 +848,7 @@ export class GameRenderer {
   }
 
   drawGuest(ctx, g) {
+    if (g.riding) return; // aboard a transport car — drawn with the car
     const s = this.state;
     const h = s.heights[idx(Math.floor(g.x), Math.floor(g.y))] || 0;
     const p = worldPx(g.x, g.y, h);

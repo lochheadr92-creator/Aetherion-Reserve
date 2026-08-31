@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog } from 'lucide-react';
+import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera } from 'lucide-react';
 import { game } from '@/game/controller';
 import { fmtMoney } from '@/game/constants';
 import { getDayPhase, clockLabel } from '@/game/weather';
@@ -151,7 +151,7 @@ function AlertsBell({ s, onNavigate }) {
   );
 }
 
-export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp }) {
+export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp, onPhoto }) {
   useGameTick();
   const [saving, setSaving] = useState(false);
   const s = game.state;
@@ -186,6 +186,7 @@ export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp }) {
           <HudButton icon={FlaskConical} label="Research" testId="open-research-button" onClick={() => onOpenModal('research')} />
           <HudButton icon={Coins} label="Finances" testId="open-finances-button" onClick={() => onOpenModal('finances')} />
           <AlertsBell s={s} onNavigate={onNavigate} />
+          <HudButton icon={Camera} label="Photo" testId="hud-photo-button" onClick={onPhoto} />
           <HudButton icon={Save} label={saving ? 'Saving…' : 'Save'} testId="hud-save-button" onClick={doSave} />
           <HudButton icon={HelpCircle} label="Help" testId="hud-help-button" onClick={onHelp} />
           <HudButton icon={DoorOpen} label="Menu" testId="hud-exit-button" onClick={onExit} />

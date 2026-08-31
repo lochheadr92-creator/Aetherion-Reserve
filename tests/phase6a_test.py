@@ -59,6 +59,19 @@ async def main():
         await acquire_and_place(page, "karrgan", 51, 33)  # danger 5 apex in enclosure B
         placed = await S("window.__game.state.creatures.some(c => c.speciesId === 'karrgan')")
         print("TEST 2a karrgan placed:", "PASS" if placed else "FAIL")
+        # top up the park so guests are guaranteed present when the breach happens
+        # (night-tour arrivals are sparse and interest-driven guests may finish
+        #  their visit during the escape wait — the race is not what we test here)
+        await page.evaluate(
+            """(() => { const s = window.__game.state;
+                for (let k = 0; k < 4; k++) {
+                    s.guests.push({ id: s.nextId++, x: s.entrance.x + 0.5, y: s.entrance.y - 2 - k + 0.5,
+                        path: [], target: null, dwell: 0, archetype: 'family', nightTour: false,
+                        needs: { hunger: 0.9, thirst: 0.9, restroom: 0.9, fun: 0.2 },
+                        satisfaction: 0.6, opinions: [], ticksInPark: 10, leaving: false, seen: 0 });
+                }
+            })()"""
+        )
         # break enclosure B
         await page.evaluate(
             """(() => { const s = window.__game.state;

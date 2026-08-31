@@ -11,10 +11,22 @@ const Z = {
   admin: 24, lab: 20, power: 21, security_post: 18, tower: 38, viewing: 12,
   food_stall: 15, drink_stall: 14, restroom: 12, gift_shop: 16, shelter: 11,
   feeder_forage: 6, feeder_meat: 6, feeder_mineral: 6, feeder_fungal: 7, feeder_energy: 12,
+  // attractions expansion
+  obs_deck: 30, glass_tunnel: 10, underwater_dome: 14, nocturnal_house: 16, predator_gallery: 18,
+  nursery_view: 14, safari_post: 34, encounter_stage: 10, keeper_tour: 13, hatchery_view: 15,
+  holo_theatre: 20, xeno_dome: 18, evo_museum: 19, relic_gallery: 17, vr_pavilion: 16, night_lodge: 18,
+  restaurant: 15, food_court: 14, sky_dining: 32, megastore: 18, merch_stall: 9, hotel: 30,
+  rest_area: 6, medical_station: 13, info_center: 12, picnic_area: 5, premium_lounge: 16,
+  tram_station: 12, gondola_station: 12, rail_station: 13,
 };
 const TOP_PAD = {
   admin: 20, lab: 12, power: 12, security_post: 12, tower: 14, viewing: 10,
   gift_shop: 8, food_stall: 8, drink_stall: 8, feeder_energy: 8, restroom: 6, shelter: 6,
+  obs_deck: 14, safari_post: 16, sky_dining: 14, underwater_dome: 16, xeno_dome: 18, holo_theatre: 16,
+  vr_pavilion: 12, nocturnal_house: 12, night_lodge: 12, hotel: 16, encounter_stage: 12,
+  tram_station: 18, gondola_station: 18, rail_station: 18, megastore: 10, evo_museum: 12, relic_gallery: 10,
+  restaurant: 8, food_court: 8, medical_station: 8, info_center: 8, premium_lounge: 10, merch_stall: 8,
+  keeper_tour: 8, hatchery_view: 8, nursery_view: 10, predator_gallery: 10, glass_tunnel: 8, picnic_area: 8, rest_area: 8,
 };
 
 const CONCRETE = '#3b414c';
@@ -482,8 +494,239 @@ DETAIL.feeder_energy = (P, g, z, f, def) => {
   P.slab(rx + 9, ry - 1, 4, 3, DARKMETAL); P.p(rx + 10, ry, f === 0 ? '#2DE2E6' : tone('#2DE2E6', -0.4));
 };
 
+// ---------- attractions expansion painters ----------
+// dome venues: roof slab + translucent observation dome with glow meridian
+function domeDetail(glowT = 0.4) {
+  return (P, g, z, f, def) => {
+    const { pt, w, h } = g;
+    roofSlab(P, pt, w, h, z, tone(def.color, -0.05));
+    const [rx, ry] = roofCenter(pt, w, h, z);
+    const r = (w + h) * 3.2;
+    P.blob(rx, ry - 2, r, r * 0.62, mixc(GLASS, def.light, 0.18), { lite: 0.3, dark: 0.2 });
+    P.blob(rx - r * 0.25, ry - r * 0.4, r * 0.3, r * 0.16, mixc(GLASS, '#ffffff', 0.25), { lite: 0.2, dark: 0 });
+    // glow meridian band
+    for (let k = -2; k <= 2; k++) {
+      P.p(rx + k * 3, Math.round(ry - 2 - r * 0.55 + Math.abs(k)), (k + f) % 2 ? def.light : tone(def.light, -0.35));
+    }
+    P.glow(rx, ry - 2 - r * 0.6, def.light, f === 0 ? glowT : glowT * 0.5);
+    const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h);
+    windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.55), def.light, f, 3);
+    doorway(P, pt, w, h, z, def.light);
+  };
+}
+
+// exhibition halls: banner facade + skylight strip + roof gear
+function museumDetail(P, g, z, f, def) {
+  const { pt, w, h } = g;
+  roofSlab(P, pt, w, h, z, tone(def.color, -0.04));
+  const [rx, ry] = roofCenter(pt, w, h, z);
+  // skylight strip
+  for (let k = 0; k < 3; k++) P.r(rx - 6 + k * 5, ry - 2 + k, 4, 2, mixc(GLASS, def.light, (k + f) % 3 === 0 ? 0.5 : 0.3));
+  roofVent(P, rx + 8, ry + 2);
+  // hanging banner on left face
+  const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h);
+  const bx = Math.round(dx0 + (cx0 - dx0) * 0.3), by = Math.round(dy0 + (cy0 - dy0) * 0.3);
+  P.r(bx - 2, by - z + 3, 5, Math.round(z * 0.6), tone(def.light, -0.35));
+  P.hl(bx - 2, by - z + 3, 5, tone(def.light, 0.1));
+  P.p(bx, by - z + 5, tone(def.light, 0.3));
+  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.5), def.light, f, 2);
+  doorway(P, pt, w, h, z, def.light);
+}
+
+// dining venues: awning + rooftop condensers + menu sign
+function dinerDetail(P, g, z, f, def) {
+  const { pt, w, h } = g;
+  roofSlab(P, pt, w, h, z, tone(def.color, -0.06));
+  awning(P, pt, w, h, z, tone(def.light, -0.25), tone(def.color, 0.25));
+  const [rx, ry] = roofCenter(pt, w, h, z);
+  roofVent(P, rx - 6, ry, 5); roofVent(P, rx + 3, ry + 2, 4);
+  P.vl(rx + 9, ry - 5, 5, STEEL);
+  P.p(rx + 9, ry - 6, f === 0 ? def.light : tone(def.light, -0.4)); // sign lamp
+  const [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
+  windowBand(P, cx0, cy0, bx0, by0, Math.round(z * 0.5), def.light, f, 3);
+  doorway(P, pt, w, h, z, def.light);
+}
+
+// hotel: upper storey + dense window grid + entry canopy
+function hotelDetail(P, g, z, f, def) {
+  const { pt, w, h } = g;
+  roofSlab(P, pt, w, h, z, tone(def.color, -0.05));
+  const [rx, ry] = roofCenter(pt, w, h, z);
+  P.slab(rx - 9, ry - 10, 17, 10, tone(def.color, 0.12), { tex: 1 });
+  P.hl(rx - 9, ry - 10, 17, tone(def.color, 0.35));
+  for (let k = 0; k < 5; k++) P.p(rx - 7 + k * 3, ry - 7, (k + f) % 3 ? mixc(GLASS, def.light, 0.5) : GLASS);
+  for (let k = 0; k < 5; k++) P.p(rx - 7 + k * 3, ry - 4, (k + f) % 4 ? mixc(GLASS, def.light, 0.4) : GLASS);
+  beacon(P, rx + 8, ry - 10, def.light, f === 0);
+  const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h), [bx0, by0] = pt(w, 0);
+  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.6), def.light, f, 3);
+  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.32), def.light, f + 2, 3);
+  windowBand(P, cx0, cy0, bx0, by0, Math.round(z * 0.6), def.light, f + 1, 2);
+  doorway(P, pt, w, h, z, def.light);
+}
+
+// transport stations: platform canopy + guideway pylon with cable arm
+function stationDetail(P, g, z, f, def) {
+  const { pt, w, h } = g;
+  roofSlab(P, pt, w, h, z, tone(def.color, -0.02));
+  const [rx, ry] = roofCenter(pt, w, h, z);
+  // guideway pylon rising above the roof — the line anchors here
+  P.slab(rx - 1, ry - 16, 3, 16, tone(STEEL, -0.05));
+  P.vl(rx - 1, ry - 16, 16, tone(STEEL, 0.2));
+  // cantilever cable arm
+  P.hl(rx - 7, ry - 15, 14, tone(STEEL, 0.1));
+  P.p(rx - 7, ry - 14, tone(def.light, -0.2)); P.p(rx + 6, ry - 14, tone(def.light, -0.2));
+  P.glow(rx, ry - 17, def.light, f === 0 ? 0.45 : 0.2); // line-status beacon
+  // platform edge lights
+  const [dx0, dy0] = pt(0, h), [cx0, cy0] = pt(w, h);
+  for (let k = 1; k < 4; k++) {
+    const t = k / 4;
+    P.p(Math.round(dx0 + (cx0 - dx0) * t), Math.round(dy0 + (cy0 - dy0) * t) + 1, (k + f) % 2 ? def.light : tone(def.light, -0.4));
+  }
+  windowBand(P, dx0, dy0, cx0, cy0, Math.round(z * 0.5), def.light, f, 3);
+  doorway(P, pt, w, h, z, def.light);
+}
+
+// open-air grounds: planters, parasols and benches on a plinth (no walls)
+function groundsDetail(parasol) {
+  return (P, g, z, f, def) => {
+    const { pt, w, h } = g;
+    const [rx, ry] = roofCenter(pt, w, h, 0);
+    // ground pad
+    P.blob(rx, ry, (w + h) * 5, (w + h) * 2.6, tone(def.color, 0.06), { tex: 1, lite: 0.12, dark: 0.18 });
+    // benches
+    P.slab(rx - 8, ry - 2, 6, 2, tone('#6a5a44', 0.05)); P.hl(rx - 8, ry - 2, 6, tone('#6a5a44', 0.3));
+    P.slab(rx + 3, ry + 2, 6, 2, tone('#6a5a44', -0.05)); P.hl(rx + 3, ry + 2, 6, tone('#6a5a44', 0.25));
+    // planters
+    P.blob(rx - 10, ry + 4, 2.4, 1.6, '#2a4a34', { tex: 1 }); P.p(rx - 10, ry + 2, '#3e6a4a');
+    P.blob(rx + 11, ry - 3, 2.2, 1.5, '#2a4a34', { tex: 1 }); P.p(rx + 11, ry - 5, '#3e6a4a');
+    if (parasol) {
+      // parasols with pole + canopy
+      for (const [px, py] of [[rx - 3, ry - 4], [rx + 7, ry - 1]]) {
+        P.vl(px, py - 6, 6, STEEL);
+        P.blob(px, py - 7, 4.4, 1.8, tone(def.light, -0.25), { lite: 0.25, dark: 0.3 });
+        P.p(px, py - 8, tone(def.light, 0.1));
+      }
+    }
+    // path lamps
+    P.vl(rx - 13, ry - 3, 4, STEEL); P.p(rx - 13, ry - 4, f === 0 ? def.light : tone(def.light, -0.4));
+  };
+}
+
+// glass habitat tunnel: repeating glazed arches along the long axis (no walls)
+function tunnelDetail(P, g, z, f, def) {
+  const { pt, w, h } = g;
+  const [x0, y0] = pt(0, h / 2), [x1, y1] = pt(w, h / 2);
+  const n = Math.max(4, Math.round(Math.hypot(x1 - x0, y1 - y0) / 9));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = Math.round(x0 + (x1 - x0) * t), y = Math.round(y0 + (y1 - y0) * t);
+    // arch rib
+    P.vl(x - 4, y - 8, 8, tone(STEEL, 0.05));
+    P.vl(x + 4, y - 8, 8, tone(STEEL, -0.15));
+    P.hl(x - 4, y - 9, 9, tone(STEEL, 0.2));
+    // glass fill between ribs
+    if (i < n) {
+      const nx = Math.round(x0 + (x1 - x0) * ((i + 1) / n));
+      P.r(x - 3, y - 8, nx - x + 6, 7, mixc(GLASS, def.light, (i + f) % 3 === 0 ? 0.35 : 0.2));
+    }
+  }
+  P.glow(Math.round((x0 + x1) / 2), Math.round((y0 + y1) / 2) - 10, def.light, 0.25);
+}
+
+// encounter stage: apron deck + backdrop screen + spotlights
+function stageDetail(P, g, z, f, def) {
+  const { pt, w, h } = g;
+  // deck on stub piers
+  for (const [tx, ty] of [[0, 0], [w, 0], [w, h], [0, h]]) {
+    const [x, y] = pt(tx, ty);
+    P.r(Math.round(x) - 1, Math.round(y) - z + 2, 2, z - 2, tone(STEEL, -0.15));
+  }
+  isoBox(P, g.pt === pt ? 0 : 0, 0, 0, 0, 0, '#000', '#000', '#000'); // no-op guard
+  const [rx, ry] = roofCenter(pt, w, h, z - 4);
+  // stage floor
+  P.blob(rx, ry + 3, (w + h) * 4.4, (w + h) * 2.2, tone(def.color, 0.12), { tex: 1, lite: 0.15, dark: 0.2 });
+  // backdrop screen (upstage, NE side)
+  P.slab(rx + 2, ry - 9, 12, 9, tone(def.color, -0.1), { tex: 1 });
+  P.r(rx + 3, ry - 8, 10, 6, mixc(GLASS, def.light, f === 0 ? 0.55 : 0.35));
+  P.hl(rx + 3, ry - 8, 10, tone(def.light, 0.2));
+  // spotlight rig
+  P.vl(rx - 10, ry - 10, 10, STEEL);
+  P.hl(rx - 10, ry - 10, 8, tone(STEEL, 0.15));
+  P.p(rx - 6, ry - 9, f === 0 ? '#fff2cc' : tone('#fff2cc', -0.4));
+  P.p(rx - 3, ry - 9, f === 1 ? '#fff2cc' : tone('#fff2cc', -0.45));
+}
+
+// raised deck venues (obs deck / safari post / sky dining): canopy + rail + optics
+function deckDetail(scoped) {
+  return (P, g, z, f, def) => {
+    const { pt, w, h } = g;
+    // deck slab at top of piers
+    isoBox(P, g.ox ?? 0, 0, 0, 0, 0, '#000', '#000', '#000'); // no-op guard
+    const [rx, ry] = roofCenter(pt, w, h, z);
+    P.blob(rx, ry + 2, (w + h) * 4.2, (w + h) * 2.1, tone(def.color, 0.15), { lite: 0.2, dark: 0.15, tex: 1 });
+    // guard rail
+    for (let k = -3; k <= 3; k++) {
+      P.vl(rx + k * 4, ry - 3 + Math.abs(k), 3, tone(STEEL, 0.1));
+    }
+    P.hl(rx - 12, ry - 4, 24, tone(STEEL, 0.25));
+    // canopy
+    P.blob(rx + 2, ry - 8, (w + h) * 2.4, (w + h) * 1.1, tone(def.color, -0.1), { lite: 0.25, dark: 0.3 });
+    P.hl(rx - 3, ry - 10, 8, tone(def.light, -0.2));
+    if (scoped) {
+      // long-range scope
+      P.vl(rx - 6, ry - 6, 4, STEEL);
+      P.hl(rx - 8, ry - 7, 5, tone(STEEL, 0.2));
+      P.p(rx - 8, ry - 7, tone(def.light, 0.2));
+    } else {
+      // dining glazing + table lamps
+      P.r(rx - 6, ry - 6, 10, 3, mixc(GLASS, def.light, 0.4));
+      P.p(rx - 3, ry - 2, f === 0 ? '#ffe9b0' : tone('#ffe9b0', -0.4));
+      P.p(rx + 4, ry, f === 1 ? '#ffe9b0' : tone('#ffe9b0', -0.4));
+    }
+    beacon(P, rx + 11, ry - 4, def.light, f === 0);
+  };
+}
+
+DETAIL.obs_deck = deckDetail(true);
+DETAIL.safari_post = deckDetail(true);
+DETAIL.sky_dining = deckDetail(false);
+DETAIL.glass_tunnel = tunnelDetail;
+DETAIL.underwater_dome = domeDetail(0.45);
+DETAIL.nocturnal_house = domeDetail(0.5);
+DETAIL.xeno_dome = domeDetail(0.5);
+DETAIL.holo_theatre = domeDetail(0.55);
+DETAIL.vr_pavilion = domeDetail(0.4);
+DETAIL.night_lodge = domeDetail(0.5);
+DETAIL.predator_gallery = museumDetail;
+DETAIL.nursery_view = domeDetail(0.3);
+DETAIL.evo_museum = museumDetail;
+DETAIL.relic_gallery = museumDetail;
+DETAIL.megastore = museumDetail;
+DETAIL.keeper_tour = museumDetail;
+DETAIL.hatchery_view = domeDetail(0.3);
+DETAIL.restaurant = dinerDetail;
+DETAIL.food_court = dinerDetail;
+DETAIL.merch_stall = dinerDetail;
+DETAIL.premium_lounge = hotelDetail;
+DETAIL.hotel = hotelDetail;
+DETAIL.medical_station = museumDetail;
+DETAIL.info_center = museumDetail;
+DETAIL.encounter_stage = stageDetail;
+DETAIL.rest_area = groundsDetail(false);
+DETAIL.picnic_area = groundsDetail(true);
+DETAIL.tram_station = stationDetail;
+DETAIL.gondola_station = stationDetail;
+DETAIL.rail_station = stationDetail;
+
 // types that keep the boxy massing (everything except shelter + open feeders)
-const BOXY = new Set(['admin', 'lab', 'power', 'security_post', 'tower', 'restroom', 'gift_shop', 'food_stall', 'drink_stall', 'viewing']);
+const BOXY = new Set(['admin', 'lab', 'power', 'security_post', 'tower', 'restroom', 'gift_shop', 'food_stall', 'drink_stall', 'viewing',
+  'underwater_dome', 'nocturnal_house', 'predator_gallery', 'nursery_view', 'keeper_tour', 'hatchery_view',
+  'holo_theatre', 'xeno_dome', 'evo_museum', 'relic_gallery', 'vr_pavilion', 'night_lodge',
+  'restaurant', 'food_court', 'megastore', 'merch_stall', 'hotel', 'medical_station', 'info_center', 'premium_lounge',
+  'tram_station', 'gondola_station', 'rail_station',
+  'obs_deck', 'safari_post', 'sky_dining', 'encounter_stage']);
+// tall open-lattice piers instead of solid walls
+const LATTICE = new Set(['tower', 'obs_deck', 'safari_post', 'sky_dining', 'encounter_stage']);
 
 // sprite baking ---------------------------------------------------------------
 const cache = new Map();

@@ -16,6 +16,9 @@ import { staffTick, wasteTick } from './staff';
 import { expeditionTick } from './expeditions';
 import { contractTick } from './contracts';
 import { scenarioTick } from './scenarios';
+import { eventsTick } from './events';
+import { rivalryTick } from './rivalry';
+import { transportTick } from './transport';
 import { rnd } from './state';
 
 export const OBJECTIVES = [
@@ -186,6 +189,13 @@ export function tickOnce(state) {
   // expeditions + contracts
   if (T % 10 === 0) expeditionTick(state);
   if (T % 60 === 0) contractTick(state);
+
+  // live park events + apex rivalries
+  if (T % 30 === 0) eventsTick(state);
+  if (T % 45 === 15) rivalryTick(state);
+
+  // elevated guest transport
+  transportTick(state);
 
   // research
   if (T % 10 === 0) researchTick(state);

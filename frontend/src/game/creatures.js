@@ -8,6 +8,8 @@ import { recordEvidence, discover } from './knowledge';
 import { spend } from './economy';
 import { damageFence, isPowered } from './construction';
 import { isStorm, getDayPhase } from './weather';
+import { rollWildGenes, inheritGenes, offspringName } from './genetics';
+import { emitParkEvent } from './events';
 
 let nameCounter = {};
 
@@ -21,6 +23,7 @@ export function addCreature(state, speciesId, x, y, opts = {}) {
     welfare: 0.7, comfort: 0.7, stress: 0.1, health: 1,
     factors: [], enclosureId: null, homeTile: { x, y }, escaped: false, dir: 1,
     trait: ['Calm', 'Curious', 'Restless', 'Bold', 'Timid'][Math.floor(rnd() * 5)],
+    genes: opts.genes || rollWildGenes(),
   };
   if (opts.juvenile) { c.juvenile = true; c.growth = 0; }
   const enc = enclosureAt(state, x, y);
@@ -313,7 +316,8 @@ export function onArrive(state, c) {
 
 export function updateNeeds(state, c) {
   const sp = speciesById(c.speciesId);
-  c.needs.hunger = Math.max(0, c.needs.hunger - 0.0085);
+  // metabolism gene: voracious lines get hungry faster (0.5 baseline -> x1.0)
+  c.needs.hunger = Math.max(0, c.needs.hunger - 0.0085 * (0.8 + (c.genes?.metabolism ?? 0.5) * 0.4));
   if (sp.env.water.drink) c.needs.thirst = Math.max(0, c.needs.thirst - 0.011);
   else c.needs.thirst = 1;
   const restoring = ['resting', 'sheltering', 'settling', 'drinking', 'eating', 'grazing'].includes(c.state);
@@ -337,7 +341,8 @@ export function updateWelfare(state, c) {
   c.comfort = habitat.overall;
   const needsAvg = (c.needs.hunger + c.needs.thirst + c.needs.energy) / 3;
   c.welfare = 0.5 * c.comfort + 0.5 * needsAvg;
-  const stressMult = hasResearch(state, 'bio_stress') ? 0.7 : 1;
+  // genetic stress tolerance scales all stress accumulation (0.5 baseline -> x1.0)
+  const stressMult = (hasResearch(state, 'bio_stress') ? 0.7 : 1) * (1.3 - (c.genes?.stressTol ?? 0.5) * 0.6);
   if (c.welfare < 0.5) c.stress = Math.min(1, c.stress + (0.5 - c.welfare) * 0.05 * stressMult);
   else c.stress = Math.max(0, c.stress - 0.02);
   // weather & day-night pressure
@@ -352,7 +357,7 @@ export function updateWelfare(state, c) {
     else if (phase === 'night') c.stress = Math.max(0, c.stress - 0.012);
   }
   if (c.stress > 0.85) c.health = Math.max(0.1, c.health - 0.004);
-  else if (c.health < 1) c.health = Math.min(1, c.health + 0.002);
+  else if (c.health < 1) c.health = Math.min(1, c.health + 0.002 * (0.6 + (c.genes?.resilience ?? 0.5) * 0.8));
   // low welfare alert (throttled via flag)
   if (c.welfare < 0.35 && !c._lowWelfareAlerted) {
     c._lowWelfareAlerted = true;
@@ -478,16 +483,39 @@ export function breedingTick(state, c) {
       c.gestation = 0;
       const { x, y } = curTile(c);
       const spot = adjacentOpenTile(state, x, y, sp.env.water.aquaticMin > 0) || { x, y };
-      const baby = addCreature(state, c.speciesId, spot.x, spot.y, { juvenile: true });
-      baby.name = `${sp.name} Cub`;
+      const mate = state.creatures.find((o) => o.id === c._mateId) || null;
+      const genes = inheritGenes(state, c, mate);
+      const baby = addCreature(state, c.speciesId, spot.x, spot.y, { juvenile: true, genes });
+      baby.name = offspringName(state);
       c.breedCd = BREED_COOLDOWN;
+      c._mateId = null;
       state.stats.births = (state.stats.births || 0) + 1;
-      pushAlert(state, {
-        type: 'success', title: 'NEW OFFSPRING',
-        msg: `${c.name} has produced healthy offspring — a juvenile ${sp.name} joins the exhibit.`,
-        target: { kind: 'creature', id: baby.id },
+      if (genes.morph) {
+        state.stats.morphBirths = (state.stats.morphBirths || 0) + 1;
+        pushAlert(state, {
+          type: 'breakthrough', title: 'RARE MORPH BORN',
+          msg: `${baby.name} — a ${sp.name} carrying an exceptionally rare genetic morph — has been born. Collectors and photographers will travel for this.`,
+          target: { kind: 'creature', id: baby.id },
+        });
+      } else {
+        pushAlert(state, {
+          type: 'success', title: 'NEW OFFSPRING',
+          msg: `${baby.name}, a Generation ${genes.gen} ${sp.name}, has been born to ${c.name}.`,
+          target: { kind: 'creature', id: baby.id },
+        });
+      }
+      if (genes.inbreed >= 0.25) {
+        pushAlert(state, {
+          type: 'warning', title: 'INBREEDING DETECTED',
+          msg: `${baby.name}'s parents share close blood. Fertility and hardiness suffer — introduce new bloodlines.`,
+          target: { kind: 'creature', id: baby.id },
+        });
+      }
+      emitParkEvent(state, {
+        type: 'birth', name: genes.morph ? 'Rare Morph Birth' : 'New Birth', x: spot.x, y: spot.y,
+        radius: 12, magnitude: genes.morph ? 0.9 : 0.55, duration: 1200, subject: baby.id, speciesId: sp.id,
       });
-      logCause(state, 'Husbandry', `${sp.name} offspring born`);
+      logCause(state, 'Husbandry', `${sp.name} offspring born (Gen ${genes.gen})`);
     }
     return;
   }
@@ -505,10 +533,17 @@ export function breedingTick(state, c) {
   const sameHere = state.creatures.filter((o) => o.speciesId === c.speciesId && o.enclosureId === c.enclosureId).length;
   const maxBySpace = Math.floor(enc.area / sp.env.spacePerHead);
   if (sameHere >= maxBySpace || sameHere >= sp.social.max) return;
-  if (rnd() > 0.35) return;
   const partner = kin[0];
+  // fertility genes govern pairing odds (inbreeding depression already baked into fertility)
+  const fert = (((c.genes?.fertility ?? 0.5) + (partner.genes?.fertility ?? 0.5)) / 2);
+  if (rnd() > 0.15 + fert * 0.4) return;
   c.gestation = GESTATION_TICKS;
+  c._mateId = partner.id;
   partner.breedCd = BREED_COOLDOWN;
+  emitParkEvent(state, {
+    type: 'courtship', name: 'Courtship Display', x: c.x, y: c.y,
+    radius: 9, magnitude: 0.4, duration: 700, subject: c.id, speciesId: sp.id,
+  });
   logCause(state, c.name, `pair bonding observed with ${partner.name}`);
 }
 

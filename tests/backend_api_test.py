@@ -45,7 +45,7 @@ class BackendTester:
         print(f"   Found {len(data)} existing saves")
 
     def test_create_save(self):
-        """Test POST /api/saves"""
+        """Test POST /api/saves with new Phase 13-16 fields"""
         payload = {
             "name": f"Test Save {datetime.now().strftime('%H%M%S')}",
             "park_name": "Test Park",
@@ -55,12 +55,57 @@ class BackendTester:
             "rating": 3.5,
             "creatures": 2,
             "state": {
-                "creatures": [],
+                "creatures": [
+                    {
+                        "id": 1,
+                        "speciesId": "skitter",
+                        "genes": {
+                            "gen": 0,
+                            "parents": None,
+                            "ancestors": [],
+                            "inbreed": 0,
+                            "agg": 0.5,
+                            "fertility": 0.6,
+                            "size": 1.0,
+                            "hue": 0,
+                            "sat": 1.0,
+                            "morph": None
+                        }
+                    }
+                ],
                 "fences": {},
                 "buildings": [],
                 "expeditions": [],
                 "contracts": {"available": [], "active": []},
-                "security": {"units": []}
+                "security": {"units": []},
+                "transport": {
+                    "cars": [
+                        {
+                            "id": 100,
+                            "key": "1:2",
+                            "type": "tram",
+                            "aId": 1,
+                            "bId": 2,
+                            "t": 0.5,
+                            "dir": 1,
+                            "riders": []
+                        }
+                    ]
+                },
+                "events": [
+                    {
+                        "id": 200,
+                        "type": "birth",
+                        "name": "New Birth",
+                        "x": 10.5,
+                        "y": 15.2,
+                        "radius": 12,
+                        "magnitude": 0.55,
+                        "start": 1000,
+                        "expires": 2200
+                    }
+                ],
+                "rivalries": []
             }
         }
         response = requests.post(f"{BASE_URL}/saves", json=payload, timeout=10)
@@ -73,7 +118,7 @@ class BackendTester:
         print(f"   Created save ID: {self.save_id}")
 
     def test_get_save(self):
-        """Test GET /api/saves/{save_id}"""
+        """Test GET /api/saves/{save_id} - verify Phase 13-16 fields"""
         assert self.save_id, "No save_id from previous test"
         response = requests.get(f"{BASE_URL}/saves/{self.save_id}", timeout=10)
         assert response.status_code == 200, f"Expected 200, got {response.status_code}"
@@ -83,7 +128,27 @@ class BackendTester:
         assert "expeditions" in data["state"], "Missing expeditions in state"
         assert "contracts" in data["state"], "Missing contracts in state"
         assert "security" in data["state"], "Missing security in state"
+        
+        # Phase 13-16 fields
+        assert "transport" in data["state"], "Missing transport in state"
+        assert "cars" in data["state"]["transport"], "Missing transport.cars"
+        assert len(data["state"]["transport"]["cars"]) == 1, "Transport cars not preserved"
+        
+        assert "events" in data["state"], "Missing events in state"
+        assert len(data["state"]["events"]) == 1, "Events not preserved"
+        
+        assert "creatures" in data["state"], "Missing creatures in state"
+        assert len(data["state"]["creatures"]) == 1, "Creatures not preserved"
+        creature = data["state"]["creatures"][0]
+        assert "genes" in creature, "Missing creature genes"
+        assert "gen" in creature["genes"], "Missing genes.gen"
+        assert "ancestors" in creature["genes"], "Missing genes.ancestors"
+        assert "inbreed" in creature["genes"], "Missing genes.inbreed"
+        
         print(f"   Retrieved save: {data['name']}")
+        print(f"   ✓ transport.cars preserved: {len(data['state']['transport']['cars'])}")
+        print(f"   ✓ events preserved: {len(data['state']['events'])}")
+        print(f"   ✓ creature genes preserved with gen={creature['genes']['gen']}")
 
     def test_update_save(self):
         """Test PUT /api/saves/{save_id}"""

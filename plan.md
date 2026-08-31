@@ -13,20 +13,27 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- Transition to **P2 backlog** work:
-  - **P2: Genetic Traits** — offspring inherit colors/traits so breeding lines become collectible.
-  - **P2: Photo Mode** — camera tool to capture and share beautiful shots of glowing night exhibits.
+- **Project is feature-complete through Phase 19 and fully verified.**
+- Next work is optional / future roadmap only (no committed tasks).
 
-Status:
+**User confirmations (scope decisions):**
+- Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
+- Genetics: offspring variation via **per-creature hue/size/glow modifiers** (no hand-drawn morph variants).
+- Sequencing followed: **Verify Phases 13–16 first**, then **Phase 17 Sovereign Containment**, then **Photo Mode**.
+
+**Status:**
 - **Phase 1–6 COMPLETE** and fully test-backed.
-- **Phase 7 COMPLETE** (visual/art overhaul) and **fully verified**.
+- **Phase 7 COMPLETE** (visual/art overhaul) and fully verified.
 - **Phase 8 COMPLETE** (Keeper Staff) and verified.
 - **Phase 9 COMPLETE** (Scenario Missions) and verified.
 - **Phase 10 COMPLETE** (Code Quality / Code Review remediation) and **accepted**.
 - **Phase 11 COMPLETE** (High-End Visual Asset Redesign) and **fully verified**.
-- **Phase 12 COMPLETE** (Apex-Class Species, Tier 4) and **fully verified**.
+- **Phase 12 COMPLETE** (4 Apex-class species) and **fully verified**.
+- **Phases 13–16 COMPLETE & VERIFIED** (genetics, events/rivalry, guest archetypes, ~30 buildings, attractions/transport).
+- **Phase 17 COMPLETE & VERIFIED** (Sovereign Containment scenario + mastery system).
+- **Phase 19 COMPLETE & VERIFIED** (Photo Mode).
 
-> Constraint (hard): new content must be **additive** and must **not** change existing save schema or simulation rules; regression tests must remain green.
+> Constraint (hard): new content must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
 **Testing baselines:**
 - iteration_5: pre-Phase 7 green baseline.
@@ -35,6 +42,9 @@ Status:
 - iteration_8: post-Phase 10 refactor verification (**testing_agent_v3 100% frontend**, 16/16).
 - iteration_9: post-Phase 11 visual remake verification (**testing_agent_v3 100% overall**, backend 7/7, frontend 29/29; local suites green).
 - iteration_10: post-Phase 12 apex species verification (**testing_agent_v3 100% frontend**, 12/12; local suites green).
+- **iteration_11: post-Phase 13–16 verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 100%; regression 100%).
+- **iteration_12: post-Phase 17 verification** (**testing_agent_v3 100% overall**; backend 10/10; frontend 100% + regression 5/5).
+- **iteration_13: post-Phase 19 verification** (**testing_agent_v3 100% overall**; backend/frontend/integration 100%; Photo Mode fully verified).
 
 ---
 
@@ -140,256 +150,174 @@ Status:
 **Goal:** deepen construction UX, add escape/emergency drama, and add progression beyond the tutorial.
 
 #### Phase 5A — Rectangle Mode (Fence drag → 4-wall perimeter) ✅ COMPLETE
-**Delivered:**
-- Fence toolbar includes DRAW toggle: **Line | Rectangle** (`tool.fenceShape`).
-- `construction.js`:
-  - `fenceRectEdges(v0,v1)` perimeter generator.
-  - Shared commit/remove helpers for line/rect placement.
-  - Degenerate rectangles fall back to a straight line.
-- `input.js` fence drag flow commits line or rect edges.
-- Live preview + cost label works for rectangles; remove tool supports rectangle drag-removal.
-
-**Testing:**
-- Verified via `/app/tests/phase5_test.py`.
+Verified via `/app/tests/phase5_test.py`.
 
 #### Phase 5B — Security Response (Escapes, Emergencies, Security Teams) ✅ COMPLETE
-**Delivered:**
-- New building: **Rapid Response Post** (`security_post`) in Facilities/Operations, needs path.
-- New module: `game/security.js`
-  - Auto-dispatches units to escaped creatures (one active recovery per post).
-  - **◈250 dispatch cost** to `finances.today.expenses.response`.
-  - Capture loop: toTarget → capturing → returning.
-  - Escort back to `homeTile` if possible; otherwise relocate to **largest intact enclosure**.
-  - Cooldown + warning if no containment exists.
-- UI: `EmergencyBanner.jsx` top-center, listing escapees with clickable chips (centers camera).
-- Renderer: `drawSecurityUnit(...)`.
-- Objectives: new `security_post` directive; `initObjectives` merges missing objectives into old saves.
-- Stats: `stats.captures`.
-
-**Testing:**
-- Verified in `/app/tests/phase5_test.py` plus testing agent iteration_4.
+Verified via `/app/tests/phase5_test.py` and later regression suites.
 
 #### Phase 5C — Expedition Board + Contracts ✅ COMPLETE
-**Delivered:**
-- Expeditions:
-  - `data/expeditions.js`: zones with cost/duration/risk/species pools.
-  - `game/expeditions.js`: staged progress **Transit → Survey → Recovery → Return**.
-  - Rewards: salvage cash, specimen recovery, wild evidence injection.
-  - Claim flow: **CLAIM & RELEASE** arms free creature placement.
-- Contracts:
-  - `game/contracts.js`: templates; refresh cadence; expiry; payouts.
-- Field Ops UI:
-  - Field Ops modal tabbed: **Acquire | Expeditions | Contracts**, with attention dots.
-
-**Persistence:**
-- `state.deserialize()` defaults for `security`, `expeditions`, `contracts` so old saves load safely.
-
-**Testing:**
-- `/app/tests/phase5_test.py`.
-- Additional suites (`smoke_game.py`, etc.) green.
-- Testing agent iteration_4: backend 100%, frontend 100%, integration 100%.
+Verified via `/app/tests/phase5_test.py` and later regression suites.
 
 ---
 
 ### Phase 6 — Immersion + Late Game Systems (Panic, Night Tours, Breeding, Abilities) ✅ COMPLETE
-**Goal:** make emergencies feel cinematic, make night time a monetizable gameplay mode, add sustainable population growth, and introduce anomalous late-game counterplay.
+Verified via `/app/tests/phase6a_test.py`, `/app/tests/phase6b_test.py`.
 
-#### Phase 6A — Guest Panic + Evacuation Flow ✅ COMPLETE
-Delivered + tested via `/app/tests/phase6a_test.py`.
-
-#### Phase 6B — Night Tours ✅ COMPLETE
-Delivered + tested via `/app/tests/phase6a_test.py`.
-
-#### Phase 6C — Breeding Program ✅ COMPLETE
-Delivered + tested via `/app/tests/phase6b_test.py`.
-
-#### Phase 6D — Late Game Abilities + Counterplay Research ✅ COMPLETE
-Delivered + tested via `/app/tests/phase6b_test.py`.
-
-#### Phase 6E — Testing + Regression ✅ COMPLETE
-- `/app/test_reports/iteration_5.json` all green.
+**Note (verification maintenance):**
+- Phase 6A panic test was hardened to remove a race condition by seeding guests before breach.
 
 ---
 
 ### Phase 7 — Dedicated Visual Quality Pass (Pixel Art Cohesion) ✅ COMPLETE
-**Goal:** Upgrade all visuals (15 creatures, staff, buildings, archive portraits) to cohesive slightly-3D pixel art with upper-left lighting, shadows, and restrained bioluminescence — **without changing simulation logic**.
-
-**Delivered:**
-- New procedural pixel art system in `/app/frontend/src/game/art/`.
-- Renderer & portrait pipeline updated to use cached sprite sheets.
-- Verified by full suite + `testing_agent_v3` iteration_6.
+Verified via local suites + `testing_agent_v3` iteration_6.
 
 ---
 
-### Phase 8 — Keeper Staff (Hireable keepers: feed/clean/calm automation) ✅ COMPLETE
-**Goal:** Reduce micromanagement by adding hireable staff that autonomously provide routine creature care.
-
-**Delivered:**
-- Data/roles:
-  - `/app/frontend/src/game/data/staffRoles.js` (roles, wages, hire costs, labels)
-- Staff simulation:
-  - `/app/frontend/src/game/staff.js`
-  - Controlled mutators: `hireStaff`, `fireStaff`
-  - Deterministic tasking:
-    - **Hand-feeding** hungry creatures (xenobiologist)
-    - **Biowaste cleaning** (xenobiologist)
-    - **Stress/health treatment** (biomedical)
-    - **Fence repair** (warden)
-    - Patrol/wander fallback
-  - A* movement with **facility access** (crosses fences; avoids deep water/buildings)
-  - Stats counters: `staffFeedings/staffTreatments/staffCleanings/staffRepairs`
-- Biowaste system:
-  - `wasteTick` adds waste in enclosures
-  - Guests complain if exhibits are dirty (integrated into `guests.js`)
-- Economy:
-  - Daily payroll at `dailyRollover` → `expenses.wages`
-  - Finance UI label added (“Staff wages”)
-- UI:
-  - `StaffScreen.jsx` modal: hire cards + roster + fire
-  - HUD Staff button added
-- Rendering:
-  - `renderer.js` draws staff sprites (from Phase 7 art) + draws waste sprites
-- Persistence:
-  - `state.staff` and `state.waste` defaults in createNewGame + deserialize
-
-**Testing:**
-- `/app/tests/phase8_staff_test.py` **12/12**.
-- Full regression sweep green.
+### Phase 8 — Keeper Staff ✅ COMPLETE
+Verified via `/app/tests/phase8_staff_test.py`.
 
 ---
 
-### Phase 9 — Scenario Missions (Campaign challenges with start states + goals) ✅ COMPLETE
-**Goal:** Provide a mission-driven campaign layer with handcrafted starting states, win goals, and fail conditions.
-
-**Delivered:**
-- Scenario definitions:
-  - `/app/frontend/src/game/data/scenarios.js` (4 missions)
-- Scenario engine:
-  - `/app/frontend/src/game/scenarios.js`
-  - `applyScenario` builds starter enclosures + optional starter buildings/creatures
-  - `scenarioTick` evaluates win/lose; rewards added on victory
-  - Controlled mutator: `ackScenario`
-- UI:
-  - `ScenarioTracker.jsx` mission tracker + victory/defeat dialogs
-  - Main menu **Scenarios** mode + scenario picker cards
-  - Completion badges stored in localStorage
-
-**Testing:**
-- `/app/tests/phase9_scenarios_test.py` **17/17**.
-- Full regression sweep green.
+### Phase 9 — Scenario Missions ✅ COMPLETE
+Verified via `/app/tests/phase9_scenarios_test.py`.
 
 ---
 
 ### Phase 10 — Code Quality / Code Review Remediation ✅ COMPLETE (accepted)
-**Goal:** Resolve the strict code review block (hooks deps, complexity, performance) and ensure the React UI refactor remains stable.
-
-**Final acceptance results:**
-- Testing agent **iteration_8**: frontend **100%** (16/16 scenarios), zero UI bugs, zero integration issues, zero regressions.
-- Canvas2D `willReadFrequently` perf suggestion fixed in `game/art/pixel.js`.
-- Webpack compiles with **zero warnings**; esbuild clean; all local Playwright suites green.
+Verified via `testing_agent_v3` iteration_8.
 
 ---
 
 ### Phase 11 — High-End Visual Asset Redesign Pass ✅ COMPLETE (fully verified)
-**Goal:** Perform a **full production-quality visual remake** (not a polish pass), upgrading silhouettes, geometry, materials, textures, surface detail, animation quality, and cohesion — while keeping **all gameplay logic identical**.
-
-**Delivered (visual-only, no sim changes):**
-- Phase 11A–11F implemented across:
-  - Environment pipeline (`art/terrain_tex.js`, `art/flora.js`, water overlays)
-  - Buildings remake (`art/buildings.js`)
-  - Creatures remake (15 species: `art/creatures_a.js`, `art/creatures_b.js`)
-  - Staff/guests/fences/entrance (`art/staff.js`, `art/guests.js`, `renderer.js`)
-  - Atmosphere/lighting/day-night (`renderer.js`)
-
-**Verification (all green):**
-- Local Python suites:
-  - `/app/tests/smoke_game.py` ✅
-  - `/app/tests/phase8_staff_test.py` ✅
-  - `/app/tests/phase9_scenarios_test.py` ✅
-- `testing_agent_v3` iteration_9: **100% overall** (backend 7/7, frontend 29/29), zero regressions.
+Verified via full regression sweep + `testing_agent_v3` iteration_9.
 
 ---
 
 ### Phase 12 — Apex-Class Species (Tier 4) ✅ COMPLETE (fully verified)
-**Goal:** Add a small “Apex-class” set of **Tier 4** species (super predators + super herbivores) plus the minimal progression gating to acquire them.
+Verified via full regression sweep + `testing_agent_v3` iteration_10.
 
-**Hard constraints (met):**
-- No changes to simulation behavior, AI rules, existing species entries, or save schema.
-- Changes are additive and data-driven.
+---
 
-#### Phase 12A — Data: Tier-4 species entries ✅ COMPLETE
+### Phase 13 — Genetics & Breeding Lines ✅ COMPLETE (verified)
+Verified via `/app/tests/phase16_visual.py` + `testing_agent_v3` iteration_11.
+
+---
+
+### Phase 14 — Park Events Engine + Rival Rumbles ✅ COMPLETE (verified)
+Verified via `testing_agent_v3` iteration_11.
+
+---
+
+### Phase 15 — Guest Interest System ✅ COMPLETE (verified)
+Verified via `testing_agent_v3` iteration_11.
+
+---
+
+### Phase 16 — Attractions, Amenities & Transport (~30 buildings) ✅ COMPLETE (verified)
+**Verification additions:**
+- Fixed an esbuild syntax error in `art/buildings.js` (`tunnelDetail` missing parenthesis).
+- Added `/app/tests/phase16_visual.py` (8/8 PASS) verifying:
+  - new building painters
+  - synergy report
+  - transport car arc clearing fences (geometry verified)
+  - genetics morph visibility day/night
+  - CreaturePanel genetics UI
+
+Verified via `testing_agent_v3` iteration_11.
+
+---
+
+### Phase 17 — Apex Scenario: “Sovereign Containment” (Nyxarr) ✅ COMPLETE (verified)
+**Goal:** high-pressure scenario with real trade-offs, multiple viable strategies, and optional mastery.
+
 **Delivered:**
-- `/app/frontend/src/game/data/species.js`: appended 4 new Tier-4 `Apex` species (no existing entries modified):
-  1. `nyxarr` — **Nyxarr Sovereign** (titan apex predator), danger 5
-  2. `zephyrmaw` — **Zephyrmaw Skyrender** (aerial apex predator), danger 5
-  3. `aurox` — **Aurox Titanhorn** (colossal grazer), danger 3
-  4. `sylvarr` — **Sylvarr Crownspire** (canopy colossus), danger 2
+1. **Scenario definition** (`/app/frontend/src/game/data/scenarios.js`)
+   - New **BRUTAL** scenario `sovereign_containment`.
+   - Setup: Nyxarr in deterministic **pre-damaged** 13×13 Tier-4 pen.
+   - Start: **◈30,000**, starter `admin` + `lab`, `feeder_meat` + `shelter`.
+   - Research granted: containment tiers up to `cont_insulated`.
+   - Goals (all): full undamaged Tier-4 perimeter, Nyxarr welfare ≥ 65%, 60 guests, 3.0★ rating.
+   - Fails (any): debt exceeds ◈5,000; 4 breaches; 3000 cumulative escapeTicks.
+   - Mastery (optional, graded on victory): ironwall, solvent, court, spectacle.
+2. **Scenario engine extensions** (`/app/frontend/src/game/scenarios.js`)
+   - Deterministic fence pre-damage.
+   - Trackers: `scenario.escapeTicks`, `scenario.minCash`.
+   - Mastery grading into `scenario.mastery` on victory.
+3. **UI**
+   - `ScenarioTracker.jsx`: mastery tracker + mastery results in victory dialog.
+   - `MainMenu.jsx`: BRUTAL difficulty color.
 
-#### Phase 12B — Research: acquisition gating for Tier 4 ✅ COMPLETE
+**Verification:**
+- `/app/tests/phase17_sovereign_test.py` (**14/14 PASS**).
+- `/app/tests/phase9_scenarios_test.py` updated to expect 5 scenario cards.
+- `testing_agent_v3` **iteration_12 = 100%**.
+
+---
+
+### Phase 18 — Verification & Regression ✅ COMPLETE (Phases 13–17)
+**Key artifacts:**
+- `/app/tests/phase16_visual.py`
+- `/app/tests/phase17_sovereign_test.py`
+- `/app/test_reports/iteration_11.json`
+- `/app/test_reports/iteration_12.json`
+
+---
+
+### Phase 19 — Photo Mode ✅ COMPLETE (fully verified)
+**Goal:** camera tool to capture beautiful shots of glowing night exhibits, render/UI-only.
+
 **Delivered:**
-- `/app/frontend/src/game/data/research.js`: added `ops_field4` (**Field Operations IV**) requiring `ops_field3`, cost **◈14,000**, time **220**.
-- `/app/frontend/src/game/state.js`: sandbox pre-completed research list includes `ops_field4`.
+- New component: `/app/frontend/src/components/game/PhotoMode.jsx`
+  - Enter via HUD **Photo** button (`hud-photo-button`).
+  - Letterbox overlay + hints.
+  - Rule-of-thirds grid toggle (`photo-grid-toggle`, `photo-grid-lines`).
+  - Freeze-the-moment pause toggle (`photo-pause-toggle`) using existing `game.setPaused`.
+  - Capture button (`photo-capture-button`) and **SPACE** shortcut.
+  - Exit via **ESC** or exit button (`photo-exit-button`).
+- Capture pipeline:
+  - Composes **game canvas** into a **PNG** (vignette + caption plate).
+  - Watermark includes park name and `AETHERION INITIATIVE · CYCLE n · clock`.
+  - Preview dialog (`photo-preview-dialog`) with:
+    - preview image (`photo-preview-image`)
+    - download anchor (`photo-download-button`)
+    - retake (`photo-retake-button`)
+    - done (`photo-close-button`)
+- Wiring:
+  - `HudBar.jsx`: added Camera icon button.
+  - `GameScreen.jsx`: hides HUD/toolbars/panels/trackers during Photo Mode.
+  - Overlay is pointer-events-none except control bar to preserve pan/zoom.
 
-#### Phase 12C — Expeditions: Titanfall Reach ✅ COMPLETE
-**Delivered:**
-- `/app/frontend/src/game/data/expeditions.js`: added new zone `titanfall` — **Titanfall Reach (ZONE T-1)**, cost **◈16,000**, risk 3, pool includes the 4 Tier-4 species.
+**Hard constraints met:**
+- Render/UI-only; **no simulation behavior changes**.
+- Capture is **on-demand** only (no per-frame capture work).
 
-#### Phase 12D — UI gating updates ✅ COMPLETE
-**Delivered:**
-- `/app/frontend/src/components/game/AcquisitionScreen.jsx`: `tierUnlocked()` now supports tier 4 (requires `ops_field4`), lock label displays **II / III / IV** correctly.
-- `/app/frontend/src/components/game/SpeciesDatabase.jsx`: same tier 4 gating + lock label behavior.
-
-#### Phase 12E — Art: apex creature painters ✅ COMPLETE
-**Delivered:**
-- **NEW** `/app/frontend/src/game/art/creatures_c.js`: 4 production-quality sprite painters following Phase 11 conventions (layered anatomy, gait/limb, rimlight, restrained bioluminescence).
-- `/app/frontend/src/game/art/creatures.js`: registered `CREATURES_C` into `CREATURE_ART`.
-
-#### Phase 12F — Verification + regression ✅ COMPLETE
-**Build + regression (all green):**
-- `esbuild` compile: ✅
-- Local suites re-run:
-  - `/app/tests/smoke_game.py` ✅
-  - `/app/tests/phase8_staff_test.py` ✅
-  - `/app/tests/phase9_scenarios_test.py` ✅
-
-**Interactive verification (all green):**
-- Visual checks: Tier-4 cards + portraits render in Field Ops; all 4 apex creatures released into sandbox enclosure render/animate and remain contained.
-- `testing_agent_v3` iteration_10: **100% frontend** (12/12):
-  - Sandbox: Tier-4 species unlocked and acquirable
-  - Management: Tier-4 species locked with “Field Operations IV required”
-  - Research: ops_field4 node visible w/ correct prereq
-  - Species DB: 19 species listed
-  - Expeditions: Titanfall Reach zone visible
-  - Zero console errors, no regressions
+**Verification:**
+- New test: `/app/tests/phase19_photo_test.py` (**10/10 PASS**).
+- Visual validation at night with glowing species (screenshots produced during dev).
+- Full regression sweep green: smoke, phase8, phase9, phase16_visual, phase17.
+- `testing_agent_v3` **iteration_13 = 100%** (backend/frontend/integration).
 
 ---
 
 ## 3) Next Actions (immediate)
-1. Start **P2: Genetic Traits**
-   - Decide trait schema (color + 1–2 gameplay-affecting traits)
-   - Add inheritance rules to breeding outcomes
-   - Add UI for offspring lineage/traits
-2. Start **P2: Photo Mode**
-   - Camera controls (hide UI, depth-of-field-like overlay, time freeze)
-   - Export screenshot pipeline
-   - Optional: saved “shots” gallery
+No required work. Optional roadmap items (not committed):
+1. **Photo Gallery (persistence):** store recent captures (localStorage or backend save attachments).
+2. **Scenario medals:** bronze/silver/gold grading or mastery badge persistence/leaderboards.
+3. **Keeper priorities:** assign keepers to specific enclosures with priority sliders.
+4. **More apex scenarios:** additional handcrafted missions leveraging genetics/rivalry/transport.
 
 ---
 
 ## 4) Success Criteria
 - **Core fantasy works:** player starts ignorant, observes, discovers, adapts habitat, profits.
 - **Deterministic + stable:** fixed-timestep sim; save/load reproduces park reliably.
-- **Unknown biology enforced:** UI cannot infer undiscovered traits (including from habitat cause text).
+- **Unknown biology enforced:** UI cannot infer undiscovered traits.
 - **No fake systems:** every UI metric corresponds to actual sim causes.
-- **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns + recent-cause reasoning.
-- **Construction UX:**
-  - Fence **Line**: drag builds a straight wall; click places one segment.
-  - Fence **Rectangle**: drag outlines a full 4-wall enclosure perimeter.
-- **Security:** escapes generate clear alerts/banners; response units dispatch; capture loop resolves breaches with costs.
-- **Progression:** expeditions + contracts provide goals and acquisition variety beyond tutorial.
-- **Phase 7 acceptance (visual-only):** ✅ met.
-- **Phase 8 acceptance (Keeper Staff):** ✅ met.
-- **Phase 9 acceptance (Scenario Missions):** ✅ met.
-- **Phase 10 acceptance (Code Quality):** ✅ met.
-- **Phase 11 acceptance (High-End Visual Remake):** ✅ met; all regressions green; `testing_agent_v3` iteration_9 = 100%.
-- **Phase 12 acceptance (Apex-Class Species):** ✅ met; all regressions green; `testing_agent_v3` iteration_10 = 100% frontend.
+- **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns.
+
+**Verified milestones:**
+- Phase 11 acceptance: ✅ met (iteration_9 = 100%).
+- Phase 12 acceptance: ✅ met (iteration_10 = 100%).
+- Phase 13–16 acceptance: ✅ met (iteration_11 = 100% + `phase16_visual.py` PASS).
+- Phase 17 acceptance: ✅ met (iteration_12 = 100% + `phase17_sovereign_test.py` PASS).
+- Phase 19 acceptance: ✅ met (iteration_13 = 100% + `phase19_photo_test.py` PASS).

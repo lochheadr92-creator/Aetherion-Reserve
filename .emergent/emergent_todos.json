@@ -1,18 +1,26 @@
 [
   {
-    "content": "Phase 11 final verification (suites + testing agent iteration_9, 100%)",
+    "content": "Add sovereign_containment scenario to data/scenarios.js (goals, fails, mastery)",
     "status": "completed"
   },
   {
-    "content": "Phase 12: 4 Apex-class species implemented (data, research, expeditions, UI gating, art)",
+    "content": "Extend scenarios.js engine: damaged fences, starter buildings, escapeTicks/minCash tracking, mastery eval",
     "status": "completed"
   },
   {
-    "content": "Phase 12 verification (suites green + testing agent iteration_10, 100%)",
+    "content": "ScenarioTracker: mastery section in tracker + victory dialog badges",
     "status": "completed"
   },
   {
-    "content": "plan.md updated — Phases 11 & 12 marked COMPLETED",
+    "content": "MainMenu: BRUTAL difficulty color",
+    "status": "completed"
+  },
+  {
+    "content": "Update phase9 test (5 cards) + write phase17_sovereign_test.py",
+    "status": "completed"
+  },
+  {
+    "content": "Run full regression sweep + testing agent (iteration_12 = 100%)",
     "status": "completed"
   }
 ]

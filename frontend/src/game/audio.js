@@ -284,6 +284,12 @@ export class AudioManager {
         this._tone({ type: 'sine', freq: 784, dur: 0.1, gain: 0.1, when: 0.18 });
         this._tone({ type: 'sine', freq: 1046, dur: 0.26, gain: 0.11, when: 0.27 });
         break;
+      case 'radio':
+        // keeper call-in: two quick band-limited chirps, quiet and unobtrusive
+        this._tone({ type: 'square', freq: 1320, to: 1180, dur: 0.035, gain: 0.03, lp: 2600 });
+        this._tone({ type: 'square', freq: 1320, to: 1180, dur: 0.035, gain: 0.03, lp: 2600, when: 0.07 });
+        this._noiseBurst({ dur: 0.05, gain: 0.015, hp: 2400, when: 0.1 });
+        break;
       default:
         this._tone({ type: 'sine', freq: 880, dur: 0.07, gain: 0.07 });
     }

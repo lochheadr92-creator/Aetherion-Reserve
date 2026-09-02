@@ -13,12 +13,13 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- The game is feature-complete through **Phase 20**, and the post-Phase-19 code health + QoL + game-feel + polish passes are **complete and verified**:
+- The game is feature-complete through **Phase 21**, and the post-Phase-19 code health + QoL + game-feel + polish passes are **complete and verified**:
   1) **Code Quality Analysis / Code Review remediation** + full re-verification.
   2) **Keeper Priorities** (keeper→enclosure assignment; flexible prioritization).
   3) **Staff Report Card + Input UX Improvements**.
   4) **Game-Feel Pass** (render-only polish: zoom easing, pan inertia, breach shake, placement pop/dust).
   5) **Phase E**: Ambient Audio + Sovereign Bloodline scenario + Creature Idle Life + Keeper Markers.
+  6) **Phase F**: Edge Scrolling + Bloodline Ledger + Keeper Radio Chatter.
 
 **User confirmations (scope decisions):**
 - Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
@@ -38,15 +39,20 @@
 - Phase E constraints:
   - Audio, idle life, and keeper markers must remain **render/UI-layer only** (no sim determinism impacts).
   - Scenario work may add state/logic **additively** with backward-compatible defaults.
+- Phase F constraints:
+  - **Edge scrolling is input/render layer only** and must not be triggered by HUD/toolbars/modals (target must be the canvas).
+  - **Bloodline Ledger** is an **additive registry** (backwards compatible; safe on old saves).
+  - **Keeper Radio Chatter** is **lightweight + rate-limited** and should not spam toasts.
 
 **Status (high-level):**
-- **Phase 1–20 COMPLETE & VERIFIED** (see testing baselines below).
+- **Phase 1–21 COMPLETE & VERIFIED** (see testing baselines below).
 - **Post-Phase 19 work:**
   - Phase A (Code Quality Completion) ✅ COMPLETE + VERIFIED.
   - Phase B (Keeper Priorities) ✅ COMPLETE + VERIFIED.
   - Phase C (Staff Report Card + Input UX Improvements) ✅ COMPLETE + VERIFIED.
   - Phase D (Game-Feel Pass) ✅ COMPLETE + VERIFIED.
-  - **Phase E (Audio + New Scenario + Idle Life + Keeper Markers) ✅ COMPLETE + VERIFIED.**
+  - Phase E (Audio + New Scenario + Idle Life + Keeper Markers) ✅ COMPLETE + VERIFIED.
+  - **Phase F (Edge Scrolling + Bloodline Ledger + Keeper Radio) ✅ COMPLETE + VERIFIED.**
 - **Project health:** ✅ **Green**.
 
 > Constraint (hard): changes must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
@@ -66,6 +72,7 @@
 - **iteration_16: post-Phase C Input UX + Staff Report Card verification** (**testing_agent_v3 100% overall**; all new feature tests + regressions pass).
 - **iteration_17: post-Phase D Game-Feel Pass verification** (**testing_agent_v3 100% overall**; gamefeel + regressions + determinism/backend sanity pass).
 - **iteration_18: post-Phase E (Phase 20) verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 39/39; integration + regressions 100%).
+- **iteration_19: post-Phase F (Phase 21) verification** (**testing_agent_v3 100% overall**; backend 19/19; frontend 28/28; integration 100%; regressions green).
 
 ---
 
@@ -487,24 +494,108 @@ Verified via `testing_agent_v3` iteration_11.
 **Verification:**
 - Sequential local regressions green:
   - `smoke_game.py`, `input_ux_test.py`, `keeper_priorities_test.py`, `gamefeel_test.py`, `phase6b_test.py`, `phase9_scenarios_test.py`, `phase17_sovereign_test.py`, `phase20_features_test.py`
-- `testing_agent_v3`: **iteration_18 = 100%** (backend 6/6, frontend 39/39, integration + regressions 100%).
+- `testing_agent_v3`: **iteration_18 = 100%**.
+
+---
+
+### Phase F (Phase 21) — Edge Scrolling + Bloodline Ledger + Keeper Radio Chatter ✅ COMPLETE (verified)
+**Goal:** improve hands-free camera control, make genetics planning legible, and add diegetic staff feedback without spamming the player.
+
+#### Phase F1 — Edge Scrolling (canvas-targeted camera glide) ✅ COMPLETE
+**Delivered:**
+- `frontend/src/game/input.js`
+  - Pointer tracking (`pointer = {sx, sy, overCanvas}`) with **canvas target check** (`e.target === canvas`).
+  - Edge scroll `frame()` called from the canvas rAF loop.
+  - 28px band, eased depth → speed ramp, 8-frame arming delay.
+  - Cancels camera inertia when the edge glide engages.
+  - Map-bound clamp so camera cannot be stranded off-map.
+  - Preference stored in localStorage: `aetherion_edge_scroll` with module-level `isEdgeScrollEnabled()` / `setEdgeScrollEnabled()`.
+  - Debug: `window.__gameInput` exposes edge state (active/vx/vy/armed).
+- `frontend/src/components/game/GameCanvas.jsx`
+  - Calls `input.frame()` every rAF before render.
+  - Exposes `window.__gameInput` for tests.
+- `frontend/src/components/game/HudBar.jsx`
+  - Settings popover extended: **CAMERA** section with `[data-testid=edge-scroll-toggle]`.
+  - Audio testids preserved.
+
+#### Phase F2 — Bloodline Ledger (family tree + pairing outlook) ✅ COMPLETE
+**Delivered:**
+- `frontend/src/game/lineage.js`
+  - Additive registry `state.lineage`:
+    - `registerLineage(state, creature)`
+    - `markLineageLeft(state, id, status)`
+    - `ensureLineage(state)` backfills older saves and creates parent stubs from `genes.parents`.
+  - Queries:
+    - `familyTree(state, id)` (parents/grandparents/siblings/half-siblings/offspring+mates)
+    - `projectedInbreeding(a,b)` + `relationLabel(state,a,b)`
+    - `pairingOutlook(state, creature)` (same-species candidates + SAFE/INBRED verdict)
+- `frontend/src/game/creatures.js`
+  - `addCreature()` registers lineage.
+  - `removeCreature()` marks lineage as left (default `transferred`).
+  - Birth flow registers again after offspring naming so the ledger stores the given name.
+- `frontend/src/game/controller.js`
+  - `newGame()` and `loadGame()` run `ensureLineage(state)`.
+- `frontend/src/components/game/BloodlineLedger.jsx`
+  - Portal dialog showing:
+    - Tiered family tree (grandparents/parents/subject/offspring)
+    - Founder “wild origin” card when no parents exist
+    - Status badges (IN PARK / TRANSFERRED) + morph/inbred tags
+    - Click-to-locate living relatives
+    - Pairing outlook table with projected inbreeding % and relation
+- `frontend/src/components/game/panels/CreaturePanel.jsx`
+  - New `[data-testid=creature-ledger-button]` opens the ledger.
+
+#### Phase F3 — Keeper Radio Chatter (alert feed pings, rate-limited) ✅ COMPLETE
+**Delivered:**
+- `frontend/src/game/staff.js`
+  - `radioNote()` + `radioFlush()` batching:
+    - 30-tick gather window (~3s)
+    - 300-tick quiet window (~30s)
+    - Aggregates per kind (`feeds/cleans/treats/repairs`)
+  - Only triggers when:
+    - keeper is **assigned** (`assignedAnchor`), and
+    - work occurred **inside their assigned enclosure** (uses assignmentFilter).
+  - Emits alert type `radio` with pen number summary.
+  - Tracks `state.stats.radioCalls`.
+- `frontend/src/game/state.js`
+  - New policy: `policies.keeperRadio` default true.
+  - Policy backfill for older saves and `POLICY_KEYS` allowlist.
+- `frontend/src/components/game/StaffScreen.jsx`
+  - New header switch `[data-testid=staff-radio-toggle]`.
+- `frontend/src/components/game/HudBar.jsx`
+  - Alert feed styling for radio:
+    - Seaglass title color
+    - Radio icon
+    - `[data-testid=alert-item-{type}]` rows
+- `frontend/src/components/game/hooks/useGameAlerts.jsx`
+  - Radio alerts do **not** spawn toasts (feed-only).
+- `frontend/src/components/game/hooks/useNavigateTarget.js`
+  - Added `enclosure` navigation handler for enclosure-targeted calls.
+- `frontend/src/game/audio.js`
+  - `stinger('radio')` soft chirp.
+
+#### Phase F4 — Testing & Verification ✅ COMPLETE
+**Tests added:**
+- New: `/app/tests/phase21_features_test.py` (**28/28 PASS**) covering:
+  - Edge scrolling activation, arming delay, clamp, preference persistence.
+  - Radio chatter batching, policy toggle, feed-only (no toast) behavior, and chirp.
+  - Bloodline ledger registry backfill, UI tree, pairing outlook, transfer persistence, save/load.
+
+**Verification:**
+- Sequential local regressions green:
+  - `smoke_game.py`, `input_ux_test.py`, `keeper_priorities_test.py`, `gamefeel_test.py`, `phase8_staff_test.py`, `phase20_features_test.py`.
+- `testing_agent_v3`: **iteration_19 = 100%** (backend 19/19; frontend 28/28; integration 100%).
 
 ---
 
 ## 3) Next Actions (immediate)
-1. **Balance/feel pass (optional, gameplay tuning only):**
-   - Review `sovereign_bloodline` difficulty (Cycle 16 deadline, damage severity, starting cash, fail thresholds) based on player feedback.
-   - Consider adding a small in-UI hint about transferring surplus adults to keep the pair breeding (already described in scenario text).
-2. **P2 backlog items:**
-   - **Photo Album**: persist captured photos and add an in-game gallery.
-   - **Edge Scrolling**: camera glides when mouse approaches screen edge.
-   - **Audio polish**: optional per-category volume (UI vs ambience) and/or a very light reverb bus.
-3. **Maintenance:**
-   - When any future refactor/feature is added, re-run:
-     - `yarn --cwd /app/frontend build`
-     - `python /app/tests/smoke_game.py`
-     - (if needed) `playwright install chromium`
-     - `testing_agent_v3` and produce the next iteration report.
+1. **Photo Album (P2):** persist captured photos and add an in-game gallery (browse + re-download).
+2. **Balance/feel pass (optional, gameplay tuning only):**
+   - Review `sovereign_bloodline` difficulty (Cycle 16 deadline, damage severity, starting cash, fail thresholds) after player feedback.
+3. **Audio polish (P2):**
+   - Optional per-category volume (UI vs ambience vs stingers) and/or a subtle reverb bus.
+4. **Bloodline QoL (future):**
+   - Consider explicit “recommended pairings” sorting and/or a “avoid inbreeding” warning when two selected creatures share blood.
 
 ---
 
@@ -520,10 +611,14 @@ Verified via `testing_agent_v3` iteration_11.
 - **Modern input UX delivered:** drag-pan, right-click cancel/clear, with toolbar sync and preserved workflows.
 - **Game-feel delivered (render-only):** eased zoom, pan inertia, breach shake, placement pop + dust — with reduced-motion support.
 - **Phase E delivered (verified):**
-  - **Ambient Audio delivered:** synthesized Web Audio layer, stingers + ambience, HUD mute/volume, persisted, no sim changes.
-  - **Sovereign Bloodline scenario delivered:** new BRUTAL mission with deterministic setup, deadline pressure, and breeding/health constraints.
-  - **Creature Idle Life delivered (render-only):** blink + subtle idle motion + footprints; respects reduced motion.
-  - **Keeper Markers delivered (render-only):** map pins for keeper assignments, readable with overlaps handled.
+  - Ambient Audio delivered
+  - Sovereign Bloodline scenario delivered
+  - Creature Idle Life delivered
+  - Keeper Markers delivered
+- **Phase F delivered (verified):**
+  - Edge Scrolling delivered (canvas-only, eased + clamped, preference persisted)
+  - Bloodline Ledger delivered (persistent registry + family tree + pairing outlook)
+  - Keeper Radio delivered (batched feed-only pings + policy + chirp)
 
 **Verified milestones:**
 - Phase 11 acceptance: ✅ met (iteration_9 = 100%).
@@ -535,7 +630,8 @@ Verified via `testing_agent_v3` iteration_11.
 - Phase B acceptance: ✅ met (iteration_15 = 100%).
 - Phase C acceptance: ✅ met (iteration_16 = 100%).
 - Phase D acceptance: ✅ met (iteration_17 = 100%).
-- **Phase E acceptance: ✅ met (iteration_18 = 100%).**
+- Phase E acceptance: ✅ met (iteration_18 = 100%).
+- **Phase F acceptance: ✅ met (iteration_19 = 100%).**
 
 **Next verification to produce:**
-- **iteration_19:** after the next feature addition (e.g., Photo Album / Edge Scrolling), via `testing_agent_v3`.
+- **iteration_20:** after the next feature addition (e.g., Photo Album), via `testing_agent_v3`.

@@ -18,6 +18,7 @@ export const GameCanvas = ({ onSelect, onToolResult, onToolChange, rendererRef, 
     if (rendererRef) rendererRef.current = renderer;
     if (inputRef) inputRef.current = input;
     window.__gameRenderer = renderer;
+    window.__gameInput = input; // debug/testing access (edge scrolling state)
 
     const resize = () => {
       const parent = canvas.parentElement;
@@ -32,6 +33,7 @@ export const GameCanvas = ({ onSelect, onToolResult, onToolChange, rendererRef, 
     let raf;
     const frame = () => {
       if (game.state && renderer.state !== game.state) renderer.setState(game.state);
+      input.frame(); // edge scrolling glides the camera before the frame is drawn
       renderer.render();
       audio.update(game.state); // ambience follows weather / night / breaches (read-only)
       raf = requestAnimationFrame(frame);

@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera, Volume2, VolumeX } from 'lucide-react';
+import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera, Volume2, VolumeX, MoveHorizontal, Radio } from 'lucide-react';
 import { game } from '@/game/controller';
 import { audio } from '@/game/audio';
+import { isEdgeScrollEnabled, setEdgeScrollEnabled } from '@/game/input';
 import { fmtMoney } from '@/game/constants';
 import { getDayPhase, clockLabel } from '@/game/weather';
 import { useGameTick } from '@/components/game/useGame';
@@ -103,12 +104,11 @@ function HudKpis({ s }) {
   );
 }
 
-const alertColor = (type) => (
-  type === 'danger' ? 'var(--danger)'
-    : type === 'warning' ? 'var(--warning)'
-      : type === 'breakthrough' ? 'var(--accent-cyan)'
-        : type === 'success' ? 'var(--success)' : 'var(--info)'
-);
+const ALERT_COLORS = {
+  danger: 'var(--danger)', warning: 'var(--warning)', breakthrough: 'var(--accent-cyan)',
+  success: 'var(--success)', radio: 'var(--accent-seaglass)',
+};
+const alertColor = (type) => ALERT_COLORS[type] || 'var(--info)';
 
 function AlertsDropdown({ alerts, onPick }) {
   return (
@@ -116,10 +116,13 @@ function AlertsDropdown({ alerts, onPick }) {
       <div className="nl-panel-header px-3 py-2 mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">ALERT FEED</div>
       {alerts.length === 0 && <div className="px-3 py-4 text-xs text-[var(--text-3)]">No alerts. The facility is quiet… for now.</div>}
       {alerts.map((a) => (
-        <button key={a.id} onClick={() => onPick(a)}
+        <button key={a.id} onClick={() => onPick(a)} data-testid={`alert-item-${a.type}`}
           className="w-full text-left px-3 py-2 border-b border-[var(--line)] hover:bg-[var(--panel-2)] transition-colors">
-          <div className="mono text-[10px] tracking-wider" style={{ color: alertColor(a.type) }}>{a.title}</div>
-          <div className="text-xs text-[var(--text-2)] mt-0.5">{a.msg}</div>
+          <div className="mono text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: alertColor(a.type) }}>
+            {a.type === 'radio' && <Radio size={10} className="shrink-0" />}
+            {a.title}
+          </div>
+          <div className={`text-xs mt-0.5 ${a.type === 'radio' ? 'text-[var(--text-3)] italic' : 'text-[var(--text-2)]'}`}>{a.msg}</div>
         </button>
       ))}
     </div>
@@ -153,10 +156,10 @@ function AlertsBell({ s, onNavigate }) {
   );
 }
 
-// ---------- ambient audio: mute toggle + volume popover ----------
-function AudioPopover({ enabled, volume, onToggle, onVolume }) {
+// ---------- settings popover: ambient audio (mute + volume) and camera controls ----------
+function AudioPopover({ enabled, volume, onToggle, onVolume, edgeScroll, onEdgeScroll }) {
   return (
-    <div className="absolute right-0 top-11 w-[240px] nl-panel z-50 p-3 space-y-3" data-testid="audio-popover">
+    <div className="absolute right-0 top-11 w-[260px] nl-panel z-50 p-3 space-y-3" data-testid="audio-popover">
       <div className="flex items-center justify-between">
         <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">AMBIENT AUDIO</span>
         <button data-testid="audio-mute-toggle" onClick={onToggle} data-active={enabled ? 'true' : 'false'}
@@ -173,6 +176,19 @@ function AudioPopover({ enabled, volume, onToggle, onVolume }) {
       <p className="text-[10px] text-[var(--text-3)] leading-snug">
         Wind follows the weather, glowing exhibits hum after dark, and alerts carry a short stinger. Synthesised live — no downloads.
       </p>
+      <div className="pt-2 border-t border-[var(--line)] space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">CAMERA</span>
+          <button data-testid="edge-scroll-toggle" onClick={onEdgeScroll} data-active={edgeScroll ? 'true' : 'false'}
+            className="nl-tool h-7 px-2 mono text-[10px] flex items-center gap-1">
+            <MoveHorizontal size={12} />
+            {edgeScroll ? 'EDGE SCROLL ON' : 'EDGE SCROLL OFF'}
+          </button>
+        </div>
+        <p className="text-[10px] text-[var(--text-3)] leading-snug">
+          Rest the pointer near the edge of the map to glide the camera hands-free. Toolbars and panels never trigger it.
+        </p>
+      </div>
     </div>
   );
 }
@@ -181,6 +197,7 @@ function AudioControl() {
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(audio.enabled);
   const [volume, setVolume] = useState(audio.volume);
+  const [edgeScroll, setEdgeScroll] = useState(isEdgeScrollEnabled());
   const toggleOpen = useCallback(() => setOpen((o) => !o), [setOpen]);
   const toggleMute = useCallback(() => {
     const next = !audio.enabled;
@@ -191,13 +208,21 @@ function AudioControl() {
     audio.setVolume(v);
     setVolume(v);
   }, [setVolume]);
+  const toggleEdge = useCallback(() => {
+    const next = !isEdgeScrollEnabled();
+    setEdgeScrollEnabled(next);
+    setEdgeScroll(next);
+  }, [setEdgeScroll]);
   return (
     <div className="relative">
       <button data-testid="hud-audio-button" onClick={toggleOpen} data-active={open ? 'true' : 'false'}
-        className="nl-tool h-9 w-9 flex items-center justify-center" title={enabled ? `Audio on · ${Math.round(volume * 100)}%` : 'Audio muted'}>
+        className="nl-tool h-9 w-9 flex items-center justify-center" title={enabled ? `Audio on · ${Math.round(volume * 100)}% · settings` : 'Audio muted · settings'}>
         {enabled && volume > 0 ? <Volume2 size={15} /> : <VolumeX size={15} className="text-[var(--text-3)]" />}
       </button>
-      {open && <AudioPopover enabled={enabled} volume={volume} onToggle={toggleMute} onVolume={changeVolume} />}
+      {open && (
+        <AudioPopover enabled={enabled} volume={volume} onToggle={toggleMute} onVolume={changeVolume}
+          edgeScroll={edgeScroll} onEdgeScroll={toggleEdge} />
+      )}
     </div>
   );
 }

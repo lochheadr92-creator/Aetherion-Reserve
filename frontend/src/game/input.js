@@ -10,6 +10,25 @@ import { spend } from './economy';
 import { walkableForCreature } from './pathfind';
 import { MAP_SIZE, FENCES } from './constants';
 
+// ---------- edge scrolling (hands-free camera glide) ----------
+// The camera glides while the pointer rests inside a thin band along the canvas
+// edges. Only the canvas itself counts: HUD bars, toolbars and modals sit on top
+// of it and must never trigger a glide while the player reaches for a control.
+const EDGE_ZONE_PX = 28;         // band width from each canvas edge
+const EDGE_MAX_SPEED = 14;       // px/frame at the very edge
+const EDGE_ARM_FRAMES = 8;       // frames the pointer must dwell in the band before gliding
+const EDGE_LS_KEY = 'aetherion_edge_scroll';
+
+const readEdgePref = () => {
+  try { return localStorage.getItem(EDGE_LS_KEY) !== 'false'; } catch (e) { return true; }
+};
+let edgePref = readEdgePref();
+export const isEdgeScrollEnabled = () => edgePref;
+export function setEdgeScrollEnabled(v) {
+  edgePref = !!v;
+  try { localStorage.setItem(EDGE_LS_KEY, String(edgePref)); } catch (e) { /* storage unavailable */ }
+}
+
 export class InputController {
   constructor(canvas, renderer, getState, cb = {}) {
     this.canvas = canvas;
@@ -21,7 +40,39 @@ export class InputController {
     this.leftPanPending = null;
     this.lastApplied = null;
     this.lineStart = null; // fence drag-line anchor vertex {vx, vy}
+    this.pointer = null;   // { sx, sy, overCanvas } last known pointer, canvas-relative
+    this.edge = { active: false, vx: 0, vy: 0, armed: 0 }; // exposed for tests/debug
     this.attach();
+  }
+
+  // Per-frame hook (called from the canvas rAF loop): edge-scroll the camera.
+  frame() {
+    const p = this.pointer;
+    const e = this.edge;
+    if (!edgePref || !p || !p.overCanvas || this.panning || this.dragging || this.leftPanPending || !this.getState()) {
+      e.active = false; e.vx = 0; e.vy = 0; e.armed = 0;
+      return;
+    }
+    const W = this.canvas.width, H = this.canvas.height;
+    // signed depth into each band, eased so the glide ramps up toward the very edge
+    const depth = (d) => (d >= EDGE_ZONE_PX ? 0 : Math.pow(1 - d / EDGE_ZONE_PX, 1.6));
+    const left = depth(p.sx), right = depth(W - p.sx), top = depth(p.sy), bottom = depth(H - p.sy);
+    const ax = right - left, ay = bottom - top;
+    if (!ax && !ay) { e.active = false; e.vx = 0; e.vy = 0; e.armed = 0; return; }
+    if (e.armed < EDGE_ARM_FRAMES) { e.armed++; e.active = false; e.vx = 0; e.vy = 0; return; }
+    if (!e.active) this.renderer.fx.cancelMotion(); // a glide supersedes any lingering pan inertia
+    e.active = true;
+    e.vx = -ax * EDGE_MAX_SPEED; // pointer at the right edge → world moves left
+    e.vy = -ay * EDGE_MAX_SPEED;
+    const cam = this.renderer.cam;
+    cam.x += e.vx;
+    cam.y += e.vy;
+    // keep at least a sliver of the map on screen so a hands-free glide never strands the camera in the void
+    const ext = MAP_SIZE * 32 * cam.zoom, keep = 200;
+    const nx = Math.max(keep - ext, Math.min(W - keep + ext, cam.x));
+    const ny = Math.max(keep - ext, Math.min(H - keep, cam.y));
+    if (nx !== cam.x) { cam.x = nx; e.vx = 0; }
+    if (ny !== cam.y) { cam.y = ny; e.vy = 0; }
   }
 
   setTool(tool) {
@@ -38,6 +89,8 @@ export class InputController {
     c.addEventListener('mousedown', this.onDown);
     window.addEventListener('mousemove', this.onMove);
     window.addEventListener('mouseup', this.onUp);
+    window.addEventListener('blur', this.onBlur);
+    document.addEventListener('mouseleave', this.onDocLeave);
     c.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -47,7 +100,13 @@ export class InputController {
     c.removeEventListener('mousedown', this.onDown);
     window.removeEventListener('mousemove', this.onMove);
     window.removeEventListener('mouseup', this.onUp);
+    window.removeEventListener('blur', this.onBlur);
+    document.removeEventListener('mouseleave', this.onDocLeave);
   }
+
+  // pointer left the window / window lost focus: never keep gliding blind
+  onBlur = () => { this.pointer = null; };
+  onDocLeave = () => { this.pointer = null; };
 
   onWheel = (e) => {
     e.preventDefault();
@@ -121,6 +180,8 @@ export class InputController {
   onMove = (e) => {
     const rect = this.canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    // edge scrolling only trusts the bare canvas under the pointer (not HUD/modals)
+    this.pointer = { sx, sy, overCanvas: e.target === this.canvas };
     if (this.leftPanPending) {
       // promote a select-mode left drag into a camera pan after a small threshold
       if (Math.hypot(e.clientX - this.leftPanPending.x, e.clientY - this.leftPanPending.y) > 5) {

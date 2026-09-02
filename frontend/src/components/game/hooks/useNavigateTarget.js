@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import { game } from '@/game/controller';
+import { computeEnclosures } from '@/game/enclosures';
+import { MAP_SIZE } from '@/game/constants';
 
 // ---- Navigation from alerts/panels to world objects and screens.
 // One flat handler per target kind keeps nesting shallow.
@@ -16,6 +18,17 @@ function goToTile(target, { rendererRef }) {
   rendererRef.current.centerOn(target.x, target.y);
 }
 
+// centre on an enclosure (e.g. keeper radio calls) and inspect it
+function goToEnclosure(target, { rendererRef, setSelection }) {
+  const enc = computeEnclosures(game.state).enclosures.find((e) => e.id === target.id);
+  if (!enc || !enc.tiles.length) return;
+  let cx = 0, cy = 0;
+  for (const ti of enc.tiles) { cx += ti % MAP_SIZE; cy += Math.floor(ti / MAP_SIZE); }
+  rendererRef.current.centerOn(cx / enc.tiles.length + 0.5, cy / enc.tiles.length + 0.5);
+  rendererRef.current.selection = { kind: 'enclosure', id: enc.id };
+  setSelection({ kind: 'enclosure', id: enc.id });
+}
+
 function goToSpecies(target, { setModal, setDbSpecies }) {
   setDbSpecies(target.id);
   setModal('db');
@@ -28,6 +41,7 @@ const goToFinances = (target, { setModal }) => setModal('finances');
 const NAV_HANDLERS = {
   creature: goToCreature,
   tile: goToTile,
+  enclosure: goToEnclosure,
   species: goToSpecies,
   research: goToResearch,
   finances: goToFinances,

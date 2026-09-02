@@ -103,7 +103,7 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     security: { units: [] },
     expeditions: [],
     contracts: { available: [], active: [], completed: 0, nextRefreshDay: 0 },
-    policies: { nightTours: false },
+    policies: { nightTours: false, keeperRadio: true },
     staff: [],
     waste: [],
     events: [],
@@ -153,7 +153,8 @@ export function deserialize(data) {
   if (!state.security) state.security = { units: [] };
   if (!state.expeditions) state.expeditions = [];
   if (!state.contracts) state.contracts = { available: [], active: [], completed: 0, nextRefreshDay: 0 };
-  if (!state.policies) state.policies = { nightTours: false };
+  if (!state.policies) state.policies = { nightTours: false, keeperRadio: true };
+  if (state.policies.keeperRadio === undefined) state.policies.keeperRadio = true; // pre-Phase-21 saves
   if (!state.staff) state.staff = [];
   if (!state.waste) state.waste = [];
   if (!state.events) state.events = [];
@@ -185,8 +186,11 @@ export function setTicketPrice(state, price) {
   state.ticketPrice = Math.max(10, Math.min(60, p));
 }
 
+// park policies toggled from the UI (additive: new keys default in deserialize)
+const POLICY_KEYS = ['nightTours', 'keeperRadio'];
+
 export function setPolicy(state, key, value) {
-  if (!state.policies) state.policies = { nightTours: false };
-  if (!(key in state.policies)) return;
+  if (!state.policies) state.policies = { nightTours: false, keeperRadio: true };
+  if (!POLICY_KEYS.includes(key)) return;
   state.policies[key] = !!value;
 }

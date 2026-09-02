@@ -1,4 +1,5 @@
-import { MapPin, Trash2, BookOpen, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { MapPin, Trash2, BookOpen, AlertTriangle, GitBranch } from 'lucide-react';
 import { toast } from 'sonner';
 import { game } from '@/game/controller';
 import { computeEnclosures, evaluateHabitat } from '@/game/enclosures';
@@ -10,6 +11,7 @@ import { traitLabels, morphOf } from '@/game/genetics';
 import { earn } from '@/game/economy';
 import Portrait from '@/components/game/Portrait';
 import Bar from '@/components/game/panels/Bar';
+import BloodlineLedger from '@/components/game/BloodlineLedger';
 
 export const ACTIVITY = {
   idle: 'Idling', wander: 'Roaming', seekWater: 'Heading to water', drinking: 'Drinking', seekSwim: 'Heading to water', swimming: 'Swimming',
@@ -153,7 +155,7 @@ function GeneTraitChips({ traits, morph }) {
   );
 }
 
-function GeneticsSection({ c }) {
+function GeneticsSection({ c, onOpenLedger }) {
   const g = c.genes;
   if (!g) return null;
   return (
@@ -161,6 +163,10 @@ function GeneticsSection({ c }) {
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1.5">GENETICS &amp; LINEAGE</div>
       <LineageRows g={g} />
       <GeneTraitChips traits={traitLabels(g)} morph={morphOf(c)} />
+      <button data-testid="creature-ledger-button" onClick={onOpenLedger}
+        className="nl-tool mt-2 h-7 w-full text-[11px] flex items-center justify-center gap-1.5">
+        <GitBranch size={12} /> Bloodline Ledger — family tree &amp; pairing outlook
+      </button>
     </div>
   );
 }
@@ -228,6 +234,7 @@ function ActionRow({ c, sp, onNavigate, onOpenSpecies, onTransfer }) {
 }
 
 export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }) {
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const s = game.state;
   const c = s.creatures.find((q) => q.id === id);
   const view = c ? getSpeciesView(s, c.speciesId) : null;
@@ -245,10 +252,11 @@ export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }
       <div className="text-[11px] mono text-[var(--accent-cyan)]">▸ {ACTIVITY[c.state] || c.state}</div>
       <VitalsBars c={c} />
       <HabitatFactors habitat={habitat} />
-      <GeneticsSection c={c} />
+      <GeneticsSection c={c} onOpenLedger={() => setLedgerOpen(true)} />
       <BiologySection view={view} knownEntries={knownEntries} />
       <ActionRow c={c} sp={sp} onNavigate={onNavigate} onOpenSpecies={onOpenSpecies}
         onTransfer={() => transferCreature(s, c, sp, onClose)} />
+      {ledgerOpen && <BloodlineLedger creatureId={c.id} onClose={() => setLedgerOpen(false)} onNavigate={onNavigate} />}
     </div>
   );
 }

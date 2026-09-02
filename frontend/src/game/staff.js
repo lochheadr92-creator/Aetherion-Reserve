@@ -2,7 +2,7 @@
 // Deterministic staff simulation. Staff move on the tile grid (A*, service access
 // through gates/fences), acquire tasks by role priority and apply effects on completion.
 import { FENCES, MAP_SIZE } from './constants';
-import { idx, inMap, logCause, rnd } from './state';
+import { idx, inMap, logCause, pushAlert, rnd } from './state';
 import { spend } from './economy';
 import { findPath, buildOccupancy } from './pathfind';
 import { speciesById } from './data/species';
@@ -258,6 +258,78 @@ function bumpReport(st, key) {
   st.report[key] = (st.report[key] || 0) + 1;
 }
 
+// ---------- keeper radio chatter ----------
+// Assigned keepers call in when they finish work inside their own enclosure.
+// Calls are batched so a busy pen never floods the feed: the first completion
+// opens a short gather window, everything finished inside it rides the same
+// transmission, and a quiet window then holds further chatter until it lapses.
+const RADIO_GATHER_TICKS = 30;   // ~3s: fold near-simultaneous completions into one call
+const RADIO_QUIET_TICKS = 300;   // ~30s minimum spacing between calls from one keeper
+const RADIO_KINDS = ['feeds', 'cleans', 'treats', 'repairs'];
+const RADIO_LINES = {
+  feeds: [(n, who) => `${who} fed and settled.`, (n, who) => `Rations delivered to ${who}.`, (n, who) => `${who} took the feed — appetite good.`],
+  cleans: [() => 'Biowaste cleared, exhibit is clean.', () => 'Waste run done, ground is clear.', () => 'Pen swept — no residue left.'],
+  treats: [(n, who) => `${who} stabilised, stress coming down.`, (n, who) => `Treated ${who}; vitals steadying.`],
+  repairs: [() => 'Barrier segment restored, perimeter holding.', () => 'Fence patched to full integrity.', () => 'Repair complete — containment nominal.'],
+};
+const RADIO_SUMMARY = { feeds: 'fed', cleans: 'cleaned', treats: 'treated', repairs: 'repaired' };
+
+export const radioEnabled = (state) => state.policies?.keeperRadio !== false;
+
+// Record a completed task for the next transmission. Only work inside the
+// keeper's own assigned enclosure is reported: `where` is a creature, a waste
+// tile {x,y} or a fence key, matched through the same assignment filter that
+// scopes their priority tasks.
+function radioNote(state, st, kind, where) {
+  if (!radioEnabled(state) || !st.assignedAnchor) return;
+  const enc = resolveAssignment(state, st);
+  if (!enc) return;
+  const pick = assignmentFilter(state, enc);
+  const inside = typeof where === 'string' ? pick.fence(where)
+    : where && where.speciesId ? pick.creature(where)
+      : where ? pick.tile(where.x, where.y) : false;
+  if (!inside) return;
+  if (!st.radio) st.radio = { counts: {}, names: [], flushAt: 0, quietUntil: 0, encId: enc.id, targetId: null };
+  const r = st.radio;
+  r.counts[kind] = (r.counts[kind] || 0) + 1;
+  r.encId = enc.id;
+  if (where && where.speciesId) {
+    if (!r.names.includes(where.name)) r.names.push(where.name);
+    r.targetId = where.id;
+  }
+  // first note opens the gather window; notes during a quiet window ride the next slot
+  if (!r.flushAt) r.flushAt = Math.max(state.tick + RADIO_GATHER_TICKS, r.quietUntil || 0);
+}
+
+function radioMessage(state, st, r) {
+  const kinds = RADIO_KINDS.filter((k) => r.counts[k]);
+  const total = kinds.reduce((s, k) => s + r.counts[k], 0);
+  const who = r.names[0] || 'the resident';
+  if (total === 1) {
+    const lines = RADIO_LINES[kinds[0]];
+    return `Pen #${r.encId}: ${lines[(state.tick + st.id) % lines.length](1, who)}`;
+  }
+  const parts = kinds.map((k) => `${r.counts[k]} ${RADIO_SUMMARY[k]}`);
+  return `Pen #${r.encId}: ${parts.join(', ')}. All quiet.`;
+}
+
+// Transmit a pending batch once its window closes; opens the quiet window.
+function radioFlush(state, st) {
+  const r = st.radio;
+  if (!r || !r.flushAt || state.tick < r.flushAt) return;
+  const total = RADIO_KINDS.reduce((s, k) => s + (r.counts[k] || 0), 0);
+  if (total > 0 && radioEnabled(state)) {
+    const creature = r.targetId != null ? state.creatures.find((c) => c.id === r.targetId) : null;
+    pushAlert(state, {
+      type: 'radio', title: `${st.name} \u00b7 RADIO`,
+      msg: radioMessage(state, st, r),
+      target: creature ? { kind: 'creature', id: creature.id } : { kind: 'enclosure', id: r.encId },
+    });
+    state.stats.radioCalls = (state.stats.radioCalls || 0) + 1;
+  }
+  st.radio = { counts: {}, names: [], flushAt: 0, quietUntil: state.tick + RADIO_QUIET_TICKS, encId: r.encId, targetId: null };
+}
+
 function beginWork(state, st) {
   st.state = 'working';
   st.workTicks = WORK_TICKS[st.task?.type] || 20;
@@ -275,6 +347,7 @@ function applyWork(state, st) {
       c.needs.hunger = 1;
       state.stats.staffFeedings = (state.stats.staffFeedings || 0) + 1;
       bumpReport(st, 'feeds');
+      radioNote(state, st, 'feeds', c);
       recordEvidence(state, sp.id, 'diet', 0.6);
       logCause(state, st.name, `hand-fed ${c.name}`);
     }
@@ -282,9 +355,11 @@ function applyWork(state, st) {
     if (state.waste) {
       const i = state.waste.findIndex((w) => w.id === t.targetId);
       if (i >= 0) {
+        const w = state.waste[i];
         state.waste.splice(i, 1);
         state.stats.staffCleanings = (state.stats.staffCleanings || 0) + 1;
         bumpReport(st, 'cleans');
+        radioNote(state, st, 'cleans', { x: w.x, y: w.y });
         logCause(state, st.name, 'cleared biowaste from an exhibit');
       }
     }
@@ -296,6 +371,7 @@ function applyWork(state, st) {
       c._medCd = state.tick + MED_COOLDOWN;
       state.stats.staffTreatments = (state.stats.staffTreatments || 0) + 1;
       bumpReport(st, 'treats');
+      radioNote(state, st, 'treats', c);
       logCause(state, st.name, `stabilised ${c.name} — stress reduced`);
     }
   } else if (t.type === 'observe') {
@@ -324,6 +400,7 @@ function repairTick(state, st) {
   if (f.hp >= max) {
     state.stats.staffRepairs = (state.stats.staffRepairs || 0) + 1;
     bumpReport(st, 'repairs');
+    radioNote(state, st, 'repairs', st.task.key);
     logCause(state, st.name, 'restored a barrier segment to full integrity');
     finishTask(st);
   }
@@ -364,6 +441,7 @@ export function staffTick(state) {
   if (!state.staff || !state.staff.length) return;
   const T = state.tick;
   for (const st of state.staff) {
+    if (st.radio && st.radio.flushAt) radioFlush(state, st);
     if (st.state === 'moving') {
       moveStaff(state, st);
     } else if (st.state === 'working') {

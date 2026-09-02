@@ -1,0 +1,75 @@
+{
+  "summary": "Phase 21 (Phase F) comprehensive testing complete: Edge Scrolling, Keeper Radio Chatter, and Bloodline Ledger all working correctly. All 28 feature tests passed, backend API fully functional (19/19 tests), no regressions detected.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend API: GET / returns 200 with status ok",
+    "Backend API: GET /saves returns list",
+    "Backend API: POST /saves creates save with lineage and policies.keeperRadio",
+    "Backend API: GET /saves/{id} retrieves full state including lineage and policies",
+    "Backend API: PUT /saves/{id} updates save correctly",
+    "Backend API: DELETE /saves/{id} removes save",
+    "Edge Scroll 1: Right edge glides camera left (active=true, vx<0, cam.x decreases >50px)",
+    "Edge Scroll 2: Leaving band stops glide (active=false, cam stable)",
+    "Edge Scroll 3: HUD bar hover never triggers glide (overCanvas=false)",
+    "Edge Scroll 4: Quick pass through band doesn't move camera (arming delay <20px)",
+    "Edge Scroll 5: Glide clamps at map bound (cam.x at 200-72*32*zoom, vx=0)",
+    "Edge Scroll 6: Toggle OFF persists in localStorage and disables glide",
+    "Edge Scroll 7: Preference survives page reload",
+    "Radio 1: Assigned keeper calls in after feeding (1 radio alert, stats.radioCalls=1)",
+    "Radio 2: Radio chatter stays in alert feed, no toast",
+    "Radio 3: Alert feed shows radio row with icon and pen message, clicking locates creature",
+    "Radio 4: Rate limiting works (second feed held in quiet window)",
+    "Radio 5: Held chatter transmits after quiet window lapses (2 calls total)",
+    "Radio 6: General-duty keepers stay silent (no radio when unassigned)",
+    "Radio 7: Policy toggle in Staff screen silences keepers (policies.keeperRadio=false)",
+    "Radio 8: Radio stinger plays (stinger:radio in audio log)",
+    "Ledger 1: Registry tracks founders + offspring with parent IDs (3 entries)",
+    "Ledger 2: Offspring entry carries given name (not generic species name)",
+    "Ledger 3: Founder view shows wild origin, offspring listed, descendant count",
+    "Ledger 4: Offspring node names mate and shows IN PARK status",
+    "Ledger 5: Pairing outlook shows mate as SAFE 0%, offspring as INBRED RISK 33%",
+    "Ledger 6: Clicking living relative closes ledger and selects creature",
+    "Ledger 7: Offspring view shows both parents and wild grandparents",
+    "Ledger 8: Transferred sire stays in registry as TRANSFERRED with leftDay",
+    "Ledger 9: Tree shows departed sire (not clickable), outlook lists only park residents",
+    "Ledger 10: Registry and radio policy survive save/load",
+    "Ledger 11: Legacy save backfills founders + parent stubs from genes.parents",
+    "UI Integration: Game boots correctly, main menu loads",
+    "UI Integration: Sandbox game starts, canvas and controls load",
+    "UI Integration: Audio popover opens with edge scroll toggle",
+    "UI Integration: Edge scrolling behavior works (camera moves on edge hover)",
+    "UI Integration: Staff screen opens with radio toggle",
+    "UI Integration: Alerts feed opens and displays correctly",
+    "UI Integration: Scenario loads with creatures",
+    "UI Integration: Creature panel opens with ledger button",
+    "UI Integration: Bloodline Ledger dialog opens and displays family tree",
+    "UI Integration: Input UX works (right-click pan, wheel zoom)",
+    "UI Integration: Save/Load functionality works",
+    "UI Integration: No console errors detected"
+  ],
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/tests/phase21_features_test.py",
+    "/app/tests/ui_integration_test.py"
+  ],
+  "success_percentage": {
+    "backend": "100% (19/19 tests passed)",
+    "frontend_features": "100% (28/28 tests passed)",
+    "ui_integration": "100% (all critical flows working)"
+  },
+  "action_item_for_main_agent": "",
+  "updated_files": [
+    "/app/backend_test.py",
+    "/app/tests/ui_integration_test.py"
+  ],
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false
+}

@@ -1,30 +1,26 @@
 [
   {
-    "content": "E2 Sovereign Bloodline: nyxarr social tuning, breedingTick adult-capacity rule + additive stats, scenario data, setup staff/discovered support, tracker progress chips",
+    "content": "F1 Edge Scrolling: input.js pointer tracking + frame() glide, GameCanvas hook, HUD settings toggle + localStorage",
     "status": "completed"
   },
   {
-    "content": "E4 Keeper Markers: render-only map pins over assigned enclosures (renderer.js)",
+    "content": "F3 Keeper Radio Chatter: staff.js radioNote/batching/flush, alert type 'radio' (HudBar color, no toast), keeperRadio policy toggle in StaffScreen, audio chirp",
     "status": "completed"
   },
   {
-    "content": "E3 Creature Idle Life: blink frames (art/creatures.js), breathing/tail-flick (renderer), footprints (fx.js)",
+    "content": "F2 Bloodline Ledger: lineage.js registry + helpers, hooks in creatures.js/controller.js, BloodlineLedger.jsx dialog + CreaturePanel button",
     "status": "completed"
   },
   {
-    "content": "E1 Ambient Audio: audio.js (Web Audio synth), HUD mute/volume, hooks for clicks/tool results/alerts/breach/weather/night",
+    "content": "Compile check + screenshots + phase21 playwright test + sequential regressions",
     "status": "completed"
   },
   {
-    "content": "Compile check (esbuild) + screenshots + local playwright tests (new phase20 test 39/39, regressions green)",
+    "content": "Run testing_agent_v3 (iteration_19) and fix issues",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 (iteration_18) and fix any issues",
-    "status": "completed"
-  },
-  {
-    "content": "Update plan.md Phase E COMPLETED",
+    "content": "Update plan.md Phase F COMPLETED",
     "status": "completed"
   }
 ]

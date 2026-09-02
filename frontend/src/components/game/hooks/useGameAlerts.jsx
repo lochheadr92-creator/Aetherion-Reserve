@@ -37,7 +37,9 @@ function dangerToast(a, navigateTo) {
 }
 
 // Routes one simulation alert to the appropriately styled toast (module-level helper).
+// Keeper radio chatter lives in the alert feed only — never a toast.
 function routeAlert(alert, navigateTo) {
+  if (alert.type === 'radio') return;
   const opts = { duration: 4500 };
   if (alert.type === 'breakthrough') breakthroughToast(alert, navigateTo);
   else if (alert.type === 'danger') dangerToast(alert, navigateTo);

@@ -10,6 +10,7 @@ import { damageFence, isPowered } from './construction';
 import { isStorm, getDayPhase } from './weather';
 import { rollWildGenes, inheritGenes, offspringName } from './genetics';
 import { emitParkEvent } from './events';
+import { registerLineage, markLineageLeft } from './lineage';
 
 let nameCounter = {};
 
@@ -30,12 +31,14 @@ export function addCreature(state, speciesId, x, y, opts = {}) {
   c.enclosureId = enc ? enc.id : null;
   state.creatures.push(c);
   state._encDirty = true;
+  registerLineage(state, c); // permanent bloodline ledger entry
   return c;
 }
 
-export function removeCreature(state, id) {
+export function removeCreature(state, id, reason = 'transferred') {
   const i = state.creatures.findIndex((c) => c.id === id);
   if (i >= 0) state.creatures.splice(i, 1);
+  markLineageLeft(state, id, reason); // history survives the departure
 }
 
 const SPEED = 0.045; // tiles per tick
@@ -490,6 +493,7 @@ export function breedingTick(state, c) {
       const genes = inheritGenes(state, c, mate);
       const baby = addCreature(state, c.speciesId, spot.x, spot.y, { juvenile: true, genes });
       baby.name = offspringName(state);
+      registerLineage(state, baby); // ledger picks up the offspring's given name
       c.breedCd = BREED_COOLDOWN;
       c._mateId = null;
       state.stats.births = (state.stats.births || 0) + 1;

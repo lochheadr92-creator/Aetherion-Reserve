@@ -1,14 +1,16 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { X, UserPlus, UserMinus, Microscope, HeartPulse, ShieldCheck, MapPin } from 'lucide-react';
+import { X, UserPlus, UserMinus, Microscope, HeartPulse, ShieldCheck, MapPin, Radio } from 'lucide-react';
 import { game } from '@/game/controller';
 import { hireStaff, fireStaff, dailyWages, assignStaffEnclosure } from '@/game/staff';
+import { setPolicy } from '@/game/state';
 import { computeEnclosures } from '@/game/enclosures';
 import { STAFF_ROLE_LIST, STAFF_ROLES, TASK_LABELS } from '@/game/data/staffRoles';
 import { fmtMoney } from '@/game/constants';
 import { useGameTick } from '@/components/game/useGame';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ROLE_ICONS = { xenobiologist: Microscope, biomedical: HeartPulse, warden: ShieldCheck };
@@ -152,7 +154,15 @@ export default function StaffScreen({ onClose }) {
               {roster.length} on roster · Payroll {fmtMoney(wages)}/cycle
             </div>
           </div>
-          <button data-testid="staff-close-button" onClick={onClose} className="nl-tool w-8 h-8 flex items-center justify-center"><X size={15} /></button>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 nl-panel px-2.5 py-1.5 cursor-pointer" title="Assigned keepers call in when they finish work in their pen">
+              <Radio size={13} className="text-[var(--accent-seaglass)]" />
+              <span className="mono text-[10px] tracking-[0.15em] text-[var(--text-2)]">RADIO CHATTER</span>
+              <Switch data-testid="staff-radio-toggle" checked={!!s.policies?.keeperRadio}
+                onCheckedChange={(v) => setPolicy(game.state, 'keeperRadio', v)} />
+            </label>
+            <button data-testid="staff-close-button" onClick={onClose} className="nl-tool w-8 h-8 flex items-center justify-center"><X size={15} /></button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto nl-scroll p-4 space-y-4">

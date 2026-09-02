@@ -51,17 +51,14 @@ export class InputController {
 
   onWheel = (e) => {
     e.preventDefault();
-    const r = this.renderer;
     const rect = this.canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
-    const before = r.screenToWorld(sx, sy);
-    r.cam.zoom = Math.max(0.35, Math.min(2.2, r.cam.zoom * (e.deltaY > 0 ? 0.9 : 1.11)));
-    const after = r.screenToWorld(sx, sy);
-    r.cam.x += (after.x - before.x) * r.cam.zoom;
-    r.cam.y += (after.y - before.y) * r.cam.zoom;
+    // eased zoom toward the cursor (FxManager lerps the camera each frame)
+    this.renderer.fx.requestZoom(e.deltaY > 0 ? 0.9 : 1.11, sx, sy);
   };
 
   onDown = (e) => {
+    this.renderer.fx.cancelMotion(); // any press stops camera glide
     const rect = this.canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
     if (e.button === 2 && this.dragging && this.lineStart) {
@@ -95,6 +92,7 @@ export class InputController {
   startPan(cx, cy, button) {
     this.panning = true;
     this.panStart = { x: cx, y: cy, camX: this.renderer.cam.x, camY: this.renderer.cam.y, button, moved: false };
+    this._panSamples = [{ t: performance.now(), x: cx, y: cy }];
     this.canvas.style.cursor = 'grabbing';
   }
 
@@ -102,6 +100,16 @@ export class InputController {
     this.dragging = false;
     this.lineStart = null;
     this.renderer.fenceLinePreview = null;
+  }
+
+  // hand the release velocity (px/frame @60fps) to the FX layer for a camera glide
+  releasePanInertia() {
+    const s = this._panSamples;
+    if (!s || s.length < 2) return;
+    const a = s[0], b = s[s.length - 1];
+    const dt = b.t - a.t;
+    if (dt < 8 || dt > 260) return; // stale or degenerate sample window
+    this.renderer.fx.beginPanInertia(((b.x - a.x) / dt) * 16.7, ((b.y - a.y) / dt) * 16.7);
   }
 
   // quick right-click (no drag): cancel the active tool, or clear the selection
@@ -125,6 +133,9 @@ export class InputController {
       if (Math.hypot(dx, dy) > 4) this.panStart.moved = true;
       this.renderer.cam.x = this.panStart.camX + dx;
       this.renderer.cam.y = this.panStart.camY + dy;
+      // keep a short trail of positions for release-velocity (pan inertia)
+      this._panSamples.push({ t: performance.now(), x: e.clientX, y: e.clientY });
+      if (this._panSamples.length > 6) this._panSamples.shift();
       return;
     }
     const state = this.getState();
@@ -155,6 +166,7 @@ export class InputController {
       this.leftPanPending = null;
     }
     if (this.panning && this.panStart.button === 2 && !this.panStart.moved) this.rightClickCancel();
+    if (this.panning && this.panStart.moved) this.releasePanInertia();
     if (this.lineStart && this.dragging) {
       const rect = this.canvas.getBoundingClientRect();
       this.commitFenceLine(e.clientX - rect.left, e.clientY - rect.top);

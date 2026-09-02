@@ -13,10 +13,11 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- The game is feature-complete through **Phase 19**, and the post-Phase-19 QoL + code health goals are now **complete and verified**:
+- The game is feature-complete through **Phase 19**, and the post-Phase-19 code health + QoL passes are now **complete and verified**:
   1) **Code Quality Analysis / Code Review remediation** + full re-verification.
-  2) **Keeper Priorities** feature (keeper→enclosure assignment, flexible prioritization).
-  3) **Staff Report Card + Input UX Improvements** (new QoL/UI polish round).
+  2) **Keeper Priorities** (keeper→enclosure assignment; flexible prioritization).
+  3) **Staff Report Card + Input UX Improvements**.
+  4) **Game-Feel Pass** (render-only polish: zoom easing, pan inertia, breach shake, placement pop/dust).
 
 **User confirmations (scope decisions):**
 - Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
@@ -27,6 +28,12 @@
   - Left click + drag pans (in Select mode)
   - Right click cancels active tool / clears selection
   - Mouse wheel zoom
+- Game-feel pass goals:
+  - Camera zoom easing anchored to cursor
+  - Pan release inertia
+  - Breach screen shake
+  - Building placement pop + dust
+  - **Render-only** (no sim behavior changes, no save-format changes)
 
 **Status (high-level):**
 - **Phase 1–19 COMPLETE & VERIFIED historically** (see testing baselines below).
@@ -34,7 +41,8 @@
   - Phase A (Code Quality Completion) ✅ COMPLETE + VERIFIED.
   - Phase B (Keeper Priorities) ✅ COMPLETE + VERIFIED.
   - Phase C (Staff Report Card + Input UX Improvements) ✅ COMPLETE + VERIFIED.
-- **Project health:** ✅ **Green** (fully re-verified after refactors and QoL changes).
+  - Phase D (Game-Feel Pass) ✅ COMPLETE + VERIFIED.
+- **Project health:** ✅ **Green** (fully re-verified after refactors + QoL + render polish).
 
 > Constraint (hard): changes must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
@@ -51,6 +59,7 @@
 - **iteration_14: post-Phase A Code-Quality Completion verification** (**testing_agent_v3 100% overall**; backend 11/11; frontend green; smoke + visual suites pass).
 - **iteration_15: post-Phase B Keeper Priorities verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 21/21; feature tests pass).
 - **iteration_16: post-Phase C Input UX + Staff Report Card verification** (**testing_agent_v3 100% overall**; all new feature tests + regressions pass).
+- **iteration_17: post-Phase D Game-Feel Pass verification** (**testing_agent_v3 100% overall**; gamefeel + regressions + determinism/backend sanity pass).
 
 ---
 
@@ -309,33 +318,11 @@ Verified via `testing_agent_v3` iteration_11.
 **Goal:** address remaining Code Quality Analysis findings and restore a fully verified green baseline after the recent React refactors.
 
 **Completed fixes:**
-1. React hook dependency fixes:
-   - `/app/frontend/src/hooks/use-toast.js`
-   - `/app/frontend/src/components/game/hooks/useGame.js`
-   - `/app/frontend/src/components/game/hooks/useHotkeys.js`
-   - `/app/frontend/src/components/game/hooks/useGameScreenActions.js`
-   - `/app/frontend/src/components/game/StaffScreen.jsx`
-   - `/app/frontend/src/components/game/MainMenu.jsx`
-2. Performance fixes:
-   - `BuildToolbar.jsx`: memoization (`useMemo`) to reduce recompute work.
-3. Cyclomatic complexity refactors:
-   - `/app/frontend/src/components/game/PhotoMode.jsx`
-   - `/app/frontend/src/components/game/ScenarioTracker.jsx`
-   - `/app/frontend/src/components/game/panels/BuildingPanel.jsx`
-   - `/app/frontend/src/components/game/panels/CreaturePanel.jsx`
-4. Backend test fixes (code quality + correctness):
-   - File: `/app/backend/backend_test.py`
-   - `run_test` flattened via `requests.request` dispatch.
-   - `test_scenario_fields_persistence` split into helpers.
-   - Scenario assertions are data-driven via `SCENARIO_FIELDS` dict and use `==`.
-   - Removed `tests_passed -= 1` hack; added `record_check` to count assertions cleanly.
-   - Local run: **11/11 PASS**.
-5. Procedural art API cleanup:
-   - File: `/app/frontend/src/game/art/buildings.js`
-   - Converted long positional-parameter helper functions to config-object / geo-bundle signatures:
-     - `plinth`, `wallDetail`, `roofSlab`, `doorway`, `windowBand`, `pipeRun`, `awning`
-   - Updated all call sites (~40).
-   - Verification: esbuild clean; `/app/tests/smoke_game.py` PASS; `/app/tests/phase16_visual.py` PASS.
+1. React hook dependency fixes.
+2. Performance fixes (`BuildToolbar.jsx` memoization).
+3. Cyclomatic complexity refactors (PhotoMode/ScenarioTracker/BuildingPanel/CreaturePanel).
+4. Backend test fixes (`/app/backend/backend_test.py`) including splitting scenario persistence and replacing `is` misuse.
+5. Procedural art API cleanup (`/app/frontend/src/game/art/buildings.js`): convert long positional args into config objects.
 
 **Mandatory verification completed:**
 - `testing_agent_v3` **iteration_14 = 100%**.
@@ -343,120 +330,90 @@ Verified via `testing_agent_v3` iteration_11.
 ---
 
 ### Phase B — Feature: Keeper Priorities (post-Phase 19) ✅ COMPLETE (verified)
-**Goal:** let players assign each keeper to a specific enclosure so care goes where it matters most, without making the staff system brittle.
-
-**Scope (confirmed):**
-- Each keeper can be assigned to **one enclosure** (or unassigned).
-- Behavior: **prioritize assigned enclosure first, then help elsewhere if idle**.
+**Goal:** allow assigning each keeper to an enclosure; assigned keepers prioritise that enclosure first, then help elsewhere.
 
 **Delivered:**
-1. Simulation logic (authoritative):
-   - File: `/app/frontend/src/game/staff.js`
-   - Staff fields added:
-     - `assignedEnclosureId: number|null`
-     - `assignedAnchor: {x,y}|null` (tile anchor keeps assignment stable across fence-edit region renumbering)
-   - New controlled mutators:
-     - `assignStaffEnclosure(state, staffId, enclosureId|null)`
-     - `resolveAssignment(state, st)`
-   - Task acquisition refactor:
-     - Role finders: `tryXenoTasks`, `tryMedTasks`, `tryWardenTasks`
-     - Two-pass selection:
-       1) Assignment-filtered pass (assigned enclosure)
-       2) Global pass (`PASS_ANY`) for flexible fallback
-   - Assigned staff idle/patrol inside their enclosure when available.
-
-2. UI:
-   - File: `/app/frontend/src/components/game/StaffScreen.jsx`
-   - Roster row includes assignment dropdown (Shadcn Select):
-     - `staff-assign-select-{id}`
-     - `General duties` option: `staff-assign-none-{id}`
-     - Per-enclosure options: `staff-assign-enc-{id}-{encId}` with resident counts
-     - “Area open” stale fallback item if enclosure list no longer contains assigned ID
-   - Hint text displayed when roster is non-empty: `staff-priority-hint`.
-
-3. Persistence:
-   - Automatic via `serialize(state)`; backward compatibility: old saves load with missing fields and default to unassigned.
+- `assignedEnclosureId` + stable `assignedAnchor`.
+- `assignStaffEnclosure` / `resolveAssignment`.
+- Two-pass task selection (assigned enclosure → global fallback).
+- StaffScreen dropdown assignment UI.
 
 **Verification:**
-- New test: `/app/tests/keeper_priorities_test.py` (**9/9 PASS**).
-- Regression: `/app/tests/phase8_staff_test.py` PASS.
+- `/app/tests/keeper_priorities_test.py` (**9/9 PASS**).
 - `testing_agent_v3` **iteration_15 = 100%**.
-- Additional test added by testing agent: `/app/tests/backend_regression_test.py`.
 
 ---
 
 ### Phase C — QoL: Staff Report Card + Input UX Improvements ✅ COMPLETE (verified)
-**Goal:** improve day-to-day usability and feedback loops:
-- Provide a per-cycle **staff report card** so players can see what each staff member actually did.
-- Make **mouse interaction** more modern and forgiving (drag to pan, right click cancel), while preserving existing tool workflows.
+**Goal:** better feedback and mouse UX without changing simulation rules.
 
-#### Phase C1 — Staff Report Card ✅ COMPLETE
 **Delivered:**
-- Simulation:
-  - File: `/app/frontend/src/game/staff.js`
-  - Per-keeper counter object `staff.report` (role-relevant tallies):
-    - xenobiologist: `feeds`, `cleans`, `observes`
-    - biomedical: `treats`
-    - warden: `repairs`
-  - `bumpReport(st, key)` increments on:
-    - `applyWork` for feed/clean/treat/observe
-    - `repairTick` on completion
-  - `hireStaff` initializes `report: {}`.
-- Daily reset:
-  - File: `/app/frontend/src/game/economy.js`
-  - On `dailyRollover`, resets `st.report = {}` for all staff **before** `state.day++`.
-- UI:
-  - File: `/app/frontend/src/components/game/StaffScreen.jsx`
-  - Each roster row shows a role-relevant stats line:
-    - `data-testid="staff-report-{id}"`
-    - Text forms:
-      - Xenobiologist: `X fed · Y cleaned · Z observed this cycle`
-      - Biomedical: `X treated this cycle`
-      - Warden: `X repaired this cycle`
-
-#### Phase C2 — Input UX Improvements ✅ COMPLETE
-**Delivered:**
-- Input:
-  - File: `/app/frontend/src/game/input.js`
-  - Select tool:
-    - **Left click** selects (selection fires on mouseup).
-    - **Left click + drag** pans camera (threshold 5px via `leftPanPending`).
-  - Right mouse:
-    - **Quick right-click** (no drag) cancels the active tool back to Select, or clears selection when already in Select.
-    - **Right-drag** pans without cancelling the current tool.
-    - During fence drag-line placement, right-click cancels the pending line (`cancelFenceDrag`).
-  - Cursor becomes `grabbing` while panning.
-  - Mouse wheel zoom unchanged.
-- Tool state sync:
-  - Files:
-    - `/app/frontend/src/components/game/GameCanvas.jsx`
-    - `/app/frontend/src/components/game/GameScreen.jsx`
-    - `/app/frontend/src/components/game/hooks/useGameScreenActions.js`
-  - New `onToolChange` callback is passed to the `InputController`.
-  - `useGameScreenActions.syncTool` keeps React `activeTool` in sync when the input layer cancels tools.
-- Tutorial:
-  - File: `/app/frontend/src/components/game/TutorialOverlay.jsx`
-  - Updated camera tip to mention left-drag pan and right-click cancel.
+- Staff report card (`staff.report`) with per-cycle tallies; reset at daily rollover.
+- Input UX improvements:
+  - Select-mode left drag pans
+  - right-click cancels tool / clears selection
+  - right-drag pans without cancelling
+  - fence drag-line can be cancelled
+  - toolbar active tool stays synced via `onToolChange` bridge
 
 **Verification:**
-- New test: `/app/tests/input_ux_test.py` (**12/12 PASS**), covering:
-  - wheel zoom
-  - select-mode drag-pan without selection
-  - click-to-select preserved
-  - right-click clear selection
-  - right-click cancel tool + toolbar sync
-  - right-drag pan preserving tool
-  - staff report card increments and resets on new cycle
-- Regressions green:
-  - `/app/tests/keeper_priorities_test.py` PASS
-  - `/app/tests/phase8_staff_test.py` PASS
-  - `/app/tests/smoke_game.py` PASS
-  - `/app/tests/fence_drag_test.py` PASS
+- `/app/tests/input_ux_test.py` (**12/12 PASS**).
 - `testing_agent_v3` **iteration_16 = 100%**.
 
-**Operational note:**
-- Playwright browser binaries may occasionally need reinstall between sessions:
-  - `playwright install chromium`
+---
+
+### Phase D — Game-Feel Pass (render-only polish) ✅ COMPLETE (verified)
+**Goal:** improve perceived quality and “feel” without introducing gameplay differences.
+
+**Hard constraints:**
+- **Render-layer only**: must not modify sim determinism.
+- **No save-format changes**: FX state must never be serialized.
+- Honor `prefers-reduced-motion`.
+
+**Delivered:**
+- New file: `/app/frontend/src/game/fx.js`
+  - `FxManager` attached to `GameRenderer` (`renderer.fx`).
+  - Eased wheel zoom toward cursor:
+    - `InputController.onWheel` calls `fx.requestZoom(factor, sx, sy)`
+    - per-frame lerp (`ZOOM_EASE = 0.28`) to a zoom target anchored at cursor.
+  - Pan inertia:
+    - Input samples last ~6 pointer positions during pan.
+    - Release computes px/frame velocity (capped 42) passed to `fx.beginPanInertia`.
+    - Decays per-frame (`0.88`), cancelled by any mousedown.
+    - `centerOn` and `setState` also cancel motion.
+  - Breach screen shake:
+    - FX watches `state.stats.breaches` increments.
+    - `shake(9)` decays per-frame (`0.86`).
+    - Offset applied only in `ctx.setTransform(..., cam.x + offset.x, cam.y + offset.y)`.
+  - Building placement pop + dust:
+    - FX diffs building IDs using a seen-set; new IDs get a ~22-frame `easeOutBack` entrance scale.
+    - Dust motes spawn in world-pixel space and draw after entities.
+    - On state object change (new game/load), FX adopts silently: no pops, particles, or shake.
+  - Uses `Math.random` only for render-only offsets/particles; never uses seeded `rnd()`.
+
+**Wiring updates:**
+- `/app/frontend/src/game/renderer.js`:
+  - Instantiate `this.fx = new FxManager(this)`.
+  - `fx.update(state)` each frame.
+  - Apply shake offset in `setTransform`.
+  - `fx.drawParticles(ctx)`.
+  - Apply `fx.popScale(b.id)` to buildings in `drawBuilding`.
+  - `centerOn` / `setState` call `fx.cancelMotion()`.
+- `/app/frontend/src/game/input.js`:
+  - Wheel zoom rerouted to `fx.requestZoom`.
+  - Pan sampling + `releasePanInertia` on mouseup.
+  - Any mousedown cancels motion.
+
+**Verification:**
+- New test: `/app/tests/gamefeel_test.py` (**11/11 PASS**).
+  - Note: scripted placement tests must place a building without `needsPath` (e.g. `power`).
+- Regressions green:
+  - `/app/tests/input_ux_test.py` PASS
+  - `/app/tests/smoke_game.py` PASS
+  - `/app/tests/fence_drag_test.py` PASS
+  - `/app/tests/keeper_priorities_test.py` PASS
+- Testing agent added: `/app/tests/determinism_backend_test.py` (fx leak + backend sanity) — PASS.
+- `testing_agent_v3` **iteration_17 = 100%**.
 
 ---
 
@@ -483,8 +440,9 @@ Verified via `testing_agent_v3` iteration_11.
 - **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns.
 - **Code quality restored:** no known Code Quality Analysis findings outstanding; tests reflect correct semantics; art API is maintainable.
 - **Keeper Priorities delivered:** per-keeper enclosure assignment with **flexible prioritization**, persisted via save/load.
-- **QoL controls delivered:** modern mouse interaction (drag-pan, right-click cancel) with toolbar sync and preserved workflows.
 - **Staff report cards delivered:** per-cycle per-staff tallies that reset on day rollover.
+- **Modern input UX delivered:** drag-pan, right-click cancel/clear, with toolbar sync and preserved workflows.
+- **Game-feel delivered (render-only):** eased zoom, pan inertia, breach shake, placement pop + dust — with reduced-motion support.
 
 **Verified milestones (historical):**
 - Phase 11 acceptance: ✅ met (iteration_9 = 100%).
@@ -495,6 +453,7 @@ Verified via `testing_agent_v3` iteration_11.
 - Phase A acceptance: ✅ met (iteration_14 = 100%).
 - Phase B acceptance: ✅ met (iteration_15 = 100%).
 - Phase C acceptance: ✅ met (iteration_16 = 100%).
+- Phase D acceptance: ✅ met (iteration_17 = 100%).
 
 **Next verification to produce:**
-- **iteration_17:** after implementing the next feature (e.g., Sovereign Breeding Scenario), via `testing_agent_v3`.
+- **iteration_18:** after implementing the next feature (e.g., Sovereign Breeding Scenario), via `testing_agent_v3`.

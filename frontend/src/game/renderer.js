@@ -14,6 +14,7 @@ import { getFloraSprite } from './art/flora';
 import { getGuestSprite } from './art/guests';
 import { EVENT_META } from './events';
 import { MORPHS } from './genetics';
+import { FxManager } from './fx';
 
 const MORPH_LOOKUP = Object.fromEntries(MORPHS.map((m) => [m.id, m]));
 
@@ -52,11 +53,13 @@ export class GameRenderer {
     this.overlay = null; // 'habitat' | 'power' | 'view' | null
     this.brushSize = 1;
     this.frame = 0;
+    this.fx = new FxManager(this); // render-only game-feel effects
   }
 
   setState(state) {
     this.state = state;
     state._terrainDirty = true;
+    this.fx.cancelMotion();
     // center camera on map middle
     const c = worldPx(MAP_SIZE / 2, MAP_SIZE / 2, 0);
     this.cam.x = this.canvas.width / 2 - c.x * this.cam.zoom;
@@ -64,6 +67,7 @@ export class GameRenderer {
   }
 
   centerOn(x, y) {
+    this.fx.cancelMotion(); // programmatic jumps must not fight easing/inertia
     const c = worldPx(x, y, this.state ? this.state.heights[idx(Math.floor(x), Math.floor(y))] || 0 : 0);
     this.cam.x = this.canvas.width / 2 - c.x * this.cam.zoom;
     this.cam.y = this.canvas.height / 2 - c.y * this.cam.zoom;
@@ -268,11 +272,12 @@ export class GameRenderer {
     ctx.fillRect(0, 0, W, H);
     if (!s) return;
     this.frame++;
+    this.fx.update(s); // camera easing / inertia / shake / particles (render-only)
     this._phase = getDayPhase(s.tick).phase;
     this._storm = s.weather?.type === 'storm';
     this._overcast = s.weather?.type === 'overcast';
     if (s._terrainDirty) this.redrawTerrain();
-    ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x, this.cam.y);
+    ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x + this.fx.offset.x, this.cam.y + this.fx.offset.y);
     ctx.imageSmoothingEnabled = this.cam.zoom < 1;
     ctx.drawImage(this.off, -OX, -OY);
     this.drawWaterOverlay(ctx);
@@ -313,6 +318,7 @@ export class GameRenderer {
     this.drawEntrance(ctx);
     this.drawEventBeacons(ctx);
     this.drawTransport(ctx);
+    this.fx.drawParticles(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawAtmosphere(ctx, W, H);
@@ -746,6 +752,13 @@ export class GameRenderer {
     ctx.save();
     // grounding cast shadow toward lower-right
     const pc = worldPx(b.x + b.w / 2, b.y + b.h / 2, h);
+    // entrance pop: scale the whole building (and shadow) around its base center
+    const pop = this.fx.popScale(b.id);
+    if (pop !== 1) {
+      ctx.translate(pc.x, pc.y);
+      ctx.scale(pop, pop);
+      ctx.translate(-pc.x, -pc.y);
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
     ctx.ellipse(pc.x + 4, pc.y + 2, (b.w + b.h) * 15, (b.w + b.h) * 7, 0, 0, Math.PI * 2);

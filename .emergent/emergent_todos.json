@@ -1,10 +1,30 @@
 [
   {
-    "content": "Phase A: Code Quality Completion (iteration_14 = 100%)",
+    "content": "E2 Sovereign Bloodline: nyxarr social tuning, breedingTick adult-capacity rule + additive stats, scenario data, setup staff/discovered support, tracker progress chips",
     "status": "completed"
   },
   {
-    "content": "Phase B: Keeper Priorities feature (iteration_15 = 100%)",
+    "content": "E4 Keeper Markers: render-only map pins over assigned enclosures (renderer.js)",
+    "status": "completed"
+  },
+  {
+    "content": "E3 Creature Idle Life: blink frames (art/creatures.js), breathing/tail-flick (renderer), footprints (fx.js)",
+    "status": "completed"
+  },
+  {
+    "content": "E1 Ambient Audio: audio.js (Web Audio synth), HUD mute/volume, hooks for clicks/tool results/alerts/breach/weather/night",
+    "status": "completed"
+  },
+  {
+    "content": "Compile check (esbuild) + screenshots + local playwright tests (new phase20 test 39/39, regressions green)",
+    "status": "completed"
+  },
+  {
+    "content": "Run testing_agent_v3 (iteration_18) and fix any issues",
+    "status": "completed"
+  },
+  {
+    "content": "Update plan.md Phase E COMPLETED",
     "status": "completed"
   }
 ]

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { GameRenderer } from '@/game/renderer';
 import { InputController } from '@/game/input';
 import { game } from '@/game/controller';
+import { audio } from '@/game/audio';
 
 export const GameCanvas = ({ onSelect, onToolResult, onToolChange, rendererRef, inputRef }) => {
   const canvasRef = useRef(null);
@@ -32,6 +33,7 @@ export const GameCanvas = ({ onSelect, onToolResult, onToolChange, rendererRef, 
     const frame = () => {
       if (game.state && renderer.state !== game.state) renderer.setState(game.state);
       renderer.render();
+      audio.update(game.state); // ambience follows weather / night / breaches (read-only)
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -40,6 +42,7 @@ export const GameCanvas = ({ onSelect, onToolResult, onToolChange, rendererRef, 
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       input.detach();
+      audio.update(null); // leaving the game screen fades the ambience beds out
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

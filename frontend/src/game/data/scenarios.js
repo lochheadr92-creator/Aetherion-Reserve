@@ -20,6 +20,13 @@ const holdingEnclosure = (s, speciesId) => {
   return enclosures.find((e) => e.id === c.enclosureId) || null;
 };
 
+// bloodline helpers (Sovereign Bloodline)
+const nyx = (s) => s.creatures.filter((c) => c.speciesId === 'nyxarr');
+const nyxBirths = (s) => s.stats.birthsBySpecies?.nyxarr || 0;
+const scenarioDay = (s) => s.day - (s.scenario?.startDay || 1) + 1; // 1-based mission cycle
+const BLOODLINE_DEADLINE = 16; // mission cycle at which funding closes
+const bloodlineHealthy = (c) => !c.escaped && c.welfare >= 0.65 && (c.genes?.inbreed || 0) < 0.25;
+
 export const SCENARIOS = {
   first_light: {
     id: 'first_light', name: 'First Light', difficulty: 'EASY', reward: 8000,
@@ -148,6 +155,49 @@ export const SCENARIOS = {
         return !!c && c.welfare >= 0.85;
       } },
       { id: 'spectacle', label: 'Spectacle — 120+ total guests welcomed', check: (s) => s.stats.guestsTotal >= 120 },
+    ],
+  },
+
+  sovereign_bloodline: {
+    id: 'sovereign_bloodline', name: 'Sovereign Bloodline', difficulty: 'BRUTAL', reward: 50000,
+    tagline: 'Two Sovereigns. One pen. Sixteen cycles to found a dynasty.',
+    desc: 'The Board has approved the most dangerous husbandry program on record: pair-bond two wild-caught Nyxarr Sovereigns and raise three healthy offspring before the funding window closes at Cycle 16. The pair tolerates each other — barely. Every juvenile that matures crowds the pen, so transfer surplus adults to partner reserves to keep the pair breeding and the books balanced. A single inbred birth voids the program.',
+    setup: {
+      cash: 45000,
+      research: ['bio_obs1', 'bio_breeding', 'cont_reinforced', 'cont_heavy', 'cont_insulated'],
+      discovered: { nyxarr: ['social'] },
+      starterEnclosure: {
+        x0: 42, y0: 24, x1: 58, y1: 40, tier: 4, feeder: 'feeder_meat', shelter: true,
+        damage: { patchTier: 3, patchEvery: 11, weakenEvery: 8, weakenTo: 0.35 },
+      },
+      buildings: [
+        { type: 'admin', x: 36, y: 43 },
+        { type: 'lab', x: 40, y: 43 },
+      ],
+      staff: [{ role: 'xenobiologist', assign: 'starter' }],
+      creatures: [{ speciesId: 'nyxarr', x: 47, y: 30 }, { speciesId: 'nyxarr', x: 53, y: 34 }],
+    },
+    goals: [
+      { id: 'bond', label: 'Pair-bond the Sovereigns (courtship observed)', check: (s) => (s.stats.courtships || 0) >= 1 },
+      { id: 'offspring', label: 'Raise 3 Nyxarr offspring', progress: (s) => `${Math.min(3, nyxBirths(s))}/3`, check: (s) => nyxBirths(s) >= 3 },
+      { id: 'matured', label: 'A park-bred Sovereign reaches maturity', check: (s) => (s.stats.maturedBySpecies?.nyxarr || 0) >= 1 },
+      { id: 'healthy', label: 'Bloodline healthy — every living Sovereign 65%+ welfare, none inbred',
+        progress: (s) => { const ns = nyx(s); return `${ns.filter(bloodlineHealthy).length}/${ns.length}`; },
+        check: (s) => { const ns = nyx(s); return nyxBirths(s) >= 1 && ns.length >= 2 && ns.every(bloodlineHealthy); } },
+    ],
+    fails: [
+      { id: 'deadline', label: `Funding window closes at Cycle ${BLOODLINE_DEADLINE}`, progress: (s) => `Cycle ${Math.min(BLOODLINE_DEADLINE, scenarioDay(s))}/${BLOODLINE_DEADLINE}`,
+        check: (s) => scenarioDay(s) >= BLOODLINE_DEADLINE },
+      { id: 'inbred', label: 'An inbred Sovereign is born', check: (s) => (s.stats.inbredBySpecies?.nyxarr || 0) >= 1 },
+      { id: 'bankrupt', label: 'Debt exceeds ◈5,000', check: (s) => s.cash < -5000 },
+      { id: 'breaches', label: '4 containment breaches', check: (s) => (s.stats.breaches || 0) >= 4 },
+      { id: 'loose', label: 'Organisms at large for 5+ cumulative minutes', check: (s) => (s.scenario?.escapeTicks || 0) >= 3000 },
+    ],
+    mastery: [
+      { id: 'dynasty', label: 'Dynasty — a rare morph Sovereign born into the line', check: (s) => nyx(s).some((c) => c.genes?.morph && (c.genes?.gen || 0) >= 1) },
+      { id: 'swift', label: 'Swift — program completed before Cycle 10', check: (s) => scenarioDay(s) < 10 },
+      { id: 'ironwall', label: 'Iron Wall — zero containment breaches', check: (s) => (s.stats.breaches || 0) === 0 },
+      { id: 'solvent', label: 'Solvent — never dipped into debt', check: (s) => (s.scenario?.minCash ?? 0) >= 0 },
     ],
   },
 };

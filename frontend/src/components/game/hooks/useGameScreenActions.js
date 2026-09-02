@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
+import { audio } from '@/game/audio';
 import { useGameAlerts } from '@/components/game/hooks/useGameAlerts';
 import { useHotkeys } from '@/components/game/hooks/useHotkeys';
 import { useNavigateTarget } from '@/components/game/hooks/useNavigateTarget';
@@ -9,6 +10,7 @@ const INITIAL_TOOL = { mode: 'select' };
 // Module-level notifiers keep hook callbacks tiny and dependency-free.
 function notifyToolResult(res) {
   if (!res) return;
+  audio.toolResult(res); // placement thunk / deny buzz
   if (!res.ok && res.reason) toast.error(res.reason, { duration: 2600 });
   else if (res.ok && res.msg) toast.success(res.msg, { duration: 2200 });
 }

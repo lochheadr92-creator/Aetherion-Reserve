@@ -13,11 +13,12 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- The game is feature-complete through **Phase 19**, and the post-Phase-19 code health + QoL passes are now **complete and verified**:
+- The game is feature-complete through **Phase 20**, and the post-Phase-19 code health + QoL + game-feel + polish passes are **complete and verified**:
   1) **Code Quality Analysis / Code Review remediation** + full re-verification.
   2) **Keeper Priorities** (keeper→enclosure assignment; flexible prioritization).
   3) **Staff Report Card + Input UX Improvements**.
   4) **Game-Feel Pass** (render-only polish: zoom easing, pan inertia, breach shake, placement pop/dust).
+  5) **Phase E**: Ambient Audio + Sovereign Bloodline scenario + Creature Idle Life + Keeper Markers.
 
 **User confirmations (scope decisions):**
 - Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
@@ -34,15 +35,19 @@
   - Breach screen shake
   - Building placement pop + dust
   - **Render-only** (no sim behavior changes, no save-format changes)
+- Phase E constraints:
+  - Audio, idle life, and keeper markers must remain **render/UI-layer only** (no sim determinism impacts).
+  - Scenario work may add state/logic **additively** with backward-compatible defaults.
 
 **Status (high-level):**
-- **Phase 1–19 COMPLETE & VERIFIED historically** (see testing baselines below).
+- **Phase 1–20 COMPLETE & VERIFIED** (see testing baselines below).
 - **Post-Phase 19 work:**
   - Phase A (Code Quality Completion) ✅ COMPLETE + VERIFIED.
   - Phase B (Keeper Priorities) ✅ COMPLETE + VERIFIED.
   - Phase C (Staff Report Card + Input UX Improvements) ✅ COMPLETE + VERIFIED.
   - Phase D (Game-Feel Pass) ✅ COMPLETE + VERIFIED.
-- **Project health:** ✅ **Green** (fully re-verified after refactors + QoL + render polish).
+  - **Phase E (Audio + New Scenario + Idle Life + Keeper Markers) ✅ COMPLETE + VERIFIED.**
+- **Project health:** ✅ **Green**.
 
 > Constraint (hard): changes must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
@@ -60,6 +65,7 @@
 - **iteration_15: post-Phase B Keeper Priorities verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 21/21; feature tests pass).
 - **iteration_16: post-Phase C Input UX + Staff Report Card verification** (**testing_agent_v3 100% overall**; all new feature tests + regressions pass).
 - **iteration_17: post-Phase D Game-Feel Pass verification** (**testing_agent_v3 100% overall**; gamefeel + regressions + determinism/backend sanity pass).
+- **iteration_18: post-Phase E (Phase 20) verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 39/39; integration + regressions 100%).
 
 ---
 
@@ -264,7 +270,7 @@ Verified via `testing_agent_v3` iteration_11.
 
 **Verification:**
 - `/app/tests/phase17_sovereign_test.py` (**14/14 PASS**).
-- `/app/tests/phase9_scenarios_test.py` updated to expect 5 scenario cards.
+- `/app/tests/phase9_scenarios_test.py` updated to expect 6 scenario cards (after Phase E).
 - `testing_agent_v3` **iteration_12 = 100%**.
 
 ---
@@ -310,7 +316,7 @@ Verified via `testing_agent_v3` iteration_11.
 - New test: `/app/tests/phase19_photo_test.py` (**10/10 PASS**).
 - Visual validation at night with glowing species.
 - Full regression sweep green.
-- `testing_agent_v3` **iteration_13 = 100%** (backend/frontend/integration).
+- `testing_agent_v3` **iteration_13 = 100%**.
 
 ---
 
@@ -373,57 +379,127 @@ Verified via `testing_agent_v3` iteration_11.
 **Delivered:**
 - New file: `/app/frontend/src/game/fx.js`
   - `FxManager` attached to `GameRenderer` (`renderer.fx`).
-  - Eased wheel zoom toward cursor:
-    - `InputController.onWheel` calls `fx.requestZoom(factor, sx, sy)`
-    - per-frame lerp (`ZOOM_EASE = 0.28`) to a zoom target anchored at cursor.
-  - Pan inertia:
-    - Input samples last ~6 pointer positions during pan.
-    - Release computes px/frame velocity (capped 42) passed to `fx.beginPanInertia`.
-    - Decays per-frame (`0.88`), cancelled by any mousedown.
-    - `centerOn` and `setState` also cancel motion.
-  - Breach screen shake:
-    - FX watches `state.stats.breaches` increments.
-    - `shake(9)` decays per-frame (`0.86`).
-    - Offset applied only in `ctx.setTransform(..., cam.x + offset.x, cam.y + offset.y)`.
-  - Building placement pop + dust:
-    - FX diffs building IDs using a seen-set; new IDs get a ~22-frame `easeOutBack` entrance scale.
-    - Dust motes spawn in world-pixel space and draw after entities.
-    - On state object change (new game/load), FX adopts silently: no pops, particles, or shake.
-  - Uses `Math.random` only for render-only offsets/particles; never uses seeded `rnd()`.
-
-**Wiring updates:**
-- `/app/frontend/src/game/renderer.js`:
-  - Instantiate `this.fx = new FxManager(this)`.
-  - `fx.update(state)` each frame.
-  - Apply shake offset in `setTransform`.
-  - `fx.drawParticles(ctx)`.
-  - Apply `fx.popScale(b.id)` to buildings in `drawBuilding`.
-  - `centerOn` / `setState` call `fx.cancelMotion()`.
-- `/app/frontend/src/game/input.js`:
-  - Wheel zoom rerouted to `fx.requestZoom`.
-  - Pan sampling + `releasePanInertia` on mouseup.
-  - Any mousedown cancels motion.
+  - Eased wheel zoom toward cursor.
+  - Pan inertia with release velocity sampling + decay.
+  - Breach screen shake watching `state.stats.breaches`.
+  - Building placement pop + dust (ID diffing; silent adopt on load/new game).
+  - Uses `Math.random` only for render-only effects; sim stays seeded.
 
 **Verification:**
 - New test: `/app/tests/gamefeel_test.py` (**11/11 PASS**).
-  - Note: scripted placement tests must place a building without `needsPath` (e.g. `power`).
-- Regressions green:
-  - `/app/tests/input_ux_test.py` PASS
-  - `/app/tests/smoke_game.py` PASS
-  - `/app/tests/fence_drag_test.py` PASS
-  - `/app/tests/keeper_priorities_test.py` PASS
-- Testing agent added: `/app/tests/determinism_backend_test.py` (fx leak + backend sanity) — PASS.
+- Regressions green.
 - `testing_agent_v3` **iteration_17 = 100%**.
 
 ---
 
-## 3) Next Actions (immediate)
-1. **P0 Backlog:** Sovereign Breeding Scenario (NOT STARTED)
-   - Add a second apex scenario where players must **breed a healthy Nyxarr bloodline under pressure**.
-   - Define victory/failure conditions, mastery goals, deterministic setup, and in-scenario guidance.
-   - Add at least one dedicated scenario test.
+### Phase E (Phase 20) — Ambient Audio + Sovereign Bloodline + Creature Idle Life + Keeper Markers ✅ COMPLETE (verified)
+**Goal:** complete the “feel” layer (audio + micro-life), add a second apex scenario that meaningfully uses genetics/breeding, and improve assignment legibility.
 
-2. **Maintenance:** keep CI-quality checks green
+#### Phase E1 — Ambient Audio (render/UI-layer only) ✅ COMPLETE
+**Delivered:**
+- New module: `/app/frontend/src/game/audio.js` (`AudioManager` + `audio` singleton)
+  - Web Audio synth pipeline with no external assets:
+    - **Wind bed**: brown noise buffer → LFO’d low-pass filter → gain
+    - **Storm rain hiss**: high-pass noise bed, enabled only in storms
+    - **Night hum**: detuned sine stack; enabled at night only when **glowing exhibits** exist
+  - One-shots:
+    - UI click, placement confirm, placement deny, breach impact thud
+    - Alert stingers per type (`danger/warning/success/breakthrough/info`), throttled (380ms)
+  - Settings:
+    - `localStorage` persistence: `aetherion_audio_enabled`, `aetherion_audio_volume`
+    - Autoplay-safe: audio context created only after first user gesture
+  - Debug: `window.__audio` exposed for tests.
+- Wiring:
+  - `App.js`: `audio.install()` on app mount
+  - `GameCanvas.jsx`: `audio.update(game.state)` every rAF frame; `audio.update(null)` on unmount
+  - `useGameScreenActions.js`: tool result hook (`audio.toolResult(res)`) to trigger place/deny
+  - `HudBar.jsx`: new **Audio** button (`hud-audio-button`) with popover UI (`audio-popover`, `audio-mute-toggle`, `audio-volume-slider`, `audio-volume-value`).
+
+#### Phase E2 — Scenario: “Sovereign Bloodline” (Nyxarr breeding under pressure) ✅ COMPLETE
+**Delivered:**
+- New BRUTAL scenario: `sovereign_bloodline` in `/app/frontend/src/game/data/scenarios.js`
+  - Reward: **+◈50,000**
+  - Setup:
+    - Deterministic large Tier-4 pen with pre-damage mix
+    - Starter admin + lab
+    - Starter xenobiologist (auto-assigned to the pen)
+    - Briefing knowledge: `nyxarr.social` pre-discovered
+    - Research granted includes `bio_breeding` and containment tiers up to insulated
+  - Goals with live progress chips:
+    - Pair-bond (courtship observed)
+    - Raise 3 Nyxarr offspring (`0/3`, `1/3`, ...)
+    - At least one park-bred Sovereign matures
+    - Bloodline health check (all living Sovereigns: welfare ≥ 65%, none inbred; gated until first birth)
+  - Fail conditions (with progress chips where relevant):
+    - Deadline: funding closes at **Cycle 16**
+    - Inbred Nyxarr birth
+    - Debt threshold
+    - Breach threshold
+    - At-large timer threshold
+  - Mastery objectives:
+    - Dynasty (rare morph), Swift (before Cycle 10), Iron Wall (0 breaches), Solvent (never in debt)
+- Scenario engine extensions in `/app/frontend/src/game/scenarios.js`:
+  - Setup supports `setup.discovered` knowledge seeding
+  - Setup supports `setup.staff` (hiring + optional assign-to-starter-enclosure)
+  - Scenario cash is applied **last** so starter hires do not dent the mission budget
+
+#### Phase E3 — Creature Idle Life (render-only micro-animations) ✅ COMPLETE
+**Delivered:**
+- Auto-derived blink frames:
+  - `/app/frontend/src/game/art/creatures.js`: `deriveBlinkFrame()` scans baked idle frames for eye-highlight clusters and shades them shut
+  - `getCreatureSheet()` now includes `sheet.blink` (aligned with idle frames)
+- Renderer micro-idles:
+  - `/app/frontend/src/game/renderer.js`: `idleLife()`
+    - Per-creature blink cadence (resting/sheltering keeps eyes shut)
+    - Subtle breathing pulse (y-scale)
+    - Periodic flick shear (tail/body twitch)
+  - Exposed debug helper: `renderer.sheetFor(speciesId)`
+- Footprints:
+  - `/app/frontend/src/game/fx.js`: footprint decal system
+    - TTL: 210 frames, cap 320 decals
+    - No prints for `float` / `winged`, cloaked creatures, or in water
+    - Drawn under entities (`renderer.render()` calls `fx.drawFootprints()` before depth-sorted entities)
+
+#### Phase E4 — Keeper Markers (render-only assignment visibility) ✅ COMPLETE
+**Delivered:**
+- `/app/frontend/src/game/renderer.js`:
+  - `keeperPins()` resolves assignment via `assignedAnchor` → live enclosure, computes centroid, and returns pin data
+  - `drawKeeperMarkers()` draws teardrop pins with role tint and keeper initial, bobbing subtly
+  - Fanning: multiple keepers on one enclosure spread horizontally (20px step)
+  - Debug/testing: `renderer._keeperPins`
+
+#### Phase E5 — Testing & Verification ✅ COMPLETE
+**Tests added/updated:**
+- New: `/app/tests/phase20_features_test.py` (**39/39 PASS**) covering:
+  - sovereign_bloodline menu + setup
+  - progress chips
+  - victory/defeat outcomes
+  - breeding mechanics sanity
+  - keeper markers
+  - idle-life blink/motion/footprints
+  - audio unlock + controls persistence
+- Updated:
+  - `/app/tests/phase9_scenarios_test.py` expects **6** scenario cards
+  - `/app/tests/phase17_sovereign_test.py` expects **6** scenario cards
+- Added test-only deterministic stepping:
+  - `/app/frontend/src/game/controller.js`: `game.stepTicks(n)`
+
+**Verification:**
+- Sequential local regressions green:
+  - `smoke_game.py`, `input_ux_test.py`, `keeper_priorities_test.py`, `gamefeel_test.py`, `phase6b_test.py`, `phase9_scenarios_test.py`, `phase17_sovereign_test.py`, `phase20_features_test.py`
+- `testing_agent_v3`: **iteration_18 = 100%** (backend 6/6, frontend 39/39, integration + regressions 100%).
+
+---
+
+## 3) Next Actions (immediate)
+1. **Balance/feel pass (optional, gameplay tuning only):**
+   - Review `sovereign_bloodline` difficulty (Cycle 16 deadline, damage severity, starting cash, fail thresholds) based on player feedback.
+   - Consider adding a small in-UI hint about transferring surplus adults to keep the pair breeding (already described in scenario text).
+2. **P2 backlog items:**
+   - **Photo Album**: persist captured photos and add an in-game gallery.
+   - **Edge Scrolling**: camera glides when mouse approaches screen edge.
+   - **Audio polish**: optional per-category volume (UI vs ambience) and/or a very light reverb bus.
+3. **Maintenance:**
    - When any future refactor/feature is added, re-run:
      - `yarn --cwd /app/frontend build`
      - `python /app/tests/smoke_game.py`
@@ -443,8 +519,13 @@ Verified via `testing_agent_v3` iteration_11.
 - **Staff report cards delivered:** per-cycle per-staff tallies that reset on day rollover.
 - **Modern input UX delivered:** drag-pan, right-click cancel/clear, with toolbar sync and preserved workflows.
 - **Game-feel delivered (render-only):** eased zoom, pan inertia, breach shake, placement pop + dust — with reduced-motion support.
+- **Phase E delivered (verified):**
+  - **Ambient Audio delivered:** synthesized Web Audio layer, stingers + ambience, HUD mute/volume, persisted, no sim changes.
+  - **Sovereign Bloodline scenario delivered:** new BRUTAL mission with deterministic setup, deadline pressure, and breeding/health constraints.
+  - **Creature Idle Life delivered (render-only):** blink + subtle idle motion + footprints; respects reduced motion.
+  - **Keeper Markers delivered (render-only):** map pins for keeper assignments, readable with overlaps handled.
 
-**Verified milestones (historical):**
+**Verified milestones:**
 - Phase 11 acceptance: ✅ met (iteration_9 = 100%).
 - Phase 12 acceptance: ✅ met (iteration_10 = 100%).
 - Phase 13–16 acceptance: ✅ met (iteration_11 = 100% + `phase16_visual.py` PASS).
@@ -454,6 +535,7 @@ Verified via `testing_agent_v3` iteration_11.
 - Phase B acceptance: ✅ met (iteration_15 = 100%).
 - Phase C acceptance: ✅ met (iteration_16 = 100%).
 - Phase D acceptance: ✅ met (iteration_17 = 100%).
+- **Phase E acceptance: ✅ met (iteration_18 = 100%).**
 
 **Next verification to produce:**
-- **iteration_18:** after implementing the next feature (e.g., Sovereign Breeding Scenario), via `testing_agent_v3`.
+- **iteration_19:** after the next feature addition (e.g., Photo Album / Edge Scrolling), via `testing_agent_v3`.

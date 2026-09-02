@@ -106,13 +106,35 @@ function EndDialog({ def, sc, onDismiss, onExit }) {
 
 // ---------- live mission tracker ----------
 
-function GoalRow({ goal, done }) {
+// optional live progress chip (e.g. "2/3", "Cycle 4/16") — read-only state check
+function ProgressChip({ text, testId }) {
+  if (!text) return null;
+  return (
+    <span className="ml-auto mono text-[9px] tracking-wider px-1.5 py-px rounded border border-[var(--line)] bg-[var(--panel-2)] text-[var(--text-2)] shrink-0" data-testid={testId}>
+      {text}
+    </span>
+  );
+}
+
+function GoalRow({ goal, done, s }) {
+  const progress = !done && goal.progress && s ? goal.progress(s) : null;
   return (
     <div className="flex gap-2 items-start" data-testid={`scenario-goal-${goal.id}`} data-done={done ? 'true' : 'false'}>
       {done
         ? <CheckCircle2 size={13} className="text-[var(--success)] mt-0.5 shrink-0" />
         : <Circle size={13} className="text-[var(--text-3)] mt-0.5 shrink-0" />}
       <span className={`text-[11px] leading-snug ${done ? 'text-[var(--text-3)] line-through' : 'text-[var(--text-1)]'}`}>{goal.label}</span>
+      <ProgressChip text={progress} testId={`scenario-goal-progress-${goal.id}`} />
+    </div>
+  );
+}
+
+function FailRow({ fail, s }) {
+  const progress = fail.progress && s ? fail.progress(s) : null;
+  return (
+    <div className="flex gap-2 items-start text-[10px] mono text-[var(--danger)] opacity-80" data-testid={`scenario-fail-${fail.id}`}>
+      <span>✕ FAIL: {fail.label}</span>
+      <ProgressChip text={progress} testId={`scenario-fail-progress-${fail.id}`} />
     </div>
   );
 }
@@ -140,11 +162,9 @@ function MasteryTracker({ mastery, s }) {
 function TrackerBody({ def, sc, s }) {
   return (
     <div className="px-3 py-2 space-y-1.5">
-      {def.goals.map((g) => <GoalRow key={g.id} goal={g} done={!!sc.progress[g.id]} />)}
+      {def.goals.map((g) => <GoalRow key={g.id} goal={g} done={!!sc.progress[g.id]} s={s} />)}
       <div className="pt-1.5 mt-0.5 border-t border-[var(--line)] space-y-1">
-        {def.fails.map((f) => (
-          <div key={f.id} className="text-[10px] mono text-[var(--danger)] opacity-80">✕ FAIL: {f.label}</div>
-        ))}
+        {def.fails.map((f) => <FailRow key={f.id} fail={f} s={s} />)}
       </div>
       {def.mastery && <MasteryTracker mastery={def.mastery} s={s} />}
     </div>

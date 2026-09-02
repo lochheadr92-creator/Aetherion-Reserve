@@ -61,6 +61,16 @@ class GameController {
     this.loop = null; this.uiTimer = null;
   }
 
+  // Deterministic stepping for tests/debug tooling: advances the sim exactly n
+  // fixed ticks synchronously regardless of pause state, then refreshes the UI.
+  stepTicks(n) {
+    if (!this.state) return 0;
+    const steps = Math.max(0, Math.floor(Number(n) || 0));
+    for (let k = 0; k < steps; k++) tickOnce(this.state);
+    emit('uiRefresh', {});
+    return this.state.tick;
+  }
+
   setPaused(p) {
     if (!this.state) return;
     setTimeControls(this.state, { paused: p });

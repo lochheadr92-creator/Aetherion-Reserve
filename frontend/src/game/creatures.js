@@ -469,6 +469,9 @@ export function breedingTick(state, c) {
     c.growth = Math.min(1, (c.growth || 0) + GROWTH_PER_CHECK);
     if (c.growth >= 1) {
       c.juvenile = false;
+      state.stats.matured = (state.stats.matured || 0) + 1;
+      if (!state.stats.maturedBySpecies) state.stats.maturedBySpecies = {};
+      state.stats.maturedBySpecies[sp.id] = (state.stats.maturedBySpecies[sp.id] || 0) + 1;
       logCause(state, c.name, 'has reached maturity');
     }
     return;
@@ -490,6 +493,14 @@ export function breedingTick(state, c) {
       c.breedCd = BREED_COOLDOWN;
       c._mateId = null;
       state.stats.births = (state.stats.births || 0) + 1;
+      // per-species + bloodline health tallies (additive; used by scenario goals)
+      if (!state.stats.birthsBySpecies) state.stats.birthsBySpecies = {};
+      state.stats.birthsBySpecies[sp.id] = (state.stats.birthsBySpecies[sp.id] || 0) + 1;
+      if (genes.inbreed >= 0.25) {
+        state.stats.inbredBirths = (state.stats.inbredBirths || 0) + 1;
+        if (!state.stats.inbredBySpecies) state.stats.inbredBySpecies = {};
+        state.stats.inbredBySpecies[sp.id] = (state.stats.inbredBySpecies[sp.id] || 0) + 1;
+      }
       if (genes.morph) {
         state.stats.morphBirths = (state.stats.morphBirths || 0) + 1;
         pushAlert(state, {
@@ -526,13 +537,15 @@ export function breedingTick(state, c) {
     o.id !== c.id && o.speciesId === c.speciesId && o.enclosureId === c.enclosureId &&
     !o.juvenile && !o.gestation && (o.breedCd || 0) <= 0 && o.welfare >= 0.72 && o.stress <= 0.45);
   if (!kin.length) return;
-  // capacity: respect space and social group limits
+  // capacity: respect space and social group limits. Juveniles stay with the
+  // group and do not count toward the adult territorial cap — once they mature
+  // the group is over capacity and must be rehomed (transfer) before pairing resumes.
   const encData = computeEnclosures(state);
   const enc = encData.enclosures.find((e) => e.id === c.enclosureId);
   if (!enc) return;
-  const sameHere = state.creatures.filter((o) => o.speciesId === c.speciesId && o.enclosureId === c.enclosureId).length;
+  const adultsHere = state.creatures.filter((o) => o.speciesId === c.speciesId && o.enclosureId === c.enclosureId && !o.juvenile).length;
   const maxBySpace = Math.floor(enc.area / sp.env.spacePerHead);
-  if (sameHere >= maxBySpace || sameHere >= sp.social.max) return;
+  if (adultsHere >= maxBySpace || adultsHere > sp.social.max) return;
   const partner = kin[0];
   // fertility genes govern pairing odds (inbreeding depression already baked into fertility)
   const fert = (((c.genes?.fertility ?? 0.5) + (partner.genes?.fertility ?? 0.5)) / 2);
@@ -540,6 +553,7 @@ export function breedingTick(state, c) {
   c.gestation = GESTATION_TICKS;
   c._mateId = partner.id;
   partner.breedCd = BREED_COOLDOWN;
+  state.stats.courtships = (state.stats.courtships || 0) + 1;
   emitParkEvent(state, {
     type: 'courtship', name: 'Courtship Display', x: c.x, y: c.y,
     radius: 9, magnitude: 0.4, duration: 700, subject: c.id, speciesId: sp.id,

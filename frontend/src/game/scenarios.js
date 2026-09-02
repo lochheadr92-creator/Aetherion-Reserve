@@ -4,9 +4,10 @@ import { idx, inMap, pushAlert, logCause } from './state';
 import { edgeKey } from './pathfind';
 import { fenceRectEdges } from './construction';
 import { addCreature } from './creatures';
+import { hireStaff, assignStaffEnclosure } from './staff';
 import { SCENARIOS } from './data/scenarios';
 import { BUILDINGS } from './data/buildings';
-import { computeEnclosures } from './enclosures';
+import { computeEnclosures, enclosureAt } from './enclosures';
 
 // flatten + clear a rectangular region so the starter exhibit is buildable/deterministic
 function prepareGround(state, x0, y0, x1, y1) {
@@ -71,16 +72,36 @@ function buildStarterEnclosure(state, spec) {
   computeEnclosures(state);
 }
 
+// briefing knowledge: attributes the Board already documented for this mission
+function applyDiscovered(state, discovered) {
+  for (const [sid, attrs] of Object.entries(discovered)) {
+    const k = state.knowledge[sid];
+    if (!k) continue;
+    for (const attr of attrs) k.discovered[attr] = true;
+  }
+}
+
+// starting personnel; `assign: 'starter'` binds them to the starter enclosure
+function applyStarterStaff(state, specs, starter) {
+  for (const spec of specs) {
+    const res = hireStaff(state, spec.role);
+    if (!res.ok || spec.assign !== 'starter' || !starter) continue;
+    const cx = Math.floor((starter.x0 + starter.x1) / 2), cy = Math.floor((starter.y0 + starter.y1) / 2);
+    const enc = enclosureAt(state, cx, cy);
+    if (enc) assignStaffEnclosure(state, res.staff.id, enc.id);
+  }
+}
+
 export function applyScenario(state, scenarioId) {
   const def = SCENARIOS[scenarioId];
   if (!def) return state;
   const su = def.setup || {};
-  if (typeof su.cash === 'number') state.cash = su.cash;
   if (su.research) {
     for (const r of su.research) {
       if (!state.research.completed.includes(r)) state.research.completed.push(r);
     }
   }
+  if (su.discovered) applyDiscovered(state, su.discovered);
   if (su.policies) Object.assign(state.policies, su.policies);
   if (su.starterEnclosure) buildStarterEnclosure(state, su.starterEnclosure);
   if (su.buildings) {
@@ -89,6 +110,9 @@ export function applyScenario(state, scenarioId) {
   if (su.creatures) {
     for (const c of su.creatures) addCreature(state, c.speciesId, c.x, c.y);
   }
+  if (su.staff) applyStarterStaff(state, su.staff, su.starterEnclosure || null);
+  // mission budget is authoritative: applied last so starter hires never dent it
+  if (typeof su.cash === 'number') state.cash = su.cash;
   state.scenario = {
     id: scenarioId, status: 'active', startDay: state.day, progress: {}, ack: false,
     escapeTicks: 0, minCash: state.cash, mastery: null,

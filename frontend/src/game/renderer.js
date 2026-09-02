@@ -3,7 +3,7 @@ import { MAP_SIZE, TILE_W, TILE_H, H_STEP, MAX_H, MATERIALS, VEG, FENCES, PALETT
 import { idx, inMap } from './state';
 import { BUILDINGS } from './data/buildings';
 import { speciesById } from './data/species';
-import { computeEnclosures } from './enclosures';
+import { computeEnclosures, enclosureAt } from './enclosures';
 import { getDayPhase } from './weather';
 import { SPRITE_SCALE } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
@@ -14,9 +14,11 @@ import { getFloraSprite } from './art/flora';
 import { getGuestSprite } from './art/guests';
 import { EVENT_META } from './events';
 import { MORPHS } from './genetics';
-import { FxManager } from './fx';
+import { FxManager, REDUCED_MOTION } from './fx';
 
 const MORPH_LOOKUP = Object.fromEntries(MORPHS.map((m) => [m.id, m]));
+// role tints shared by staff sprites' work rings and keeper assignment pins
+const STAFF_TINT = { warden: '242,193,78', biomedical: '77,182,255', xenobiologist: '110,243,197' };
 
 const OX = (MAP_SIZE * TILE_W) / 2 + TILE_W;
 const OY = MAX_H * H_STEP + TILE_H;
@@ -281,6 +283,7 @@ export class GameRenderer {
     ctx.imageSmoothingEnabled = this.cam.zoom < 1;
     ctx.drawImage(this.off, -OX, -OY);
     this.drawWaterOverlay(ctx);
+    this.fx.drawFootprints(ctx); // ground decals sit under every entity
 
     this.drawOverlays(ctx);
     this.drawToolPreview(ctx);
@@ -316,12 +319,76 @@ export class GameRenderer {
 
     // entrance marker
     this.drawEntrance(ctx);
+    this.drawKeeperMarkers(ctx);
     this.drawEventBeacons(ctx);
     this.drawTransport(ctx);
     this.fx.drawParticles(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawAtmosphere(ctx, W, H);
+  }
+
+  // ---------- keeper assignment pins (render-only) ----------
+  // One small map pin per assigned keeper, floating over the centroid of the
+  // enclosure they are bound to. Assignments resolve through the live anchor
+  // tile so pins follow region renumbering after fence edits. Several keepers
+  // on one enclosure fan out horizontally so every pin stays legible.
+  keeperPins() {
+    const s = this.state;
+    const pins = [];
+    if (!s.staff || !s.staff.length) return pins;
+    const byEnc = new Map();
+    for (const st of s.staff) {
+      if (!st.assignedAnchor) continue;
+      const enc = enclosureAt(s, st.assignedAnchor.x, st.assignedAnchor.y);
+      if (!enc) continue;
+      if (!byEnc.has(enc.id)) byEnc.set(enc.id, { enc, staff: [] });
+      byEnc.get(enc.id).staff.push(st);
+    }
+    for (const { enc, staff } of byEnc.values()) {
+      let cx = 0, cy = 0, ch = 0;
+      for (const ti of enc.tiles) { cx += ti % MAP_SIZE; cy += Math.floor(ti / MAP_SIZE); ch += s.heights[ti] || 0; }
+      const n = enc.tiles.length;
+      const p = worldPx(cx / n + 0.5, cy / n + 0.5, ch / n);
+      staff.forEach((st, i) => {
+        pins.push({ staffId: st.id, role: st.role, encId: enc.id, name: st.name, x: p.x + (i - (staff.length - 1) / 2) * 20, y: p.y });
+      });
+    }
+    return pins;
+  }
+
+  drawKeeperMarkers(ctx) {
+    const pins = this.keeperPins();
+    this._keeperPins = pins; // exposed for tests / debugging
+    if (!pins.length) return;
+    ctx.save();
+    ctx.font = '700 8px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const pin of pins) {
+      const rgb = STAFF_TINT[pin.role] || STAFF_TINT.xenobiologist;
+      const bob = Math.sin(this.frame / 22 + pin.staffId) * 1.5;
+      const x = pin.x, y = pin.y - 34 + bob;
+      // ground anchor dot + thin stem
+      ctx.fillStyle = `rgba(${rgb},0.55)`;
+      ctx.beginPath(); ctx.ellipse(pin.x, pin.y, 3.5, 1.7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(${rgb},0.35)`; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(pin.x, pin.y - 1); ctx.lineTo(x, y + 11); ctx.stroke();
+      // teardrop pin body
+      ctx.fillStyle = 'rgba(8,13,20,0.92)';
+      ctx.strokeStyle = `rgb(${rgb})`; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x, y, 8, Math.PI * 0.85, Math.PI * 2.15);
+      ctx.lineTo(x, y + 13.5);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      // role-tinted core with the keeper's initial
+      ctx.fillStyle = `rgba(${rgb},0.22)`;
+      ctx.beginPath(); ctx.arc(x, y, 5.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgb(${rgb})`;
+      ctx.fillText((pin.name || '?').charAt(0).toUpperCase(), x, y + 0.5);
+    }
+    ctx.restore();
   }
 
   // live park events: pulsing ground beacon + label so players can find the action
@@ -773,6 +840,32 @@ export class GameRenderer {
     ctx.restore();
   }
 
+  // ---------- creature idle life (render-only micro-animation) ----------
+  // Exposed for tests/debugging: baked sheet (idle/walk/blink frames) per species.
+  sheetFor(speciesId) { return getCreatureSheet(speciesId); }
+  // Stationary creatures blink on a per-creature cadence (eyes shut while
+  // resting/sheltering), breathe with a tiny vertical pulse and occasionally
+  // flick — a brief shear that reads as a tail/body twitch. Nothing here
+  // touches sim state; reduced-motion users keep blinking but lose motion.
+  idleLife(c, moving, sheet) {
+    const out = { blink: false, breath: 1, shear: 0 };
+    if (moving) return out;
+    const f = this.frame;
+    if (sheet.blink) {
+      if (c.state === 'resting' || c.state === 'sheltering') out.blink = true;
+      else {
+        const cycle = 150 + (c.id * 37) % 96;        // ~2.5–4s between blinks
+        out.blink = (f + c.id * 53) % cycle < 5;      // shut for 5 frames
+      }
+    }
+    if (REDUCED_MOTION) return out;
+    if (!sheet.bob) out.breath = 1 + 0.018 * Math.sin(f / 15 + c.id * 0.7);
+    const flickCycle = 240 + (c.id * 29) % 140;      // ~4–6s between flicks
+    const t = (f + c.id * 61) % flickCycle;
+    if (t < 12) out.shear = Math.sin((t / 12) * Math.PI * 2) * 0.07; // out-and-back twitch
+    return out;
+  }
+
   drawCreature(ctx, c) {
     const sp = speciesById(c.speciesId);
     const s = this.state;
@@ -785,7 +878,8 @@ export class GameRenderer {
     const geneSize = c.genes?.size || 1;
     const S = SPRITE_SCALE * grow * geneSize * (inWater ? 0.85 : 1);
     const moving = c.path && c.path.length > 0;
-    const frames = moving && sheet.walk ? sheet.walk : sheet.idle;
+    const life = this.idleLife(c, moving, sheet);
+    const frames = moving && sheet.walk ? sheet.walk : (life.blink ? sheet.blink : sheet.idle);
     const fi = Math.floor(this.frame / (moving ? 7 : 16) + (c.id % 5)) % frames.length;
     const dw = sheet.w * S, dh = sheet.h * S;
     // floaters bob gently; hoverers sit slightly above ground
@@ -808,6 +902,9 @@ export class GameRenderer {
     }
     ctx.translate(p.x, gy + bob - lift);
     ctx.scale(c.dir, 1);
+    // idle life: breathing pulse anchored at the ground line + occasional flick
+    if (life.breath !== 1) ctx.scale(1, life.breath);
+    if (life.shear) ctx.transform(1, 0, life.shear, 1, 0, 0);
     // genetics: morph glow overrides species glow at night
     const morph = c.genes?.morph ? MORPH_LOOKUP[c.genes.morph] : null;
     const glowColor = (morph && morph.glow) || sp.colors.glow;
@@ -929,7 +1026,7 @@ export class GameRenderer {
     // working pulse ring (soft, role-tinted)
     if (st.state === 'working') {
       const pulse = 0.25 + 0.2 * Math.sin(this.frame / 8 + st.id);
-      const tint = st.role === 'warden' ? '242,193,78' : st.role === 'biomedical' ? '77,182,255' : '110,243,197';
+      const tint = STAFF_TINT[st.role] || STAFF_TINT.xenobiologist;
       ctx.strokeStyle = `rgba(${tint},${pulse})`;
       ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.ellipse(p.x, p.y + 1, 8, 4, 0, 0, Math.PI * 2); ctx.stroke();

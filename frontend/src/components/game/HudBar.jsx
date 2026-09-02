@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera } from 'lucide-react';
+import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera, Volume2, VolumeX } from 'lucide-react';
 import { game } from '@/game/controller';
+import { audio } from '@/game/audio';
 import { fmtMoney } from '@/game/constants';
 import { getDayPhase, clockLabel } from '@/game/weather';
 import { useGameTick } from '@/components/game/useGame';
+import { Slider } from '@/components/ui/slider';
 
 const HudButton = ({ icon: Icon, label, onClick, testId, active }) => (
   <button
@@ -151,6 +153,55 @@ function AlertsBell({ s, onNavigate }) {
   );
 }
 
+// ---------- ambient audio: mute toggle + volume popover ----------
+function AudioPopover({ enabled, volume, onToggle, onVolume }) {
+  return (
+    <div className="absolute right-0 top-11 w-[240px] nl-panel z-50 p-3 space-y-3" data-testid="audio-popover">
+      <div className="flex items-center justify-between">
+        <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">AMBIENT AUDIO</span>
+        <button data-testid="audio-mute-toggle" onClick={onToggle} data-active={enabled ? 'true' : 'false'}
+          className="nl-tool h-7 px-2 mono text-[10px] flex items-center gap-1">
+          {enabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+          {enabled ? 'ON' : 'MUTED'}
+        </button>
+      </div>
+      <div className="flex items-center gap-3">
+        <Slider data-testid="audio-volume-slider" value={[Math.round(volume * 100)]} min={0} max={100} step={5}
+          onValueChange={(v) => onVolume(v[0] / 100)} className="flex-1" aria-label="Master volume" />
+        <span className="mono text-[10px] text-[var(--text-2)] w-8 text-right" data-testid="audio-volume-value">{Math.round(volume * 100)}%</span>
+      </div>
+      <p className="text-[10px] text-[var(--text-3)] leading-snug">
+        Wind follows the weather, glowing exhibits hum after dark, and alerts carry a short stinger. Synthesised live — no downloads.
+      </p>
+    </div>
+  );
+}
+
+function AudioControl() {
+  const [open, setOpen] = useState(false);
+  const [enabled, setEnabled] = useState(audio.enabled);
+  const [volume, setVolume] = useState(audio.volume);
+  const toggleOpen = useCallback(() => setOpen((o) => !o), [setOpen]);
+  const toggleMute = useCallback(() => {
+    const next = !audio.enabled;
+    audio.setEnabled(next);
+    setEnabled(next);
+  }, [setEnabled]);
+  const changeVolume = useCallback((v) => {
+    audio.setVolume(v);
+    setVolume(v);
+  }, [setVolume]);
+  return (
+    <div className="relative">
+      <button data-testid="hud-audio-button" onClick={toggleOpen} data-active={open ? 'true' : 'false'}
+        className="nl-tool h-9 w-9 flex items-center justify-center" title={enabled ? `Audio on · ${Math.round(volume * 100)}%` : 'Audio muted'}>
+        {enabled && volume > 0 ? <Volume2 size={15} /> : <VolumeX size={15} className="text-[var(--text-3)]" />}
+      </button>
+      {open && <AudioPopover enabled={enabled} volume={volume} onToggle={toggleMute} onVolume={changeVolume} />}
+    </div>
+  );
+}
+
 export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp, onPhoto }) {
   useGameTick();
   const [saving, setSaving] = useState(false);
@@ -186,6 +237,7 @@ export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp, onPhot
           <HudButton icon={FlaskConical} label="Research" testId="open-research-button" onClick={() => onOpenModal('research')} />
           <HudButton icon={Coins} label="Finances" testId="open-finances-button" onClick={() => onOpenModal('finances')} />
           <AlertsBell s={s} onNavigate={onNavigate} />
+          <AudioControl />
           <HudButton icon={Camera} label="Photo" testId="hud-photo-button" onClick={onPhoto} />
           <HudButton icon={Save} label={saving ? 'Saving…' : 'Save'} testId="hud-save-button" onClick={doSave} />
           <HudButton icon={HelpCircle} label="Help" testId="hud-help-button" onClick={onHelp} />

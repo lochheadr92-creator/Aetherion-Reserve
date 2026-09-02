@@ -331,7 +331,8 @@ S.nyxarr = {
   rarity: 'Apex', cost: 48000, appeal: 130, danger: 5, size: 2.4, bodyType: 'quad',
   colors: { body: '#3a2640', accent: '#ff5c7a', glow: '#b98ae0' },
   diet: { type: 'Predator', station: 'meat' },
-  social: { type: 'Solitary', min: 1, ideal: 1, max: 1 },
+  // territorial, but tolerates a single mate — the only way to breed the line
+  social: { type: 'Solitary \u00b7 Pair-Tolerant', min: 1, ideal: 1, max: 2 },
   env: {
     spacePerHead: 80, minArea: 150,
     terrain: { prefer: [2, 4, 5], avoid: [7], preferMin: 0.3 },

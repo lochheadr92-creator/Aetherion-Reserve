@@ -1,10 +1,11 @@
 // ---- Render-layer game feel: camera zoom easing, pan inertia, screen shake,
-// building placement pops and dust particles.
+// building placement pops, dust particles and creature footprints.
 // Reads the authoritative state but NEVER mutates gameplay. All effect state
 // lives on this manager (render-only), so sim determinism and save files are
 // untouched. Honors prefers-reduced-motion by degrading to instant/no motion.
 import { TILE_W, TILE_H, H_STEP } from './constants';
 import { idx } from './state';
+import { speciesById } from './data/species';
 
 const px = (x, y, h = 0) => ({ x: (x - y) * (TILE_W / 2), y: (x + y) * (TILE_H / 2) - h * H_STEP });
 
@@ -18,6 +19,10 @@ const INERTIA_DECAY = 0.88;    // per-frame velocity retention after pan release
 const INERTIA_MIN = 0.4;       // px/frame — below this the glide stops
 const SHAKE_DECAY = 0.86;      // per-frame shake falloff
 const POP_FRAMES = 22;         // building entrance pop duration (~0.37s @60fps)
+const TRACK_TTL = 210;         // frames a footprint stays visible (~3.5s)
+const TRACK_STEP = 0.55;       // tiles travelled between prints
+const TRACK_MAX = 320;         // decal cap (oldest dropped first)
+const NO_TRACKS = new Set(['float', 'winged']); // airborne bodies leave no prints
 
 // easeOutBack: 0→1 with a small overshoot for a satisfying "pop"
 function easeOutBack(t) {
@@ -34,6 +39,8 @@ export class FxManager {
     this.offset = { x: 0, y: 0 }; // current shake offset applied to the camera transform
     this.particles = [];          // world-px dust motes { x, y, vx, vy, life, ttl, size, col }
     this.pops = new Map();        // building id -> frame the entrance pop started
+    this.tracks = [];             // world-px footprint decals { x, y, rx, ry, ang, life, ttl }
+    this._lastPos = new Map();    // creature id -> { x, y, side } last print position
     this._seen = null;            // Set of known building ids (null until first state sync)
     this._lastBreaches = 0;
     this._lastState = null;
@@ -71,6 +78,7 @@ export class FxManager {
     this._stepInertia();
     this._stepShake();
     this._stepParticles();
+    this._stepFootprints(state);
   }
 
   _syncState(s) {
@@ -80,6 +88,8 @@ export class FxManager {
       this._seen = new Set(s.buildings.map((b) => b.id));
       this.pops.clear();
       this.particles = [];
+      this.tracks = [];
+      this._lastPos.clear();
       this._lastBreaches = s.stats?.breaches || 0;
       this.cancelMotion();
       this.shakeMag = 0;
@@ -191,5 +201,64 @@ export class FxManager {
       ctx.fillStyle = `rgba(${p.col},${a.toFixed(3)})`;
       ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
     }
+  }
+
+  // ---------- creature footprints (ground decals, drawn under entities) ----------
+  // Land walkers leave a faint alternating left/right print every ~half tile
+  // while travelling; prints fade over TRACK_TTL frames. Airborne bodies,
+  // cloaked organisms and anything in water leave nothing.
+  _stepFootprints(s) {
+    // age existing decals first so a burst of new prints starts at full alpha
+    if (this.tracks.length) {
+      const alive = [];
+      for (const t of this.tracks) { t.life++; if (t.life < t.ttl) alive.push(t); }
+      this.tracks = alive;
+    }
+    if (REDUCED_MOTION) return;
+    const seen = new Set();
+    for (const c of s.creatures) {
+      seen.add(c.id);
+      const last = this._lastPos.get(c.id);
+      if (!last) { this._lastPos.set(c.id, { x: c.x, y: c.y, side: 1 }); continue; }
+      const moving = c.path && c.path.length > 0;
+      const dx = c.x - last.x, dy = c.y - last.y;
+      const d = Math.hypot(dx, dy);
+      if (!moving || d < TRACK_STEP) {
+        if (!moving) { last.x = c.x; last.y = c.y; } // stationary: keep the anchor fresh
+        continue;
+      }
+      last.x = c.x; last.y = c.y;
+      const sp = speciesById(c.speciesId);
+      const ti = idx(Math.floor(c.x), Math.floor(c.y));
+      if (NO_TRACKS.has(sp.bodyType) || c.cloaked || s.water[ti]) continue;
+      last.side = -last.side;
+      // alternate prints either side of the travel line
+      const nx = -dy / d, ny = dx / d;
+      const off = 0.13 * last.side;
+      const p = px(c.x + nx * off, c.y + ny * off, s.heights[ti] || 0);
+      const scale = (0.9 + (sp.size || 1) * 0.9) * (c.juvenile ? 0.6 : 1) * (c.genes?.size || 1);
+      this.tracks.push({
+        x: p.x, y: p.y + 1, rx: 2.2 * scale, ry: 1.1 * scale,
+        ang: Math.atan2((dx + dy) * (TILE_H / 2), (dx - dy) * (TILE_W / 2)),
+        life: 0, ttl: TRACK_TTL,
+      });
+      if (this.tracks.length > TRACK_MAX) this.tracks.shift();
+    }
+    for (const id of this._lastPos.keys()) if (!seen.has(id)) this._lastPos.delete(id);
+  }
+
+  drawFootprints(ctx) {
+    if (!this.tracks.length) return;
+    ctx.save();
+    ctx.lineWidth = 0.7;
+    for (const t of this.tracks) {
+      const fade = 1 - t.life / t.ttl;
+      // pressed-ground depression: dark core with a faint lit rim so prints read on dark turf
+      ctx.fillStyle = `rgba(4,7,10,${(0.55 * fade).toFixed(3)})`;
+      ctx.beginPath(); ctx.ellipse(t.x, t.y, t.rx, t.ry, t.ang, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(150,170,160,${(0.22 * fade).toFixed(3)})`;
+      ctx.beginPath(); ctx.ellipse(t.x - 0.4, t.y - 0.4, t.rx, t.ry, t.ang, Math.PI * 0.9, Math.PI * 1.9); ctx.stroke();
+    }
+    ctx.restore();
   }
 }

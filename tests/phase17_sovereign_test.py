@@ -38,7 +38,7 @@ async def main():
         await page.click('[data-testid="mode-scenario"]')
         await page.wait_for_timeout(300)
         cards = await page.locator('[data-testid^="scenario-card-"]').count()
-        print("TEST 1a picker shows 5 missions:", "PASS" if cards == 5 else f"FAIL ({cards})")
+        print("TEST 1a picker shows 6 missions:", "PASS" if cards == 6 else f"FAIL ({cards})")
         card = page.locator('[data-testid="scenario-card-sovereign_containment"]')
         txt = await card.inner_text()
         print("TEST 1b card shows BRUTAL difficulty:", "PASS" if "BRUTAL" in txt else f"FAIL ({txt[:80]})")

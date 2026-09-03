@@ -1,8 +1,9 @@
 // ---- Game controller: owns the state object + fixed-timestep loop; bridge to React ----
 import axios from 'axios';
 import { TICK_MS } from './constants';
-import { createNewGame, serialize, deserialize, emit, on, setTimeControls } from './state';
+import { createNewGame, serialize, deserialize, emit, on, setTimeControls, getRngCursor } from './state';
 import { tickOnce, initObjectives } from './sim';
+import { adjacentOpenTile } from './creatures';
 import { applyScenario } from './scenarios';
 import { ensureGenes } from './genetics';
 import { ensureLineage } from './lineage';
@@ -12,6 +13,29 @@ import { parkValue } from './economy';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Per-player save scoping: a random UUID minted once per browser and sent with
+// every save-service request. The backend stores it as the save's owner.
+const TOKEN_KEY = 'aetherion_player_token';
+export function playerToken() {
+  try {
+    let t = localStorage.getItem(TOKEN_KEY);
+    if (!t) {
+      t = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID()
+        : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem(TOKEN_KEY, t);
+    }
+    return t;
+  } catch (e) {
+    return null; // storage unavailable: fall back to unscoped (legacy) behaviour
+  }
+}
+const http = axios.create({ baseURL: API });
+http.interceptors.request.use((cfg) => {
+  const t = playerToken();
+  if (t) cfg.headers['X-Player-Token'] = t;
+  return cfg;
+});
+
 class GameController {
   constructor() {
     this.state = null;
@@ -19,7 +43,11 @@ class GameController {
     this.saveName = null;
     this.loop = null;
     this.uiTimer = null;
-    if (typeof window !== 'undefined') window.__game = this; // debug/testing access
+    if (typeof window !== 'undefined') {
+      window.__game = this; // debug/testing access
+      // pure helpers exposed for the local test suites (no gameplay side effects)
+      window.__gameDebug = { adjacentOpenTile, serialize, deserialize, getRngCursor, playerToken };
+    }
   }
 
   newGame(opts) {
@@ -87,7 +115,7 @@ class GameController {
 
   // ---------- persistence ----------
   async listSaves() {
-    const res = await axios.get(`${API}/saves`);
+    const res = await http.get('/saves');
     return res.data;
   }
 
@@ -104,18 +132,18 @@ class GameController {
       state: serialize(this.state),
     };
     if (this.saveId) {
-      const res = await axios.put(`${API}/saves/${this.saveId}`, payload);
+      const res = await http.put(`/saves/${this.saveId}`, payload);
       this.saveName = payload.name;
       return res.data;
     }
-    const res = await axios.post(`${API}/saves`, payload);
+    const res = await http.post('/saves', payload);
     this.saveId = res.data.id;
     this.saveName = payload.name;
     return res.data;
   }
 
   async loadGame(saveId) {
-    const res = await axios.get(`${API}/saves/${saveId}`);
+    const res = await http.get(`/saves/${saveId}`);
     this.state = deserialize(res.data.state);
     initObjectives(this.state);
     ensureGenes(this.state);
@@ -129,7 +157,7 @@ class GameController {
   }
 
   async deleteSave(saveId) {
-    await axios.delete(`${API}/saves/${saveId}`);
+    await http.delete(`/saves/${saveId}`);
   }
 
   getParkValue() { return this.state ? parkValue(this.state) : 0; }

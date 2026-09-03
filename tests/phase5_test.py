@@ -1,8 +1,9 @@
 """Phase 5 test: rectangle fence mode, security response loop, expeditions + contracts."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def tile_screen(page, x, y):

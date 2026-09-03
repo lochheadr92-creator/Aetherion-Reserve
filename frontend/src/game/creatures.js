@@ -3,7 +3,7 @@ import { MAP_SIZE, MATERIALS, VEG, FENCES } from './constants';
 import { idx, inMap, rnd, pushAlert, logCause, hasResearch } from './state';
 import { speciesById } from './data/species';
 import { computeEnclosures, enclosureAt, evaluateHabitat } from './enclosures';
-import { findPath, reachableTiles, buildOccupancy, edgeKey } from './pathfind';
+import { findPath, reachableTiles, buildOccupancy, edgeKey, fenceBetween } from './pathfind';
 import { recordEvidence, discover } from './knowledge';
 import { spend } from './economy';
 import { damageFence, isPowered } from './construction';
@@ -565,11 +565,17 @@ export function breedingTick(state, c) {
   logCause(state, c.name, `pair bonding observed with ${partner.name}`);
 }
 
-function adjacentOpenTile(state, x, y, swims) {
+// Nearest free 4-neighbour for a newborn. A fence edge between the mother's
+// tile and the candidate is a hard wall: on an enclosure boundary tile the
+// far side is *outside* containment, so it must never be chosen (H1).
+export function adjacentOpenTile(state, x, y, swims) {
   const occ = buildOccupancy(state);
   for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const tx = x + dx, ty = y + dy;
-    if (inMap(tx, ty) && !occ[idx(tx, ty)] && (state.water[idx(tx, ty)] !== 2 || swims)) return { x: tx, y: ty };
+    if (!inMap(tx, ty) || occ[idx(tx, ty)]) continue;
+    if (state.water[idx(tx, ty)] === 2 && !swims) continue;
+    if (fenceBetween(state, x, y, tx, ty)) continue;
+    return { x: tx, y: ty };
   }
   return null;
 }

@@ -3,9 +3,10 @@ Comprehensive test for placement alignment bug fix + weather + tutorial.
 Tests the fix: terrain tiles now drawn centered on (x+0.5, y+0.5) matching previews/fences/buildings.
 """
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 async def center(page, x, y):
     await page.evaluate("([x,y]) => window.__gameRenderer.centerOn(x, y)", [x, y])

@@ -1,0 +1,47 @@
+{
+  "summary": "Phase G (Creature Art Rework) testing complete - all 19 species repainted with rich animation (idle 6, walk 8, threat 4, lunge 4 frames), predator menace (eye-glow at night, crimson halo), species auras, and performance optimizations. All regression tests passed.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend API tests: 6/6 (health check, list saves, create save, get save, update save, delete save)",
+    "Backend regression tests: 6/6 (health check, staff assignment fields persistence, save CRUD operations)",
+    "Creature art tests: 17/17 (all species bake sheets, frame counts correct, scale-1 crisp painters, eyes recorded, blink frames, per-mode eye rects, threat/lunge differ from idle, 8-frame walk cycle, idle breathing, predator menace metadata, aura descriptors, no clipped frames, no page errors, aura particles emit at night, particle budget respected, display group renders)",
+    "Smoke game tests: All passed (paths, perimeter, gate, enclosure panel, feeder, creatures released and contained, creature panel, save slots, reload, no page errors)",
+    "Gamefeel tests: All passed (zoom easing, pan inertia, breach shake, building placement pop and dust, load adoption)",
+    "Phase 16 visual tests: All passed (30 buildings placed, no painter errors, synergy report, shuttle car, morph creatures, genetics UI, events container)",
+    "Phase 17 sovereign tests: All passed (6 missions, BRUTAL difficulty, template applied, perimeter pre-damaged, trackers, scenario win/loss, mastery grading, rewards)",
+    "Phase 20 features tests: 39/39 (audio manager, scenario bloodline, keeper markers, idle life with blink/breathing/footprints, breeding)",
+    "Phase 21 features tests: 28/28 (edge scrolling, radio chatter, bloodline ledger with registry/tree/pairing outlook)",
+    "Performance tests: Within acceptable ranges (baseline 60fps, baseline night 49.3fps, crowd 24 day 56.7fps >= 45fps target, crowd 24 night 42.3fps >= 35fps target, 44 particles)",
+    "Browser integration tests: Game loads, sandbox starts, species database shows all 19+ portraits, game state valid, save/load works, no console errors during normal gameplay"
+  ],
+  "test_report_links": [
+    "/app/tests/backend_api_test.py",
+    "/app/tests/backend_regression_test.py",
+    "/app/tests/creature_art_test.py",
+    "/app/tests/smoke_game.py",
+    "/app/tests/gamefeel_test.py",
+    "/app/tests/phase16_visual.py",
+    "/app/tests/phase17_sovereign_test.py",
+    "/app/tests/phase20_features_test.py",
+    "/app/tests/phase21_features_test.py",
+    "/app/tests/perf_probe.py"
+  ],
+  "action_item_for_main_agent": "",
+  "updated_files": [],
+  "success_percentage": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all test suites passed)",
+    "integration": "100% (no issues found)",
+    "performance": "100% (within acceptable ranges)"
+  },
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false
+}

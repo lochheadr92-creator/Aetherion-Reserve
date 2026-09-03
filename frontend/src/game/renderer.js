@@ -5,7 +5,7 @@ import { BUILDINGS } from './data/buildings';
 import { speciesById } from './data/species';
 import { computeEnclosures, enclosureAt } from './enclosures';
 import { getDayPhase } from './weather';
-import { SPRITE_SCALE } from './art/pixel';
+import { SPRITE_SCALE, hexRgb } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
 import { getBuildingSprite } from './art/buildings';
 import { getStaffSprite } from './art/staff';
@@ -17,6 +17,7 @@ import { MORPHS } from './genetics';
 import { FxManager, REDUCED_MOTION } from './fx';
 
 const MORPH_LOOKUP = Object.fromEntries(MORPHS.map((m) => [m.id, m]));
+const LUNGE_CYCLE = 96; // render frames between lunge bursts while an animal is displaying
 // role tints shared by staff sprites' work rings and keeper assignment pins
 const STAFF_TINT = { warden: '242,193,78', biomedical: '77,182,255', xenobiologist: '110,243,197' };
 
@@ -876,11 +877,37 @@ export class GameRenderer {
     const sheet = getCreatureSheet(c.speciesId);
     const grow = c.juvenile ? 0.5 + 0.5 * (c.growth || 0) : 1;
     const geneSize = c.genes?.size || 1;
-    const S = SPRITE_SCALE * grow * geneSize * (inWater ? 0.85 : 1);
+    const S = (sheet.scale ?? SPRITE_SCALE) * grow * geneSize * (inWater ? 0.85 : 1);
     const moving = c.path && c.path.length > 0;
-    const life = this.idleLife(c, moving, sheet);
-    const frames = moving && sheet.walk ? sheet.walk : (life.blink ? sheet.blink : sheet.idle);
-    const fi = Math.floor(this.frame / (moving ? 7 : 16) + (c.id % 5)) % frames.length;
+    const stress = c.stress || 0;
+    const predator = !!sheet.menace;
+    const pace = sheet.pace || 1;
+    // threat display: stationary, agitated organisms bare teeth / raise hackles
+    const agitated = !moving && !c.cloaked && (c.escaped || stress > 0.55 || c.state === 'hungry' || c.state === 'flee');
+    const threat = !!sheet.threat && agitated;
+    // lunge bursts: escaped animals snap at their surroundings, predators tear
+    // into meat while feeding, extreme stress boils over. A burst plays the
+    // lunge frames once per LUNGE_CYCLE, then the animal holds its threat pose.
+    const lungeReady = !!sheet.lunge && !moving && !c.cloaked && (c.escaped || stress > 0.8 || (predator && c.state === 'eating'));
+    const lungeCad = Math.max(3, Math.round(5 * pace));
+    const cyc = (this.frame + c.id * 17) % LUNGE_CYCLE;
+    const lunging = lungeReady && cyc < sheet.lunge.length * lungeCad;
+    const display = threat || lungeReady;
+    const life = this.idleLife(c, moving || display, sheet);
+    let frames, fi, modeKey;
+    if (moving && sheet.walk) {
+      frames = sheet.walk; modeKey = 'walk';
+      fi = Math.floor(this.frame / Math.max(2, Math.round(4 * pace)) + (c.id % 5)) % frames.length;
+    } else if (lunging) {
+      frames = sheet.lunge; modeKey = 'lunge';
+      fi = Math.floor(cyc / lungeCad) % frames.length;
+    } else if (display && sheet.threat) {
+      frames = sheet.threat; modeKey = 'threat';
+      fi = Math.floor(this.frame / Math.max(4, Math.round(8 * pace)) + (c.id % 5)) % frames.length;
+    } else {
+      frames = life.blink ? sheet.blink : sheet.idle; modeKey = 'idle';
+      fi = Math.floor(this.frame / Math.max(6, Math.round(14 * pace)) + (c.id % 5)) % frames.length;
+    }
     const dw = sheet.w * S, dh = sheet.h * S;
     // floaters bob gently; hoverers sit slightly above ground
     const bob = sheet.bob ? Math.sin(this.frame / 18 + c.id) * 2.5 : 0;
@@ -890,7 +917,11 @@ export class GameRenderer {
     // per-species contact shadow (soft/detached profiles supported)
     const sh = sheet.shadow;
     const shx = p.x + 2, shy = p.y + 1.5; // grounding toward lower-right
-    ctx.fillStyle = `rgba(0,0,0,${sh.alpha * (sh.detached ? 0.8 : 1)})`;
+    if (display) { // menace: a darker crimson halo pools under a threatening animal
+      ctx.fillStyle = `rgba(96,6,20,${(0.22 + 0.06 * Math.sin(this.frame / 7 + c.id)).toFixed(3)})`;
+      ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S * 1.4, sh.ry * S * 1.4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(0,0,0,${sh.alpha * (sh.detached ? 0.8 : 1) + (display ? 0.12 : 0)})`;
     ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S, sh.ry * S, 0, 0, Math.PI * 2); ctx.fill();
     if (sh.soft) {
       ctx.fillStyle = `rgba(0,0,0,${sh.alpha * 0.4})`;
@@ -900,7 +931,8 @@ export class GameRenderer {
       ctx.strokeStyle = '#FF4D6D'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, dw * 0.6 + 4, dw * 0.3 + 2, 0, 0, Math.PI * 2); ctx.stroke();
     }
-    ctx.translate(p.x, gy + bob - lift);
+    // whole-pixel origin keeps the baked art crisp (no half-pixel resampling smear)
+    ctx.translate(Math.round(p.x), Math.round(gy + bob - lift));
     ctx.scale(c.dir, 1);
     // idle life: breathing pulse anchored at the ground line + occasional flick
     if (life.breath !== 1) ctx.scale(1, life.breath);
@@ -928,7 +960,31 @@ export class GameRenderer {
     ctx.filter = 'none';
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
+    // predator menace: eyes smoulder at night (and burn hotter while displaying),
+    // painted on the exact eye rects recorded for this frame so the glow tracks the animation
+    if (sheet.menace && !c.cloaked && !life.blink && (this._phase === 'night' || this._phase === 'dusk' || display)) {
+      const rects = sheet.eyesBy[modeKey] && sheet.eyesBy[modeKey][fi];
+      if (rects && rects.length) {
+        const pulse = 0.55 + 0.25 * Math.sin(this.frame / 9 + c.id);
+        const col = display ? '#ff3b4a' : sheet.menace;
+        const [gr, gg, gb] = hexRgb(col);
+        const dim = this._phase === 'night' ? 1 : 0.7;
+        // layered soft halo (no shadowBlur: keeps the night frame budget intact with large crowds)
+        for (const e of rects) {
+          const ex = -dw / 2 + e.x * S, ey = -dh + 2 + e.y * S, ew = e.w * S, eh = e.h * S;
+          const spread = display ? 4 : 3;
+          ctx.fillStyle = `rgba(${gr},${gg},${gb},${(0.14 * pulse * dim).toFixed(3)})`;
+          ctx.fillRect(ex - spread, ey - spread, ew + spread * 2, eh + spread * 2);
+          ctx.fillStyle = `rgba(${gr},${gg},${gb},${(0.3 * pulse * dim).toFixed(3)})`;
+          ctx.fillRect(ex - 1.5, ey - 1.5, ew + 3, eh + 3);
+          ctx.fillStyle = `rgba(${gr},${gg},${gb},${(pulse * dim).toFixed(3)})`;
+          ctx.fillRect(ex, ey, ew, eh);
+        }
+      }
+    }
     ctx.restore();
+    // species ambience (render-only particles: embers, spores, sparks, motes, wisps, glints)
+    if (sheet.aura && !c.cloaked) this.fx.emitAura(c, sheet, p.x, gy + bob - lift, dw, dh, this._phase);
     // electrical surge arcs
     if (c._surgeUntil && this.state.tick < c._surgeUntil) {
       ctx.save();
@@ -1294,18 +1350,22 @@ export function renderPortrait(canvas, speciesId) {
   const sheet = getCreatureSheet(speciesId);
   if (!sheet) return;
   const frame = sheet.idle[0];
-  // fit sprite into the frame, integer-ish scale, silhouette-first
-  const box = canvas.width * 0.76;
-  const scale = Math.max(1, Math.min(box / sheet.w, box / sheet.h));
-  const dw = sheet.w * scale, dh = sheet.h * scale;
+  const b = sheet.bounds || { x: 0, y: 0, w: sheet.w, h: sheet.h };
+  // fit the trimmed silhouette into the frame: integer upscale when it fits (crisp),
+  // smooth downscale for the largest colossi in small thumbnails
+  const box = canvas.width * 0.78;
+  let scale = Math.min(box / b.w, box / b.h);
+  if (scale >= 1) scale = Math.floor(scale);
+  const dw = b.w * scale, dh = b.h * scale;
   ctx.save();
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = scale < 1;
+  ctx.imageSmoothingQuality = 'high';
   // soft ground contact
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
   ctx.ellipse(canvas.width / 2 + 2, canvas.height * 0.86, dw * 0.34, dh * 0.08 + 2, 0, 0, Math.PI * 2);
   ctx.fill();
   if (sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = 6; }
-  ctx.drawImage(frame, (canvas.width - dw) / 2, canvas.height * 0.86 - dh, dw, dh);
+  ctx.drawImage(frame, b.x, b.y, b.w, b.h, (canvas.width - dw) / 2, canvas.height * 0.86 - dh, dw, dh);
   ctx.restore();
 }

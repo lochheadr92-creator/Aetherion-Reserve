@@ -2,10 +2,11 @@
 creature idle life (blink frames / footprints / idle motion) and the ambient
 audio layer (Web Audio synth, mute/volume persistence, stingers, tool sounds)."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 from phase6_helpers import click_tile
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 RESULTS = []
 
@@ -151,7 +152,7 @@ async def main():
                 for (let f = 0; f < 400; f++) { r.frame = f; const l = r.idleLife({ id: 3, state: 'idle' }, false, sh); if (l.shear) flick = true; if (l.breath !== 1) breathe = true; }
                 return { hasBlink: !!sh.blink, diff, restBlink: rest.blink, walkNeutral: !walk.blink && walk.breath === 1 && walk.shear === 0, flick, breathe }; })()"""
         )
-        check("IDLE 1 blink frames auto-derived from eye highlights", life["hasBlink"] and 1 <= life["diff"] <= 12, str(life))
+        check("IDLE 1 blink frames (exact recorded eye rects)", life["hasBlink"] and 1 <= life["diff"] <= 60, str(life))
         check("IDLE 2 resting creatures keep eyes shut; walkers stay neutral", life["restBlink"] and life["walkNeutral"], str(life))
         check("IDLE 3 breathing pulse + periodic flick over a 400-frame window", life["flick"] and life["breathe"], str(life))
         # footprints: let the Sovereigns roam a while

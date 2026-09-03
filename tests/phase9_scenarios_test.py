@@ -1,8 +1,9 @@
 """Phase 9: Scenario Missions — picker UI, starter templates, goal tracking, win/lose flow, persistence."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def main():

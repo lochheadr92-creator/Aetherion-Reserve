@@ -2,9 +2,10 @@
 rate-limited, policy toggle) and the Bloodline Ledger (lineage registry,
 family tree UI, pairing outlook, persistence through save/load)."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 RESULTS = []
 
@@ -225,7 +226,8 @@ async def main():
         m_txt = await page.locator('[data-testid="ledger-mother"]').inner_text()
         f2_txt = await page.locator('[data-testid="ledger-father"]').inner_text()
         gp = await page.locator('[data-testid="ledger-gp-mm"]').inner_text()
-        check("LEDGER 7 offspring view: both parents + wild grandparents", "Nyxarr Sovereign A" in m_txt and "Nyxarr Sovereign B" in f2_txt and "wild origin" in gp, f"{m_txt} | {f2_txt} | {gp}")
+        names = await S(f"(() => {{ const L = window.__game.state.lineage; return {{ m: L[{mother}].name, f: L[{father}].name }}; }})()")
+        check("LEDGER 7 offspring view: both parents + wild grandparents", names["m"] in m_txt and names["f"] in f2_txt and "wild origin" in gp, f"{m_txt} | {f2_txt} | {gp}".replace("\n", " / "))
         await page.click('[data-testid="ledger-close-button"]')
         await page.wait_for_timeout(200)
         # transfer the sire: history survives, status flips

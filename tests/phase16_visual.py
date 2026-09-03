@@ -1,9 +1,10 @@
 """Phase 13-16 visual verification: 30 new building sprites, elevated transport
 over fences, genetics morphs (hue/size/glow) + CreaturePanel genetics UI."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 SHOTS = "/tmp/p16"
 
 # new Phase 16 buildings: id -> (w, h)

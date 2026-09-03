@@ -1,6 +1,8 @@
 // ---- Authoritative game state. The renderer reads this; it never defines it. ----
 import { MAP_SIZE, MAX_H } from './constants';
 import { SPECIES_LIST } from './data/species';
+import { RESEARCH } from './data/research';
+import { BUILDINGS } from './data/buildings';
 
 export const idx = (x, y) => y * MAP_SIZE + x;
 export const inMap = (x, y) => x >= 0 && y >= 0 && x < MAP_SIZE && y < MAP_SIZE;
@@ -10,8 +12,16 @@ const listeners = {};
 export const on = (evt, fn) => { (listeners[evt] = listeners[evt] || []).push(fn); return () => { listeners[evt] = listeners[evt].filter((f) => f !== fn); }; };
 export const emit = (evt, data) => { (listeners[evt] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } }); };
 
+// ---- Deterministic RNG (H4) ----
+// Every sim-side random draw goes through rnd(), a 31-bit LCG. The live cursor is
+// module-level (98 call sites take no state argument) but it is OWNED by the state:
+// createNewGame seeds it from state.seed, serialize() snapshots it into state.rng and
+// deserialize() restores it, so a loaded save replays identically every time.
+const RNG_MOD = 2147483648;
 let seedCounter = 12345;
-export const rnd = () => { seedCounter = (seedCounter * 1103515245 + 12345) % 2147483648; return seedCounter / 2147483648; };
+export const rnd = () => { seedCounter = (seedCounter * 1103515245 + 12345) % RNG_MOD; return seedCounter / RNG_MOD; };
+export const getRngCursor = () => seedCounter;
+export const setRngCursor = (v) => { seedCounter = Number.isFinite(v) ? Math.floor(Math.abs(v)) % RNG_MOD : 12345; };
 
 export function pushAlert(state, { type = 'info', title, msg, target = null }) {
   const a = { id: state.nextId++, tick: state.tick, type, title, msg, target, read: false };
@@ -74,10 +84,15 @@ function genTerrain(state) {
   }
 }
 
-export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'management' } = {}) {
+export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'management', seed = null } = {}) {
   const S = MAP_SIZE;
+  // world seed: fixed by default (reproducible starts, stable test fixtures); callers may pass
+  // an explicit seed for variety. Whatever it is, it lives in state.seed and can be replayed.
+  const worldSeed = Number.isFinite(seed) ? Math.floor(Math.abs(seed)) % RNG_MOD : 12345;
+  setRngCursor(worldSeed);
   const state = {
     version: 1, mode, parkName,
+    seed: worldSeed, rng: worldSeed,
     tick: 0, day: 1, speed: 1, paused: false,
     cash: mode === 'sandbox' ? 9999999 : 150000,
     ticketPrice: 25,
@@ -144,11 +159,15 @@ export function serialize(state) {
   const clean = { ...state };
   // strip derived/transient keys (start with _)
   Object.keys(clean).forEach((k) => { if (k.startsWith('_')) delete clean[k]; });
+  clean.rng = getRngCursor(); // H4: snapshot the RNG cursor so a load replays identically
   return JSON.parse(JSON.stringify(clean));
 }
 
+const freshKnowledge = () => ({ discovered: {}, evidence: {}, hypothesized: {} });
+
 export function deserialize(data) {
   const state = data;
+  const warn = (msg) => { if (typeof console !== 'undefined') console.warn(`[load] ${msg}`); };
   if (!state.weather) state.weather = { type: 'clear', ticksLeft: 900 };
   if (!state.security) state.security = { units: [] };
   if (!state.expeditions) state.expeditions = [];
@@ -161,6 +180,35 @@ export function deserialize(data) {
   if (!state.rivalries) state.rivalries = [];
   if (!state.transport) state.transport = { cars: [] };
   if (state.stats && state.stats.buzz === undefined) state.stats.buzz = 0;
+  // ---- H2: defensive backfills for saves written by an older build ----
+  // species added after the save was written need a knowledge slot (every accessor assumes one)
+  if (!state.knowledge) state.knowledge = {};
+  for (const sp of SPECIES_LIST) {
+    const k = state.knowledge[sp.id];
+    if (!k) { state.knowledge[sp.id] = freshKnowledge(); if (state.mode === 'sandbox') sp.hiddenAttrs.forEach((a) => { state.knowledge[sp.id].discovered[a] = true; }); continue; }
+    if (!k.discovered) k.discovered = {};
+    if (!k.evidence) k.evidence = {};
+    if (!k.hypothesized) k.hypothesized = {};
+  }
+  // research ids that no longer exist (renamed/removed projects) are dropped; dynamic projects keep their generated ids
+  if (!state.research) state.research = { completed: [], active: null, dynamicProjects: [] };
+  if (!Array.isArray(state.research.dynamicProjects)) state.research.dynamicProjects = [];
+  const dynIds = new Set(state.research.dynamicProjects.map((p) => p.id));
+  const knownResearch = (id) => !!RESEARCH[id] || dynIds.has(id);
+  const before = (state.research.completed || []).length;
+  state.research.completed = (state.research.completed || []).filter(knownResearch);
+  if (state.research.completed.length !== before) warn(`dropped ${before - state.research.completed.length} unknown research id(s)`);
+  if (state.research.active && !knownResearch(state.research.active.id)) { warn(`cleared unknown active research '${state.research.active.id}'`); state.research.active = null; }
+  // buildings / creatures of unknown types would crash the sim and renderer — drop them (and their footprint)
+  const nb = (state.buildings || []).length;
+  state.buildings = (state.buildings || []).filter((b) => !!BUILDINGS[b.type]);
+  if (state.buildings.length !== nb) warn(`dropped ${nb - state.buildings.length} building(s) of unknown type`);
+  const nc = (state.creatures || []).length;
+  state.creatures = (state.creatures || []).filter((c) => SPECIES_LIST.some((sp) => sp.id === c.speciesId));
+  if (state.creatures.length !== nc) warn(`dropped ${nc - state.creatures.length} creature(s) of unknown species`);
+  // H4: restore the RNG cursor (legacy saves without one fall back to the fixed seed)
+  if (!Number.isFinite(state.seed)) state.seed = 12345;
+  setRngCursor(Number.isFinite(state.rng) ? state.rng : state.seed);
   state._terrainDirty = true;
   state._encDirty = true;
   state._occDirty = true;

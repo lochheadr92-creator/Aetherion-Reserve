@@ -1,9 +1,10 @@
 """Comprehensive test for Aetherion Reserve - all features."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 import json
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 # Helper functions from smoke_game.py
 async def center(page, x, y):

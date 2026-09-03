@@ -1,9 +1,10 @@
 """Phase 8: Keeper Staff — hire/fire UI, feeding, treatment, waste cleaning, fence repair, wages."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 from phase6_helpers import boot, build_park, acquire_and_place, click_tile
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def main():

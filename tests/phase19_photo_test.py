@@ -1,9 +1,10 @@
 """Phase 19: Photo Mode — HUD entry, letterbox overlay, grid + pause toggles,
 capture to framed PNG, preview dialog with download, retake and exit flows."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def main():

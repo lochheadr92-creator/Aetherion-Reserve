@@ -1,26 +1,30 @@
 [
   {
-    "content": "F1 Edge Scrolling: input.js pointer tracking + frame() glide, GameCanvas hook, HUD settings toggle + localStorage",
+    "content": "H0: .env.example files, README run instructions, AETHERION_URL in all test files",
     "status": "completed"
   },
   {
-    "content": "F3 Keeper Radio Chatter: staff.js radioNote/batching/flush, alert type 'radio' (HudBar color, no toast), keeperRadio policy toggle in StaffScreen, audio chirp",
+    "content": "H1: adjacentOpenTile fenceBetween check + boundary-tile breeding test",
     "status": "completed"
   },
   {
-    "content": "F2 Bloodline Ledger: lineage.js registry + helpers, hooks in creatures.js/controller.js, BloodlineLedger.jsx dialog + CreaturePanel button",
+    "content": "H2: deserialize backfills (knowledge, research ids, buildings/creatures unknown types)",
     "status": "completed"
   },
   {
-    "content": "Compile check + screenshots + phase21 playwright test + sequential regressions",
+    "content": "H4: seeded RNG in state (seed + counter), reset on newGame, restore on load; determinism test",
     "status": "completed"
   },
   {
-    "content": "Run testing_agent_v3 (iteration_19) and fix issues",
+    "content": "H3/M3: React ErrorBoundary + load/save error toasts",
     "status": "completed"
   },
   {
-    "content": "Update plan.md Phase F COMPLETED",
+    "content": "H5: backend per-player token (X-Player-Token), id/owner index, list pagination; frontend token header",
+    "status": "completed"
+  },
+  {
+    "content": "H6: local suite assessment_fixes_test.py 25/25 + regressions green; testing agent iteration_21 = 100%",
     "status": "completed"
   }
 ]

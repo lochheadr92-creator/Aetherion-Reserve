@@ -1,9 +1,10 @@
 """Phase 7: building showcase + remaining DB portraits."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 from phase6_helpers import boot, flatten, click_tile
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def main():

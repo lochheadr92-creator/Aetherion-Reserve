@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """UI Integration test for Phase 21 - User-facing verification"""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 async def main():
     async with async_playwright() as pw:

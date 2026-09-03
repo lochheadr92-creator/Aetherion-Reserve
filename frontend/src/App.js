@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import '@/App.css';
 import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 import MainMenu from '@/components/game/MainMenu';
 import GameScreen from '@/components/game/GameScreen';
+import { ErrorBoundary } from '@/components/game/ErrorBoundary';
 import { game } from '@/game/controller';
 import { audio } from '@/game/audio';
 
@@ -17,13 +19,30 @@ function App() {
   useEffect(() => { audio.install(); }, []);
 
   const handleStart = useCallback((opts) => {
-    game.newGame(opts);
-    setScreen('game');
+    try {
+      game.newGame(opts);
+      setScreen('game');
+    } catch (e) {
+      console.error('[newGame]', e);
+      toast.error('Could not start the facility', { description: e?.message || String(e) });
+    }
   }, []);
 
   const handleLoad = useCallback(async (saveId) => {
-    await game.loadGame(saveId);
-    setScreen('game');
+    try {
+      await game.loadGame(saveId);
+      setScreen('game');
+    } catch (e) {
+      // M3: a failed / corrupt load must never leave the player on a blank screen
+      console.error('[loadGame]', e);
+      const status = e?.response?.status;
+      const why = status === 404 ? 'That save no longer exists.'
+        : status ? `Save service returned ${status}.`
+          : e?.message ? e.message : 'Save service unreachable.';
+      toast.error('Could not load save', { description: why, id: 'load-error' });
+      game.stopLoop();
+      setScreen('menu');
+    }
   }, []);
 
   const handleExit = useCallback(() => {
@@ -36,7 +55,9 @@ function App() {
       {screen === 'menu' ? (
         <MainMenu onStart={handleStart} onLoad={handleLoad} />
       ) : (
-        <GameScreen onExit={handleExit} />
+        <ErrorBoundary onHome={handleExit}>
+          <GameScreen onExit={handleExit} />
+        </ErrorBoundary>
       )}
       <Toaster
         position="bottom-right"

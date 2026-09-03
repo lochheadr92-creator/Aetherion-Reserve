@@ -13,13 +13,8 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- The game is feature-complete through **Phase 21**, and the post-Phase-19 code health + QoL + game-feel + polish passes are **complete and verified**:
-  1) **Code Quality Analysis / Code Review remediation** + full re-verification.
-  2) **Keeper Priorities** (keeper→enclosure assignment; flexible prioritization).
-  3) **Staff Report Card + Input UX Improvements**.
-  4) **Game-Feel Pass** (render-only polish: zoom easing, pan inertia, breach shake, placement pop/dust).
-  5) **Phase E**: Ambient Audio + Sovereign Bloodline scenario + Creature Idle Life + Keeper Markers.
-  6) **Phase F**: Edge Scrolling + Bloodline Ledger + Keeper Radio Chatter.
+- The game is feature-complete through **Phase 21**, and the post-Phase-19 code health + QoL + feel + polish passes are **complete and verified**.
+- Top priority is **Phase G: Creature Art Rework** — redesign the creature visuals (all 19 species) to look sharper/crisper, more dynamic, and more threatening (predators), while preserving the deterministic sim.
 
 **User confirmations (scope decisions):**
 - Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
@@ -43,17 +38,31 @@
   - **Edge scrolling is input/render layer only** and must not be triggered by HUD/toolbars/modals (target must be the canvas).
   - **Bloodline Ledger** is an **additive registry** (backwards compatible; safe on old saves).
   - **Keeper Radio Chatter** is **lightweight + rate-limited** and should not spam toasts.
+- **Phase G constraints (hard):**
+  - Creature art overhaul is a **render/art layer change**; do not change sim rules.
+  - Keep old saves compatible.
+  - Preserve the existing “unknown biology” readability: silhouettes must remain legible on dark terrain.
+
+**Phase G scope confirmations (recent):**
+- Animation depth: **RICH**
+  - Target per species: **idle 6 frames** + **walk 8-frame gait** + **threat 4 frames** + **lunge/attack 4 frames**.
+- Predator ambience: approved
+  - **Faint eye-glow at night** (preferably via recorded eye rects)
+  - **Crimson/darker shadow halo** when in threat/lunge display
 
 **Status (high-level):**
 - **Phase 1–21 COMPLETE & VERIFIED** (see testing baselines below).
-- **Post-Phase 19 work:**
-  - Phase A (Code Quality Completion) ✅ COMPLETE + VERIFIED.
-  - Phase B (Keeper Priorities) ✅ COMPLETE + VERIFIED.
-  - Phase C (Staff Report Card + Input UX Improvements) ✅ COMPLETE + VERIFIED.
-  - Phase D (Game-Feel Pass) ✅ COMPLETE + VERIFIED.
-  - Phase E (Audio + New Scenario + Idle Life + Keeper Markers) ✅ COMPLETE + VERIFIED.
-  - **Phase F (Edge Scrolling + Bloodline Ledger + Keeper Radio) ✅ COMPLETE + VERIFIED.**
-- **Project health:** ✅ **Green**.
+- **Phase G (Creature Art Rework): ✅ COMPLETE & VERIFIED (iteration_20 = 100%)**. All 19 species repainted at scale 1 with idle 6 / walk 8 / threat 4 / lunge 4; predator eye-glow + crimson halo; species auras; portraits fit trimmed bounds at 2x backing.
+  - Toolkits: `pixel.js` crisp primitives + `rig.js` anatomy helpers ✅
+  - Species repaints:
+    - `creatures_a.js` ✅ repainted
+    - `creatures_b.js` ✅ repainted (also fixed a build-breaking syntax error at `creatures_b.js:306`)
+    - `creatures_c.js` ❌ still legacy (Tier-4 apex set needs repaint)
+  - Integration updates partially present:
+    - `creatures.js` baker + `renderer.js` updated to support `threat` and per-sheet scale ✅ (but needs extension for lunge, 8-frame gait, menace glow/halo metadata)
+    - `fx.js` has general FX (dust/prints) ✅ but still needs **species aura emitters**
+- **Phase H — Assessment Fixes: ✅ COMPLETE & VERIFIED (iteration_21 = 100%)**: H1 fence-aware newborn placement, H2 load backfills, H3 ErrorBoundary + M3 load toast, H4 RNG cursor in state (exact replay), H5 per-player save scoping + indexes + pagination, .env.example/README/AETHERION_URL.
+- **Project health:** ✅ **Green** (after the `creatures_b.js` syntax fix, build passes again).
 
 > Constraint (hard): changes must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
@@ -104,498 +113,312 @@
 ---
 
 ### Phase 2 — V1 App Development (First Playable) ✅ COMPLETE
-**Goal:** expand POC into a complete playable management loop with 15 species, guests, economy, research, save slots.
-
-**Delivered:**
-1. Project structure: React UI shell + Canvas scene + sim/state module (single authoritative state object).
-2. Data-driven content:
-   - 15 authored original species (data-driven schema with `hiddenAttrs` and distinct management questions).
-   - Compatibility and symbiosis support (learned via observation/cohabitation).
-3. Full habitat evaluation per enclosure:
-   - Factors: space, terrain, canopy, water (drink vs aquatic), elevation, shelter, social, symbiosis, cohabitation, temperature.
-   - Welfare breakdown panel with explicit causes.
-   - **Unknown biology enforcement:** habitat “cause text” is **masked** until attribute discovered.
-4. Buildings & infrastructure (functional): Admin, Lab, Feeders, Shelter, Viewing Platform/Tower, Food/Drink, Restroom, Gift Shop, Power Relay.
-5. Power MVP: radius coverage + overlay.
-6. Guests MVP:
-   - Spawn at entrance once park operational; path BFS; simplified needs/spending; opinion feed.
-7. Viewing system v1:
-   - Distance + vegetation/elevation occlusion approximation; viewing overlay.
-8. Research system:
-   - Timed projects + costs; lab requirement; **observation-driven dynamic Field Studies**.
-9. Acquisition v1:
-   - Field Ops modal for purchasing species; placement tool releases into enclosures.
-10. Park rating + progression:
-   - Rating from diversity/welfare/guest satisfaction/discoveries/rarity/safety.
-11. Alerts + objectives/tutorial:
-   - Click-to-navigate alerts; objective chain teaches unknown biology.
-12. Save/load (backend):
-   - FastAPI CRUD save slots + MongoDB persistence of full authoritative state.
-13. UI screens & overlays:
-   - MainMenu (Management/Sandbox + save slots), HUD, BuildToolbar, InspectPanel, Species DB, Research, Finances, Field Ops, Objectives, overlays.
-14. Undo/rollback:
-   - Terrain undo (bounded history) + refunds.
-15. Performance baseline:
-   - Terrain layer cached to offscreen canvas; entities depth-sorted.
-
-**Verified end-to-end in management mode (/app/tests/scenario_discovery.py):**
-- Built paths, admin+lab+viewing+stalls, enclosure with water+feeder.
-- Acquired 3 Veyra (hidden attrs: water/social).
-- Observation loop: evidence → hypothesis alert → dynamic field study → breakthrough (water requirement confirmed) + grant.
-- Guests spawned and paid tickets; welfare stable; objectives completed; no page errors.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 3 — Stabilization + Proving Scenarios + Polish ✅ COMPLETE
-**Goal:** ensure causal correctness, explainability, robustness, and fun first 5–10 minutes.
-
-**Workstream: Post-Refactor Verification & Code Quality Completion** ✅ COMPLETE
-- Verified the large React UI refactor compiles and boots.
-- Completed code quality report items:
-  - `server.py`: type hints for all 7 functions.
-  - `controller.js`: removed direct mutations for pause/speed; added controlled `setTimeControls` mutator.
-  - Stable keys: Finance chart/day keys; guest feed IDs; Tutorial steps IDs.
-- Regression: `visual_v2.py`, `scenario_discovery.py`, `smoke_game.py`, and testing agent iteration_3 all green.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 4 — Fence UX Rework ✅ COMPLETE
-**Goal:** eliminate finicky fence building; make construction fast and predictable.
-
-**Delivered:**
-- **Drag-to-line fences** (fence tool): drag draws one clean straight wall; diagonal drags snap to dominant axis.
-- Live preview: valid segments highlighted + cost label (e.g., `8 seg · ◈400`).
-- Click remains precise (single segment); drag-remove supports bulk removal.
-- Tutorial + toolbar hint updated.
-
-**Tests:**
-- Added `/app/tests/fence_drag_test.py` (passes).
-- Full smoke regression still green.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 5 — Feature Expansion: Rectangles + Security + Expeditions ✅ COMPLETE
-**Goal:** deepen construction UX, add escape/emergency drama, and add progression beyond the tutorial.
-
-#### Phase 5A — Rectangle Mode (Fence drag → 4-wall perimeter) ✅ COMPLETE
-Verified via `/app/tests/phase5_test.py`.
-
-#### Phase 5B — Security Response (Escapes, Emergencies, Security Teams) ✅ COMPLETE
-Verified via `/app/tests/phase5_test.py` and later regression suites.
-
-#### Phase 5C — Expedition Board + Contracts ✅ COMPLETE
-Verified via `/app/tests/phase5_test.py` and later regression suites.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 6 — Immersion + Late Game Systems (Panic, Night Tours, Breeding, Abilities) ✅ COMPLETE
-Verified via `/app/tests/phase6a_test.py`, `/app/tests/phase6b_test.py`.
-
-**Note (verification maintenance):**
-- Phase 6A panic test was hardened to remove a race condition by seeding guests before breach.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 7 — Dedicated Visual Quality Pass (Pixel Art Cohesion) ✅ COMPLETE
-Verified via local suites + `testing_agent_v3` iteration_6.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 8 — Keeper Staff ✅ COMPLETE
-Verified via `/app/tests/phase8_staff_test.py`.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 9 — Scenario Missions ✅ COMPLETE
-Verified via `/app/tests/phase9_scenarios_test.py`.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 10 — Code Quality / Code Review Remediation ✅ COMPLETE (accepted)
-Verified via `testing_agent_v3` iteration_8.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 11 — High-End Visual Asset Redesign Pass ✅ COMPLETE (fully verified)
-Verified via full regression sweep + `testing_agent_v3` iteration_9.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 12 — Apex-Class Species (Tier 4) ✅ COMPLETE (fully verified)
-Verified via full regression sweep + `testing_agent_v3` iteration_10.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 13 — Genetics & Breeding Lines ✅ COMPLETE (verified)
-Verified via `/app/tests/phase16_visual.py` + `testing_agent_v3` iteration_11.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 14 — Park Events Engine + Rival Rumbles ✅ COMPLETE (verified)
-Verified via `testing_agent_v3` iteration_11.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 15 — Guest Interest System ✅ COMPLETE (verified)
-Verified via `testing_agent_v3` iteration_11.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 16 — Attractions, Amenities & Transport (~30 buildings) ✅ COMPLETE (verified)
-**Verification additions:**
-- Fixed an esbuild syntax error in `art/buildings.js` (`tunnelDetail` missing parenthesis).
-- Added `/app/tests/phase16_visual.py` (8/8 PASS) verifying:
-  - new building painters
-  - synergy report
-  - transport car arc clearing fences (geometry verified)
-  - genetics morph visibility day/night
-  - CreaturePanel genetics UI
-
-Verified via `testing_agent_v3` iteration_11.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 17 — Apex Scenario: “Sovereign Containment” (Nyxarr) ✅ COMPLETE (verified)
-**Goal:** high-pressure scenario with real trade-offs, multiple viable strategies, and optional mastery.
-
-**Delivered:**
-1. **Scenario definition** (`/app/frontend/src/game/data/scenarios.js`)
-   - New **BRUTAL** scenario `sovereign_containment`.
-   - Setup: Nyxarr in deterministic **pre-damaged** 13×13 Tier-4 pen.
-   - Start: **◈30,000**, starter `admin` + `lab`, `feeder_meat` + `shelter`.
-   - Research granted: containment tiers up to `cont_insulated`.
-   - Goals (all): full undamaged Tier-4 perimeter, Nyxarr welfare ≥ 65%, 60 guests, 3.0★ rating.
-   - Fails (any): debt exceeds ◈5,000; 4 breaches; 3000 cumulative escapeTicks.
-   - Mastery (optional, graded on victory): ironwall, solvent, court, spectacle.
-2. **Scenario engine extensions** (`/app/frontend/src/game/scenarios.js`)
-   - Deterministic fence pre-damage.
-   - Trackers: `scenario.escapeTicks`, `scenario.minCash`.
-   - Mastery grading into `scenario.mastery` on victory.
-3. **UI**
-   - `ScenarioTracker.jsx`: mastery tracker + mastery results in victory dialog.
-   - `MainMenu.jsx`: BRUTAL difficulty color.
-
-**Verification:**
-- `/app/tests/phase17_sovereign_test.py` (**14/14 PASS**).
-- `/app/tests/phase9_scenarios_test.py` updated to expect 6 scenario cards (after Phase E).
-- `testing_agent_v3` **iteration_12 = 100%**.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 18 — Verification & Regression ✅ COMPLETE (Phases 13–17)
-**Key artifacts:**
-- `/app/tests/phase16_visual.py`
-- `/app/tests/phase17_sovereign_test.py`
-- `/app/test_reports/iteration_11.json`
-- `/app/test_reports/iteration_12.json`
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase 19 — Photo Mode ✅ COMPLETE (fully verified)
-**Goal:** camera tool to capture beautiful shots of glowing night exhibits, render/UI-only.
-
-**Delivered:**
-- New component: `/app/frontend/src/components/game/PhotoMode.jsx`
-  - Enter via HUD **Photo** button (`hud-photo-button`).
-  - Letterbox overlay + hints.
-  - Rule-of-thirds grid toggle (`photo-grid-toggle`, `photo-grid-lines`).
-  - Freeze-the-moment pause toggle (`photo-pause-toggle`) using existing `game.setPaused`.
-  - Capture button (`photo-capture-button`) and **SPACE** shortcut.
-  - Exit via **ESC** or exit button (`photo-exit-button`).
-- Capture pipeline:
-  - Composes **game canvas** into a **PNG** (vignette + caption plate).
-  - Watermark includes park name and `AETHERION INITIATIVE · CYCLE n · clock`.
-  - Preview dialog (`photo-preview-dialog`) with:
-    - preview image (`photo-preview-image`)
-    - download anchor (`photo-download-button`)
-    - retake (`photo-retake-button`)
-    - done (`photo-close-button`)
-- Wiring:
-  - `HudBar.jsx`: added Camera icon button.
-  - `GameScreen.jsx`: hides HUD/toolbars/panels/trackers during Photo Mode.
-  - Overlay is pointer-events-none except control bar to preserve pan/zoom.
-
-**Hard constraints met:**
-- Render/UI-only; **no simulation behavior changes**.
-- Capture is **on-demand** only (no per-frame capture work).
-
-**Verification:**
-- New test: `/app/tests/phase19_photo_test.py` (**10/10 PASS**).
-- Visual validation at night with glowing species.
-- Full regression sweep green.
-- `testing_agent_v3` **iteration_13 = 100%**.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase A — Code Quality Completion & Re-Verification (post-Phase 19) ✅ COMPLETE (verified)
-**Goal:** address remaining Code Quality Analysis findings and restore a fully verified green baseline after the recent React refactors.
-
-**Completed fixes:**
-1. React hook dependency fixes.
-2. Performance fixes (`BuildToolbar.jsx` memoization).
-3. Cyclomatic complexity refactors (PhotoMode/ScenarioTracker/BuildingPanel/CreaturePanel).
-4. Backend test fixes (`/app/backend/backend_test.py`) including splitting scenario persistence and replacing `is` misuse.
-5. Procedural art API cleanup (`/app/frontend/src/game/art/buildings.js`): convert long positional args into config objects.
-
-**Mandatory verification completed:**
-- `testing_agent_v3` **iteration_14 = 100%**.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase B — Feature: Keeper Priorities (post-Phase 19) ✅ COMPLETE (verified)
-**Goal:** allow assigning each keeper to an enclosure; assigned keepers prioritise that enclosure first, then help elsewhere.
-
-**Delivered:**
-- `assignedEnclosureId` + stable `assignedAnchor`.
-- `assignStaffEnclosure` / `resolveAssignment`.
-- Two-pass task selection (assigned enclosure → global fallback).
-- StaffScreen dropdown assignment UI.
-
-**Verification:**
-- `/app/tests/keeper_priorities_test.py` (**9/9 PASS**).
-- `testing_agent_v3` **iteration_15 = 100%**.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase C — QoL: Staff Report Card + Input UX Improvements ✅ COMPLETE (verified)
-**Goal:** better feedback and mouse UX without changing simulation rules.
-
-**Delivered:**
-- Staff report card (`staff.report`) with per-cycle tallies; reset at daily rollover.
-- Input UX improvements:
-  - Select-mode left drag pans
-  - right-click cancels tool / clears selection
-  - right-drag pans without cancelling
-  - fence drag-line can be cancelled
-  - toolbar active tool stays synced via `onToolChange` bridge
-
-**Verification:**
-- `/app/tests/input_ux_test.py` (**12/12 PASS**).
-- `testing_agent_v3` **iteration_16 = 100%**.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase D — Game-Feel Pass (render-only polish) ✅ COMPLETE (verified)
-**Goal:** improve perceived quality and “feel” without introducing gameplay differences.
-
-**Hard constraints:**
-- **Render-layer only**: must not modify sim determinism.
-- **No save-format changes**: FX state must never be serialized.
-- Honor `prefers-reduced-motion`.
-
-**Delivered:**
-- New file: `/app/frontend/src/game/fx.js`
-  - `FxManager` attached to `GameRenderer` (`renderer.fx`).
-  - Eased wheel zoom toward cursor.
-  - Pan inertia with release velocity sampling + decay.
-  - Breach screen shake watching `state.stats.breaches`.
-  - Building placement pop + dust (ID diffing; silent adopt on load/new game).
-  - Uses `Math.random` only for render-only effects; sim stays seeded.
-
-**Verification:**
-- New test: `/app/tests/gamefeel_test.py` (**11/11 PASS**).
-- Regressions green.
-- `testing_agent_v3` **iteration_17 = 100%**.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase E (Phase 20) — Ambient Audio + Sovereign Bloodline + Creature Idle Life + Keeper Markers ✅ COMPLETE (verified)
-**Goal:** complete the “feel” layer (audio + micro-life), add a second apex scenario that meaningfully uses genetics/breeding, and improve assignment legibility.
-
-#### Phase E1 — Ambient Audio (render/UI-layer only) ✅ COMPLETE
-**Delivered:**
-- New module: `/app/frontend/src/game/audio.js` (`AudioManager` + `audio` singleton)
-  - Web Audio synth pipeline with no external assets:
-    - **Wind bed**: brown noise buffer → LFO’d low-pass filter → gain
-    - **Storm rain hiss**: high-pass noise bed, enabled only in storms
-    - **Night hum**: detuned sine stack; enabled at night only when **glowing exhibits** exist
-  - One-shots:
-    - UI click, placement confirm, placement deny, breach impact thud
-    - Alert stingers per type (`danger/warning/success/breakthrough/info`), throttled (380ms)
-  - Settings:
-    - `localStorage` persistence: `aetherion_audio_enabled`, `aetherion_audio_volume`
-    - Autoplay-safe: audio context created only after first user gesture
-  - Debug: `window.__audio` exposed for tests.
-- Wiring:
-  - `App.js`: `audio.install()` on app mount
-  - `GameCanvas.jsx`: `audio.update(game.state)` every rAF frame; `audio.update(null)` on unmount
-  - `useGameScreenActions.js`: tool result hook (`audio.toolResult(res)`) to trigger place/deny
-  - `HudBar.jsx`: new **Audio** button (`hud-audio-button`) with popover UI (`audio-popover`, `audio-mute-toggle`, `audio-volume-slider`, `audio-volume-value`).
-
-#### Phase E2 — Scenario: “Sovereign Bloodline” (Nyxarr breeding under pressure) ✅ COMPLETE
-**Delivered:**
-- New BRUTAL scenario: `sovereign_bloodline` in `/app/frontend/src/game/data/scenarios.js`
-  - Reward: **+◈50,000**
-  - Setup:
-    - Deterministic large Tier-4 pen with pre-damage mix
-    - Starter admin + lab
-    - Starter xenobiologist (auto-assigned to the pen)
-    - Briefing knowledge: `nyxarr.social` pre-discovered
-    - Research granted includes `bio_breeding` and containment tiers up to insulated
-  - Goals with live progress chips:
-    - Pair-bond (courtship observed)
-    - Raise 3 Nyxarr offspring (`0/3`, `1/3`, ...)
-    - At least one park-bred Sovereign matures
-    - Bloodline health check (all living Sovereigns: welfare ≥ 65%, none inbred; gated until first birth)
-  - Fail conditions (with progress chips where relevant):
-    - Deadline: funding closes at **Cycle 16**
-    - Inbred Nyxarr birth
-    - Debt threshold
-    - Breach threshold
-    - At-large timer threshold
-  - Mastery objectives:
-    - Dynasty (rare morph), Swift (before Cycle 10), Iron Wall (0 breaches), Solvent (never in debt)
-- Scenario engine extensions in `/app/frontend/src/game/scenarios.js`:
-  - Setup supports `setup.discovered` knowledge seeding
-  - Setup supports `setup.staff` (hiring + optional assign-to-starter-enclosure)
-  - Scenario cash is applied **last** so starter hires do not dent the mission budget
-
-#### Phase E3 — Creature Idle Life (render-only micro-animations) ✅ COMPLETE
-**Delivered:**
-- Auto-derived blink frames:
-  - `/app/frontend/src/game/art/creatures.js`: `deriveBlinkFrame()` scans baked idle frames for eye-highlight clusters and shades them shut
-  - `getCreatureSheet()` now includes `sheet.blink` (aligned with idle frames)
-- Renderer micro-idles:
-  - `/app/frontend/src/game/renderer.js`: `idleLife()`
-    - Per-creature blink cadence (resting/sheltering keeps eyes shut)
-    - Subtle breathing pulse (y-scale)
-    - Periodic flick shear (tail/body twitch)
-  - Exposed debug helper: `renderer.sheetFor(speciesId)`
-- Footprints:
-  - `/app/frontend/src/game/fx.js`: footprint decal system
-    - TTL: 210 frames, cap 320 decals
-    - No prints for `float` / `winged`, cloaked creatures, or in water
-    - Drawn under entities (`renderer.render()` calls `fx.drawFootprints()` before depth-sorted entities)
-
-#### Phase E4 — Keeper Markers (render-only assignment visibility) ✅ COMPLETE
-**Delivered:**
-- `/app/frontend/src/game/renderer.js`:
-  - `keeperPins()` resolves assignment via `assignedAnchor` → live enclosure, computes centroid, and returns pin data
-  - `drawKeeperMarkers()` draws teardrop pins with role tint and keeper initial, bobbing subtly
-  - Fanning: multiple keepers on one enclosure spread horizontally (20px step)
-  - Debug/testing: `renderer._keeperPins`
-
-#### Phase E5 — Testing & Verification ✅ COMPLETE
-**Tests added/updated:**
-- New: `/app/tests/phase20_features_test.py` (**39/39 PASS**) covering:
-  - sovereign_bloodline menu + setup
-  - progress chips
-  - victory/defeat outcomes
-  - breeding mechanics sanity
-  - keeper markers
-  - idle-life blink/motion/footprints
-  - audio unlock + controls persistence
-- Updated:
-  - `/app/tests/phase9_scenarios_test.py` expects **6** scenario cards
-  - `/app/tests/phase17_sovereign_test.py` expects **6** scenario cards
-- Added test-only deterministic stepping:
-  - `/app/frontend/src/game/controller.js`: `game.stepTicks(n)`
-
-**Verification:**
-- Sequential local regressions green:
-  - `smoke_game.py`, `input_ux_test.py`, `keeper_priorities_test.py`, `gamefeel_test.py`, `phase6b_test.py`, `phase9_scenarios_test.py`, `phase17_sovereign_test.py`, `phase20_features_test.py`
-- `testing_agent_v3`: **iteration_18 = 100%**.
+(unchanged; complete and verified — see prior plan)
 
 ---
 
 ### Phase F (Phase 21) — Edge Scrolling + Bloodline Ledger + Keeper Radio Chatter ✅ COMPLETE (verified)
-**Goal:** improve hands-free camera control, make genetics planning legible, and add diegetic staff feedback without spamming the player.
-
-#### Phase F1 — Edge Scrolling (canvas-targeted camera glide) ✅ COMPLETE
-**Delivered:**
-- `frontend/src/game/input.js`
-  - Pointer tracking (`pointer = {sx, sy, overCanvas}`) with **canvas target check** (`e.target === canvas`).
-  - Edge scroll `frame()` called from the canvas rAF loop.
-  - 28px band, eased depth → speed ramp, 8-frame arming delay.
-  - Cancels camera inertia when the edge glide engages.
-  - Map-bound clamp so camera cannot be stranded off-map.
-  - Preference stored in localStorage: `aetherion_edge_scroll` with module-level `isEdgeScrollEnabled()` / `setEdgeScrollEnabled()`.
-  - Debug: `window.__gameInput` exposes edge state (active/vx/vy/armed).
-- `frontend/src/components/game/GameCanvas.jsx`
-  - Calls `input.frame()` every rAF before render.
-  - Exposes `window.__gameInput` for tests.
-- `frontend/src/components/game/HudBar.jsx`
-  - Settings popover extended: **CAMERA** section with `[data-testid=edge-scroll-toggle]`.
-  - Audio testids preserved.
-
-#### Phase F2 — Bloodline Ledger (family tree + pairing outlook) ✅ COMPLETE
-**Delivered:**
-- `frontend/src/game/lineage.js`
-  - Additive registry `state.lineage`:
-    - `registerLineage(state, creature)`
-    - `markLineageLeft(state, id, status)`
-    - `ensureLineage(state)` backfills older saves and creates parent stubs from `genes.parents`.
-  - Queries:
-    - `familyTree(state, id)` (parents/grandparents/siblings/half-siblings/offspring+mates)
-    - `projectedInbreeding(a,b)` + `relationLabel(state,a,b)`
-    - `pairingOutlook(state, creature)` (same-species candidates + SAFE/INBRED verdict)
-- `frontend/src/game/creatures.js`
-  - `addCreature()` registers lineage.
-  - `removeCreature()` marks lineage as left (default `transferred`).
-  - Birth flow registers again after offspring naming so the ledger stores the given name.
-- `frontend/src/game/controller.js`
-  - `newGame()` and `loadGame()` run `ensureLineage(state)`.
-- `frontend/src/components/game/BloodlineLedger.jsx`
-  - Portal dialog showing:
-    - Tiered family tree (grandparents/parents/subject/offspring)
-    - Founder “wild origin” card when no parents exist
-    - Status badges (IN PARK / TRANSFERRED) + morph/inbred tags
-    - Click-to-locate living relatives
-    - Pairing outlook table with projected inbreeding % and relation
-- `frontend/src/components/game/panels/CreaturePanel.jsx`
-  - New `[data-testid=creature-ledger-button]` opens the ledger.
-
-#### Phase F3 — Keeper Radio Chatter (alert feed pings, rate-limited) ✅ COMPLETE
-**Delivered:**
-- `frontend/src/game/staff.js`
-  - `radioNote()` + `radioFlush()` batching:
-    - 30-tick gather window (~3s)
-    - 300-tick quiet window (~30s)
-    - Aggregates per kind (`feeds/cleans/treats/repairs`)
-  - Only triggers when:
-    - keeper is **assigned** (`assignedAnchor`), and
-    - work occurred **inside their assigned enclosure** (uses assignmentFilter).
-  - Emits alert type `radio` with pen number summary.
-  - Tracks `state.stats.radioCalls`.
-- `frontend/src/game/state.js`
-  - New policy: `policies.keeperRadio` default true.
-  - Policy backfill for older saves and `POLICY_KEYS` allowlist.
-- `frontend/src/components/game/StaffScreen.jsx`
-  - New header switch `[data-testid=staff-radio-toggle]`.
-- `frontend/src/components/game/HudBar.jsx`
-  - Alert feed styling for radio:
-    - Seaglass title color
-    - Radio icon
-    - `[data-testid=alert-item-{type}]` rows
-- `frontend/src/components/game/hooks/useGameAlerts.jsx`
-  - Radio alerts do **not** spawn toasts (feed-only).
-- `frontend/src/components/game/hooks/useNavigateTarget.js`
-  - Added `enclosure` navigation handler for enclosure-targeted calls.
-- `frontend/src/game/audio.js`
-  - `stinger('radio')` soft chirp.
-
-#### Phase F4 — Testing & Verification ✅ COMPLETE
-**Tests added:**
-- New: `/app/tests/phase21_features_test.py` (**28/28 PASS**) covering:
-  - Edge scrolling activation, arming delay, clamp, preference persistence.
-  - Radio chatter batching, policy toggle, feed-only (no toast) behavior, and chirp.
-  - Bloodline ledger registry backfill, UI tree, pairing outlook, transfer persistence, save/load.
-
-**Verification:**
-- Sequential local regressions green:
-  - `smoke_game.py`, `input_ux_test.py`, `keeper_priorities_test.py`, `gamefeel_test.py`, `phase8_staff_test.py`, `phase20_features_test.py`.
-- `testing_agent_v3`: **iteration_19 = 100%** (backend 19/19; frontend 28/28; integration 100%).
+(unchanged; complete and verified — see prior plan)
 
 ---
 
-## 3) Next Actions (immediate)
-1. **Photo Album (P2):** persist captured photos and add an in-game gallery (browse + re-download).
-2. **Balance/feel pass (optional, gameplay tuning only):**
-   - Review `sovereign_bloodline` difficulty (Cycle 16 deadline, damage severity, starting cash, fail thresholds) after player feedback.
-3. **Audio polish (P2):**
-   - Optional per-category volume (UI vs ambience vs stingers) and/or a subtle reverb bus.
-4. **Bloodline QoL (future):**
-   - Consider explicit “recommended pairings” sorting and/or a “avoid inbreeding” warning when two selected creatures share blood.
+### Phase G (Phase 22) — Creature Art Rework (Sharper, crisper, richly animated, more menacing) ✅ COMPLETE (verified: iteration_20 = 100%)
+**Goal:** Rework **all 19 species sprites** so they are visibly different from the old art: sharper/crisper rendering, richer animation, stronger silhouettes; predators more threatening/maniacal; herbivores powerful/dynamic.
+
+**High-level deliverables:**
+1. **Pixel art tool upgrades** (`/app/frontend/src/game/art/pixel.js`) ✅ DONE
+2. **Shared rig/anatomy helpers** (`/app/frontend/src/game/art/rig.js`) ✅ DONE
+3. **Repaint all species** (`/app/frontend/src/game/art/creatures_a.js`, `_b.js`, `_c.js`) 🚧 IN PROGRESS
+4. **Sheet pipeline** (`/app/frontend/src/game/art/creatures.js`) 🚧 IN PROGRESS
+5. **Renderer integration** (`/app/frontend/src/game/renderer.js`) 🚧 IN PROGRESS
+6. **Ambient creature auras + predator menace** (`/app/frontend/src/game/fx.js` + renderer touchpoints) ❌ NOT STARTED
+7. **Verification**: gallery + tests + regressions + testing agent **iteration_20** ❌ NOT STARTED
+
+#### Phase G1 — Pixel painter “crisp” toolkit ✅ COMPLETE
+**Delivered:**
+- Crisp primitives in `pixel.js`: `line`, `poly`, `wedge`, `band`, `eye` (records rects), `fang`, `claw`, `spike`, `rim`.
+- Motion helpers: `stride()` (6-phase) and `breathe()`.
+- Shared rig in `rig.js`: articulated `legs`, `tail`, `ridge`, `jaw`, `plates`, `stripes`.
+
+**Acceptance:** achieved; existing art still bakes; new painters use the helpers.
+
+#### Phase G2 — Repaint all 19 species with richer animation 🚧 IN PROGRESS
+**Target frame counts (final):**
+- `idleFrames: 6`
+- `walkFrames: 8` (rich gait cycle)
+- `threatFrames: 4`
+- `lungeFrames: 4` (attack burst / predatory pounce / charge)
+
+**Completed:**
+- `creatures_a.js` repainted (Phase G style) ✅
+- `creatures_b.js` repainted (Phase G style) ✅
+  - Build issue fixed: `creatures_b.js:306` syntax error ✅
+
+**Remaining:**
+- **G2c:** repaint `creatures_c.js` (nyxarr, zephyrmaw, aurox, sylvarr) to Phase G style at `scale: 1` with `idle/walk/threat/lunge`.
+- **G2-rich:** bump all repainted species to **8-frame walk**:
+  - Ensure `stride()` defaults/uses `frames: 8` for walk.
+  - Fix any per-frame arrays indexed by `f` that assume 6 frames (notably the current walk-indexed arrays like `veyra`’s `bob` and `umbra`’s `wf` mapping).
+- **G2-lunge:** implement `paint(P,f,'lunge')` per species:
+  - Predators: forward head snap, jaw open, forelimb extension.
+  - Herbivores: power shove/charge, hoof-stomp, horn sweep.
+  - Neutral/floaters: burst pulse or aggressive flare.
+- **Anti-clipping:** pad bake canvas (or per-mode bounds) so tall spikes / threat raises / lunges do not clip.
+
+**Acceptance:** all species render with new crisp style; predators are visibly menacing; herbivores look assertive/powerful; silhouettes read at night.
+
+#### Phase G3 — Sheet baking pipeline: add lunge + eye metadata + padding 🚧 IN PROGRESS
+**Files:** `/app/frontend/src/game/art/creatures.js`
+
+**Required changes:**
+- Bake modes: `idle`, `walk`, `threat`, **`lunge`**.
+- Blink generation:
+  - Prefer recorded eye rects from `P.eye()`.
+  - Maintain fallback heuristic for any unrecorded species.
+- Record eye rects **per frame per mode**:
+  - Store `sheet.eyesBy = { idle: [...], walk: [...], threat: [...], lunge: [...] }` (or equivalent).
+- Add bake padding support:
+  - Either inflate painter canvas by `pad` per mode and record draw offsets, or add a standardized internal margin.
+- Pass metadata needed by renderer/fx:
+  - `sheet.pace` (cadence tuning by species)
+  - `sheet.menace` (predator menace settings)
+  - `sheet.aura` (already in some A/B species)
+
+**Acceptance:** `getCreatureSheet(id)` returns `{ idle, walk, threat, lunge, blink, scale, shadow, hover, aura, eyesBy, pace, menace }` without errors for all 19.
+
+#### Phase G4 — Renderer integration: lunge bursts, cadence by pace, menace glow/halo 🚧 IN PROGRESS
+**Files:** `/app/frontend/src/game/renderer.js`
+
+**Required changes:**
+- Frame selection:
+  - Add `lunge` selection above `threat` when conditions hit.
+  - Proposed trigger (render-only; no sim changes):
+    - escaped + high stress OR
+    - hungry/flee + stationary burst OR
+    - recent feeding (if available) OR
+    - periodic “display burst” while threat is active.
+- Cadence:
+  - Tune cadence per mode (walk faster than idle; lunge fastest) and allow per-species overrides.
+- Menace:
+  - **Night eye-glow** for predators using exact eye rects (`sheet.eyesBy`) to paint glow pixels cleanly.
+  - **Crimson/darker shadow halo** when `threat` or `lunge` selected.
+- Pixel crispness:
+  - Preserve integer snapping of sprite origin.
+
+**Acceptance:** lunge/threat appear at the right times; sprites remain crisp; no regressions in selection/shadows.
+
+#### Phase G5 — Creature ambience: per-species auras + predator menace FX ❌ NOT STARTED
+**Files:** `/app/frontend/src/game/fx.js` (and minimal call site wiring)
+
+**Required changes:**
+- Add render-only aura emitters driven by `sheet.aura`:
+  - embers (emberoot/rhoak)
+  - spores (mosswarden)
+  - sparks (voltari)
+  - motes (skitter/shardling)
+  - wisps (umbra)
+  - glints (crystal)
+- Night gating and reduced-motion support.
+- Cap emissions to avoid perf spikes.
+
+**Acceptance:** subtle ambience, no sim changes, respects reduced-motion.
+
+#### Phase G6 — Testing + verification ❌ NOT STARTED
+**Gallery:**
+- Update `art_gallery.py` to render **5 rows**: `idle / walk / threat / lunge / blink`.
+- Capture day/night screenshots for A/B/C sets.
+
+**Add tests:**
+- New: `/app/tests/creature_art_test.py`
+  - All 19 sheets bake
+  - Frame counts match: idle 6, walk 8, threat 4, lunge 4
+  - Blink frames present (recorded eyes preferred)
+  - Threat/lunge differ from idle (pixel diff threshold)
+  - No page errors
+- Update existing tests:
+  - `phase20_features_test.py` “IDLE 1 blink frames auto-derived” diff-range may need widening due to exact eye-rect blink shading and increased sprite detail.
+
+**Verification sequence:**
+1. Local: `python -m pytest -q tests/creature_art_test.py` + smoke/regressions
+2. Visual: run `python tests/art_gallery.py a|b|c`, inspect screenshots
+3. Run `testing_agent_v3` → **iteration_20**
+
+---
+
+### Phase H — Assessment Fixes (local verification + correctness + hardening) ✅ COMPLETE (verified: iteration_21 = 100%; assessment_fixes_test 25/25)
+**Goal:** convert “green on Emergent” into “verifiable locally”, fix correctness edge cases, and harden save/load and backend scope.
+
+> User decision: **do Phase H after Phase G**, but start the backend per-player token work immediately once Phase H begins.
+
+#### Phase H0 — Dev ergonomics + local run parity
+**Deliverables:**
+- Add:
+  - `frontend/.env.example` with `REACT_APP_BACKEND_URL=http://localhost:8001`
+  - `backend/.env.example` with `MONGO_URL` and `DB_NAME`
+  - A short `README.md` with the three run commands (frontend, backend, mongodb docker)
+- Parametrize all hard-coded test URLs through one env var:
+  - Use `AETHERION_URL` (fallback to preview URL)
+  - Update all impacted test files (currently 27)
+- Ensure tests never touch Emergent DB during local runs (document docker mongo).
+
+#### Phase H1 — Newborn spawn correctness (fence boundary)
+**Issue:** `adjacentOpenTile()` in `frontend/src/game/creatures.js` does not check `fenceBetween()`.
+- Fix: when picking an adjacent tile, reject tiles across fences.
+- Add test: breeding on a boundary tile must not place newborn outside enclosure.
+
+#### Phase H2 — Deserialize defensive backfills
+**Issue:** `frontend/src/game/state.js` `deserialize()` lacks knowledge backfill from `SPECIES_LIST`.
+- Fix: on load, ensure `state.knowledge[sp.id]` exists for every species.
+- Add defensive filtering:
+  - unknown `research.completed` ids should be filtered out (or ignored safely)
+  - unknown building types should be filtered or replaced with safe defaults
+
+#### Phase H3 / M3 — Error boundary + load error toast
+- Add React error boundary around the game screen.
+- Add load/save try/catch path with a user-facing toast on failure.
+
+#### Phase H4 — Determinism (seeded LCG state)
+**Issue:** `rnd()` LCG `seedCounter` is module-level in `frontend/src/game/state.js`, not stored in state, not reset on `newGame`, not restored on `loadGame`.
+- Fix:
+  - Put seed into state (e.g., `state.rng = { seed, counter }`)
+  - Reset LCG in `newGame` / scenario init
+  - Restore LCG on load
+- Add determinism tests:
+  - Hash serialized state at fixed tick across two loads
+  - Replay a save for N ticks twice and compare hashes
+
+#### Phase H5 — Backend hardening + per-player token
+**User-approved:** add per-player token now (when Phase H starts).
+- Generate random UUID in localStorage.
+- Send as `X-Player-Token` header on save CRUD.
+- Store on save document as owner token.
+- Compatibility rule: legacy saves with no owner remain visible to everyone.
+- Add index on save `id`.
+- Consider list cap raise or pagination.
+- Add separate DB_NAME for tests (doc + optional env default).
+
+**Deferred (measure-first):**
+- Renderer culling and dirty-rect terrain repaint.
+- Balance items (cooldowns, difficulty tuning) until humans play.
+
+---
+
+## 3) Next Actions (backlog — pick with the user)
+1. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
+2. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger.
+3. **World-seed picker (P2)** — surface `createNewGame({ seed })` on the new-game screen (plumbing done in Phase H).
+4. **Ambient Mix / Keeper Voices (P2)**, popover outside-click dismissal (P2).
+5. **Deferred from the assessment (measure first)** — renderer culling / dirty-rect terrain; balance items after human playtests.
 
 ---
 
@@ -607,18 +430,24 @@ Verified via `testing_agent_v3` iteration_11.
 - **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns.
 - **Code quality restored:** no known Code Quality Analysis findings outstanding; tests reflect correct semantics; art API is maintainable.
 - **Keeper Priorities delivered:** per-keeper enclosure assignment with **flexible prioritization**, persisted via save/load.
-- **Staff report cards delivered:** per-cycle per-staff tallies that reset on day rollover.
+- **Staff report cards delivered:** per-cycle per-staff tallies that reset at daily rollover.
 - **Modern input UX delivered:** drag-pan, right-click cancel/clear, with toolbar sync and preserved workflows.
 - **Game-feel delivered (render-only):** eased zoom, pan inertia, breach shake, placement pop + dust — with reduced-motion support.
-- **Phase E delivered (verified):**
-  - Ambient Audio delivered
-  - Sovereign Bloodline scenario delivered
-  - Creature Idle Life delivered
-  - Keeper Markers delivered
-- **Phase F delivered (verified):**
-  - Edge Scrolling delivered (canvas-only, eased + clamped, preference persisted)
-  - Bloodline Ledger delivered (persistent registry + family tree + pairing outlook)
-  - Keeper Radio delivered (batched feed-only pings + policy + chirp)
+- **Phase E delivered (verified):** ambient audio, Sovereign Bloodline, idle life, keeper markers.
+- **Phase F delivered (verified):** edge scrolling, bloodline ledger, keeper radio.
+- **Phase G delivered (to be verified):**
+  - All 19 species repainted with crisper, sharper silhouette.
+  - Rich animation: **idle 6 + walk 8 + threat 4 + lunge 4**.
+  - Predators visibly menacing; herbivores powerful/dynamic.
+  - Predator menace: eye-glow at night + threat/lunge halo.
+  - Aura ambience implemented (render-only) for selected species.
+  - No regressions; **iteration_20 passes**.
+- **Phase H delivered (to be verified):**
+  - Local run parity docs + env examples
+  - Tests use `AETHERION_URL`
+  - H1/H2/H4 correctness fixed and covered by tests
+  - Error boundary + load error toast
+  - Backend save scoping via per-player token (legacy compatible)
 
 **Verified milestones:**
 - Phase 11 acceptance: ✅ met (iteration_9 = 100%).
@@ -631,7 +460,9 @@ Verified via `testing_agent_v3` iteration_11.
 - Phase C acceptance: ✅ met (iteration_16 = 100%).
 - Phase D acceptance: ✅ met (iteration_17 = 100%).
 - Phase E acceptance: ✅ met (iteration_18 = 100%).
-- **Phase F acceptance: ✅ met (iteration_19 = 100%).**
+- Phase F acceptance: ✅ met (iteration_19 = 100%).
 
 **Next verification to produce:**
-- **iteration_20:** after the next feature addition (e.g., Photo Album), via `testing_agent_v3`.
+- **iteration_20: post-Phase G verification** ✅ (**testing_agent_v3 100% overall**; backend 12/12; creature_art 17/17; phase20 39/39; phase21 28/28; visual/sovereign/gamefeel/smoke green; perf within budget).
+- **iteration_21: post-Phase H verification** ✅ (**testing_agent_v3 100%**; backend 12/12; assessment_fixes 25/25; creature_art 17/17; keeper/gamefeel/phase17/phase20/phase21/input_ux green. phase21 LEDGER 7 was made data-independent — the ledger itself was correct).
+- **Next:** iteration_22 after the next feature phase.

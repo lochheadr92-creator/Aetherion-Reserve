@@ -1,8 +1,9 @@
 """Visual verification: tutorial, alignment (preview vs tile), weather/night render."""
+import os
 import asyncio
 from playwright.async_api import async_playwright
 
-URL = "http://localhost:3000"
+URL = os.environ.get("AETHERION_URL", "http://localhost:3000")
 
 
 async def main():

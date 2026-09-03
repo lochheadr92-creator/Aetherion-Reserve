@@ -6,6 +6,7 @@
 import { TILE_W, TILE_H, H_STEP } from './constants';
 import { idx } from './state';
 import { speciesById } from './data/species';
+import { hexRgb } from './art/pixel';
 
 const px = (x, y, h = 0) => ({ x: (x - y) * (TILE_W / 2), y: (x + y) * (TILE_H / 2) - h * H_STEP });
 
@@ -23,6 +24,26 @@ const TRACK_TTL = 210;         // frames a footprint stays visible (~3.5s)
 const TRACK_STEP = 0.55;       // tiles travelled between prints
 const TRACK_MAX = 320;         // decal cap (oldest dropped first)
 const NO_TRACKS = new Set(['float', 'winged']); // airborne bodies leave no prints
+
+// ---- species auras (Phase G): render-only ambience emitted around creatures ----
+const AURA_MAX = 360;        // aura particles alive at once (dust is budgeted separately)
+const AURA_GAIN = 1.8;       // global emission multiplier over the per-species descriptor rate
+const AURA_DAY_DIM = 0.45;   // always-on auras thin out in daylight
+const AURA_KINDS = {
+  // rising, flickering cinders (emberoot, rhoak)
+  ember: { ttl: [28, 48], size: [1.5, 2.6], vx: [-0.25, 0.25], vy: [-0.9, -0.5], drag: 0.97, grav: -0.012, wob: 0.6, shape: 'dot', alpha: 0.85, flicker: true },
+  // slow drifting motes that meander (mosswarden, sylvarr)
+  spore: { ttl: [70, 110], size: [1.3, 2.2], vx: [-0.2, 0.2], vy: [-0.35, -0.12], drag: 0.995, grav: -0.002, wob: 1.2, shape: 'dot', alpha: 0.7 },
+  // fast, short-lived arcs (voltari, zephyrmaw)
+  spark: { ttl: [5, 10], size: [1, 1.5], vx: [-1.6, 1.6], vy: [-1.6, 1.0], drag: 0.9, grav: 0, wob: 0, shape: 'spark', alpha: 0.95 },
+  // hovering points of light (vantha, lumen)
+  mote: { ttl: [50, 90], size: [1.3, 2], vx: [-0.15, 0.15], vy: [-0.2, 0.1], drag: 0.995, grav: -0.001, wob: 1.6, shape: 'dot', alpha: 0.65 },
+  // smoky trails that curl upward (umbra, nyxarr)
+  wisp: { ttl: [36, 60], size: [1.8, 3], vx: [-0.3, 0.3], vy: [-0.5, -0.25], drag: 0.98, grav: -0.004, wob: 1.4, shape: 'wisp', alpha: 0.35 },
+  // stationary twinkles on crystal facets (shardling)
+  glint: { ttl: [10, 18], size: [1.5, 2.5], vx: [0, 0], vy: [0, 0], drag: 1, grav: 0, wob: 0, shape: 'cross', alpha: 0.9 },
+};
+const rr = (lo, hi) => lo + Math.random() * (hi - lo);
 
 // easeOutBack: 0→1 with a small overshoot for a satisfying "pop"
 function easeOutBack(t) {
@@ -181,25 +202,73 @@ export class FxManager {
   }
 
   _stepParticles() {
-    if (!this.particles.length) return;
+    if (!this.particles.length) { this._auraCount = 0; return; }
     const alive = [];
+    let auras = 0;
     for (const p of this.particles) {
       p.life++;
       if (p.life >= p.ttl) continue;
-      p.x += p.vx;
+      p.x += p.vx + (p.wob ? Math.sin(p.life * 0.15 + p.ph) * p.wob * 0.25 : 0);
       p.y += p.vy;
-      p.vx *= 0.94;
-      p.vy = p.vy * 0.92 - 0.01; // gentle upward drift
+      p.vx *= p.drag ?? 0.94;
+      p.vy = p.vy * (p.drag ?? 0.92) + (p.grav ?? -0.01); // default: gentle upward drift
+      if (p.aura) auras++;
       alive.push(p);
     }
     this.particles = alive;
+    this._auraCount = auras;
+  }
+
+  // ---------- species auras (world-px space; called by the renderer per drawn creature) ----------
+  // `sheet.aura` = { kind, color, rate, night }. `night: true` gates the effect to
+  // dusk/night; always-on auras are dimmed by day. Agitated animals emit harder.
+  emitAura(c, sheet, x, y, dw, dh, phase) {
+    if (REDUCED_MOTION) return;
+    const a = sheet.aura;
+    if (!a) return;
+    const night = phase === 'night' || phase === 'dusk';
+    if (a.night && !night) return;
+    if ((this._auraCount || 0) >= AURA_MAX) return;
+    const agitated = c.escaped || (c.stress || 0) > 0.55;
+    const rate = a.rate * AURA_GAIN * (night ? 1 : AURA_DAY_DIM) * (agitated ? 1.6 : 1);
+    if (Math.random() > rate) return;
+    const k = AURA_KINDS[a.kind] || AURA_KINDS.mote;
+    const rgb = hexRgb(a.color);
+    this.particles.push({
+      // spawn inside the body mass (sprite is bottom-anchored at y)
+      x: x + rr(-dw * 0.3, dw * 0.3),
+      y: y - rr(dh * 0.2, dh * 0.8),
+      vx: rr(k.vx[0], k.vx[1]), vy: rr(k.vy[0], k.vy[1]),
+      life: 0, ttl: rr(k.ttl[0], k.ttl[1]), size: rr(k.size[0], k.size[1]),
+      col: `${rgb[0]},${rgb[1]},${rgb[2]}`,
+      drag: k.drag, grav: k.grav, wob: k.wob, shape: k.shape, alpha: k.alpha, flicker: !!k.flicker,
+      ph: Math.random() * Math.PI * 2, aura: true,
+    });
+    this._auraCount = (this._auraCount || 0) + 1;
   }
 
   drawParticles(ctx) {
     for (const p of this.particles) {
-      const a = 0.5 * (1 - p.life / p.ttl);
+      const t = p.life / p.ttl;
+      let a = p.aura ? (p.alpha ?? 0.6) * Math.sin(t * Math.PI) : 0.5 * (1 - t); // auras ease in and out
+      if (p.flicker) a *= 0.7 + 0.3 * Math.sin(p.life * 0.9 + p.ph);
       ctx.fillStyle = `rgba(${p.col},${a.toFixed(3)})`;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      switch (p.shape) {
+        case 'cross': // twinkle
+          ctx.fillRect(p.x - p.size * 1.5, p.y - 0.5, p.size * 3, 1);
+          ctx.fillRect(p.x - 0.5, p.y - p.size * 1.5, 1, p.size * 3);
+          break;
+        case 'spark': // hot core with a white leading pixel
+          ctx.fillRect(p.x, p.y, p.size, p.size);
+          ctx.fillStyle = `rgba(255,255,255,${(a * 0.8).toFixed(3)})`;
+          ctx.fillRect(p.x + p.vx * 0.6, p.y + p.vy * 0.6, 1, 1);
+          break;
+        case 'wisp': // soft smoky puff
+          ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size, p.size * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+          break;
+        default:
+          ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      }
     }
   }
 

@@ -2,9 +2,10 @@
 nyxarr, starter admin/lab), escape-time fail counter, tracker + mastery UI,
 victory grading with mastery badges, defeat flow."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def boot_menu(page):

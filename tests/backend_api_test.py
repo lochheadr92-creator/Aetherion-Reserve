@@ -1,9 +1,10 @@
 """Backend API tests for Aetherion Reserve"""
 import requests
+import os
 import sys
 from datetime import datetime
 
-BASE_URL = "https://discovery-bio.preview.emergentagent.com/api"
+BASE_URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com") + "/api"
 
 class BackendTester:
     def __init__(self):

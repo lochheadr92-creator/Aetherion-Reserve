@@ -1,9 +1,10 @@
 """Backend regression test: saves CRUD with staff assignment fields."""
 import requests
+import os
 import sys
 import json
 
-BASE_URL = "https://discovery-bio.preview.emergentagent.com/api"
+BASE_URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com") + "/api"
 
 def test_backend():
     print("=== BACKEND REGRESSION TEST ===\n")

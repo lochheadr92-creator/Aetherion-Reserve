@@ -1,10 +1,11 @@
 """Game-feel pass: eased wheel zoom, pan release inertia, breach screen shake,
 building placement pop + dust particles, and silent adoption on save/load."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 from phase6_helpers import boot, build_park, click_tile
 
-URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def main():

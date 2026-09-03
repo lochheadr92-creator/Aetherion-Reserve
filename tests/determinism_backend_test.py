@@ -1,11 +1,12 @@
 """Determinism/persistence sanity + backend health check."""
 import asyncio
+import os
 import requests
 from playwright.async_api import async_playwright
 from phase6_helpers import boot, build_park
 
-URL = "https://discovery-bio.preview.emergentagent.com"
-BACKEND_URL = "https://discovery-bio.preview.emergentagent.com"
+URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
+BACKEND_URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
 
 
 async def main():

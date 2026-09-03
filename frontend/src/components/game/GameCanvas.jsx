@@ -31,11 +31,17 @@ export const GameCanvas = ({ onSelect, onToolResult, onToolChange, rendererRef, 
     if (game.state) renderer.setState(game.state);
 
     let raf;
+    const seenErrors = new Set(); // a render exception must never stop the loop silently
     const frame = () => {
       if (game.state && renderer.state !== game.state) renderer.setState(game.state);
       input.frame(); // edge scrolling glides the camera before the frame is drawn
-      renderer.render();
-      audio.update(game.state); // ambience follows weather / night / breaches (read-only)
+      try {
+        renderer.render();
+        audio.update(game.state); // ambience follows weather / night / breaches (read-only)
+      } catch (err) {
+        const msg = (err && err.message) || String(err);
+        if (!seenErrors.has(msg)) { seenErrors.add(msg); console.error('[render]', err); }
+      }
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);

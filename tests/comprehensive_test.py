@@ -4,8 +4,8 @@ import os
 from playwright.async_api import async_playwright
 import json
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-
+from config import URL
+from save_cleanup import SaveCleanup
 # Helper functions from smoke_game.py
 async def center(page, x, y):
     await page.evaluate("([x,y]) => window.__gameRenderer.centerOn(x, y)", [x, y])
@@ -63,9 +63,10 @@ async def main():
         "stability": []
     }
     
-    async with async_playwright() as pw:
+    async with async_playwright() as pw, SaveCleanup() as tracker:  # deletes every save this run creates
         browser = await pw.chromium.launch()
         page = await browser.new_page(viewport={"width": 1920, "height": 950})
+        tracker.attach(page)
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)[:300]))
         page.on("console", lambda msg: print(f"CONSOLE: {msg.text}") if msg.type in ["error", "warning"] else None)

@@ -4,7 +4,9 @@ import requests
 import sys
 import json
 
-BASE_URL = "https://discovery-bio.preview.emergentagent.com/api"
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tests'))
+from config import API as BASE_URL  # noqa: E402  (AETHERION_URL env var, preview fallback)
 
 class APITester:
     def __init__(self):
@@ -22,6 +24,14 @@ class APITester:
         return condition
 
     def run(self):
+        try:
+            return self._run()
+        finally:
+            if self.save_id:  # never leave test records behind
+                try: requests.delete(f"{BASE_URL}/saves/{self.save_id}", timeout=15)
+                except Exception: pass
+
+    def _run(self):
         print("Testing Backend API...")
         
         # Test 1: Root endpoint

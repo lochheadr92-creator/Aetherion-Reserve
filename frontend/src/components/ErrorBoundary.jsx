@@ -1,9 +1,11 @@
 import { Component } from 'react';
 import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { game } from '@/game/controller';
 
-// Catches render-time exceptions from the game screen so a bad frame or a
-// corrupt save shows a recoverable panel instead of a blank white page (H3).
+// Catches render-phase exceptions anywhere under <App/> so a bad frame or a
+// corrupt save shows a recoverable panel instead of a blank white page.
+// "Back to menu" stops the sim loop and remounts the app on the main menu.
 export class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -18,9 +20,14 @@ export class ErrorBoundary extends Component {
     if (typeof console !== 'undefined') console.error('[ErrorBoundary]', error, info?.componentStack);
   }
 
-  reset = () => {
+  retry = () => {
     this.setState({ error: null });
-    if (this.props.onReset) this.props.onReset();
+  };
+
+  backToMenu = () => {
+    try { game.stopLoop(); } catch (e) { /* loop may already be stopped */ }
+    // clearing the error unmounts the fallback and remounts <App/> fresh, i.e. on the main menu
+    this.setState({ error: null });
   };
 
   render() {
@@ -43,10 +50,10 @@ export class ErrorBoundary extends Component {
             </div>
           </div>
           <div className="mt-5 flex justify-end gap-2">
-            <Button data-testid="error-boundary-retry" variant="outline" onClick={this.reset}>
+            <Button data-testid="error-boundary-retry" variant="outline" onClick={this.retry}>
               <RotateCcw className="h-4 w-4 mr-1.5" /> Try again
             </Button>
-            <Button data-testid="error-boundary-home" onClick={() => { this.setState({ error: null }); if (this.props.onHome) this.props.onHome(); }}>
+            <Button data-testid="error-boundary-home" onClick={this.backToMenu}>
               <Home className="h-4 w-4 mr-1.5" /> Back to menu
             </Button>
           </div>

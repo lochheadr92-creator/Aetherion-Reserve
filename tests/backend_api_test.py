@@ -4,8 +4,8 @@ import os
 import sys
 from datetime import datetime
 
-BASE_URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com") + "/api"
-
+from config import API as BASE_URL
+from save_cleanup import SaveCleanup
 class BackendTester:
     def __init__(self):
         self.tests_run = 0
@@ -197,12 +197,14 @@ class BackendTester:
         print("BACKEND API TESTS - Aetherion Reserve")
         print("=" * 60)
         
-        self.test("Health Check (GET /api/)", self.test_health)
-        self.test("List Saves (GET /api/saves)", self.test_list_saves_empty)
-        self.test("Create Save (POST /api/saves)", self.test_create_save)
-        self.test("Get Save (GET /api/saves/{id})", self.test_get_save)
-        self.test("Update Save (PUT /api/saves/{id})", self.test_update_save)
-        self.test("Delete Save (DELETE /api/saves/{id})", self.test_delete_save)
+        with SaveCleanup() as tracker:  # never leave test records behind, even on failure
+            self.test("Health Check (GET /api/)", self.test_health)
+            self.test("List Saves (GET /api/saves)", self.test_list_saves_empty)
+            self.test("Create Save (POST /api/saves)", self.test_create_save)
+            tracker.add(self.save_id)
+            self.test("Get Save (GET /api/saves/{id})", self.test_get_save)
+            self.test("Update Save (PUT /api/saves/{id})", self.test_update_save)
+            self.test("Delete Save (DELETE /api/saves/{id})", self.test_delete_save)
         
         print("\n" + "=" * 60)
         print(f"📊 RESULTS: {self.tests_passed}/{self.tests_run} tests passed")

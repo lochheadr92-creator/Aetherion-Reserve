@@ -2,7 +2,7 @@
 import asyncio, os, sys
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
+from config import URL
 SPAWN = """(n) => { const s = window.__game.state;
   const ids = ['veyra','skitter','thornback','hollowcrest','mirefin','silttitan','shardling','mosswarden','rhoak','vantha','karrgan','lumen','umbra','voltari','emberoot','nyxarr','zephyrmaw','aurox','sylvarr'];
   for (let i = 0; i < n; i++) { const sid = ids[i % ids.length];

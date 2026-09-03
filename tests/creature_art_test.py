@@ -11,7 +11,7 @@ Usage: python tests/creature_art_test.py
 import asyncio, os, sys
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
+from config import URL
 SPECIES = ["veyra", "skitter", "thornback", "hollowcrest", "mirefin", "silttitan", "shardling", "mosswarden",
            "rhoak", "vantha", "karrgan", "lumen", "umbra", "voltari", "emberoot",
            "nyxarr", "zephyrmaw", "aurox", "sylvarr"]

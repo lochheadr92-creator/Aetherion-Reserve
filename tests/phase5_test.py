@@ -3,9 +3,7 @@ import asyncio
 import os
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-
-
+from config import URL
 async def tile_screen(page, x, y):
     return await page.evaluate(
         """([x, y]) => {

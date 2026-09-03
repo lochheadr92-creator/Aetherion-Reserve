@@ -6,7 +6,7 @@ Usage: python tests/art_gallery.py [a|b|c] [night]
 import asyncio, os, sys, json
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
+from config import URL
 SETS = {
     "a": ["veyra", "skitter", "thornback", "hollowcrest", "mirefin", "silttitan", "shardling", "mosswarden"],
     "b": ["rhoak", "vantha", "karrgan", "lumen", "umbra", "voltari", "emberoot"],

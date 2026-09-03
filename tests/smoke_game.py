@@ -3,9 +3,8 @@ import asyncio
 import os
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-
-
+from config import URL
+from save_cleanup import SaveCleanup
 async def center(page, x, y):
     await page.evaluate("([x,y]) => window.__gameRenderer.centerOn(x, y)", [x, y])
     await page.wait_for_timeout(80)
@@ -30,9 +29,10 @@ async def click_tile(page, x, y, dx=0, dy=0):
 
 
 async def main():
-    async with async_playwright() as pw:
+    async with async_playwright() as pw, SaveCleanup() as tracker:  # deletes every save this run creates
         browser = await pw.chromium.launch()
         page = await browser.new_page(viewport={"width": 1920, "height": 950})
+        tracker.attach(page)
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)[:300]))
         await page.goto(URL, wait_until="networkidle", timeout=30000)

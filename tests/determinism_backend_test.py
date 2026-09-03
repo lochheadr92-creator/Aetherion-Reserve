@@ -5,10 +5,9 @@ import requests
 from playwright.async_api import async_playwright
 from phase6_helpers import boot, build_park
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-BACKEND_URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-
-
+from config import URL
+from save_cleanup import SaveCleanup
+from config import URL as BACKEND_URL
 async def main():
     # ---- Backend health check ----
     print("=== BACKEND HEALTH CHECK ===")
@@ -20,9 +19,10 @@ async def main():
 
     # ---- Determinism/persistence check ----
     print("\n=== DETERMINISM/PERSISTENCE CHECK ===")
-    async with async_playwright() as pw:
+    async with async_playwright() as pw, SaveCleanup() as tracker:  # deletes every save this run creates
         browser = await pw.chromium.launch()
         page = await browser.new_page(viewport={"width": 1920, "height": 950})
+        tracker.attach(page)
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)[:300]))
         await boot(page, URL)

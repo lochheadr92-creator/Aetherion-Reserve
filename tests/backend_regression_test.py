@@ -4,8 +4,8 @@ import os
 import sys
 import json
 
-BASE_URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com") + "/api"
-
+from config import API as BASE_URL
+from save_cleanup import SaveCleanup
 def test_backend():
     print("=== BACKEND REGRESSION TEST ===\n")
     
@@ -147,5 +147,18 @@ def test_backend():
     return True
 
 if __name__ == "__main__":
-    success = test_backend()
+    with SaveCleanup() as _tracker:  # removes the save if any step returned early
+        _created = []
+        _orig_post = requests.post
+
+        def _tracking_post(*a, **kw):
+            r = _orig_post(*a, **kw)
+            try:
+                if r.status_code == 200 and "/saves" in a[0]:
+                    _tracker.add(r.json().get("id"))
+            except Exception:
+                pass
+            return r
+        requests.post = _tracking_post
+        success = test_backend()
     sys.exit(0 if success else 1)

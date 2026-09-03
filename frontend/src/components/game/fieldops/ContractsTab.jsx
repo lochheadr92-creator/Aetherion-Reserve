@@ -1,7 +1,7 @@
 import { FileCheck2, FileX2, Timer, Award } from 'lucide-react';
 import { toast } from 'sonner';
 import { game } from '@/game/controller';
-import { acceptContract, declineContract, contractProgress, refreshContracts } from '@/game/contracts';
+import { acceptContract, declineContract, contractProgress } from '@/game/contracts';
 import { fmtMoney } from '@/game/constants';
 
 function ProgressBar({ pct, done }) {
@@ -64,7 +64,6 @@ function OfferedContract({ c, canAccept }) {
 
 export default function ContractsTab({ s }) {
   const cs = s.contracts;
-  if (cs.available.length === 0 && cs.active.length === 0) refreshContracts(s);
   const canAccept = cs.active.length < 3;
   return (
     <div className="grid grid-cols-2 gap-4 content-start" data-testid="contracts-tab">

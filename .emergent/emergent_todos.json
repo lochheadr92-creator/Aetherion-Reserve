@@ -1,30 +1,46 @@
 [
   {
-    "content": "H0: .env.example files, README run instructions, AETHERION_URL in all test files",
+    "content": "S2: adjacentOpenTile returns mother's tile when no fence-free candidate",
     "status": "completed"
   },
   {
-    "content": "H1: adjacentOpenTile fenceBetween check + boundary-tile breeding test",
+    "content": "S3: ErrorBoundary -> components/ErrorBoundary.jsx wrapping <App/> in index.js; GameCanvas render try/catch",
     "status": "completed"
   },
   {
-    "content": "H2: deserialize backfills (knowledge, research ids, buildings/creatures unknown types)",
+    "content": "S4: controller.loadGame builds state locally before assigning this.*",
     "status": "completed"
   },
   {
-    "content": "H4: seeded RNG in state (seed + counter), reset on newGame, restore on load; determinism test",
+    "content": "S5: remove ContractsTab render-time refreshContracts; refresh once in controller.newGame",
     "status": "completed"
   },
   {
-    "content": "H3/M3: React ErrorBoundary + load/save error toasts",
+    "content": "S6: getRngState/setRngState, rngState save key (read legacy rng), seed null when missing, newGame passes seed",
     "status": "completed"
   },
   {
-    "content": "H5: backend per-player token (X-Player-Token), id/owner index, list pagination; frontend token header",
+    "content": "S8: backend list cap 200 + updated_at index; .env.example/README check",
     "status": "completed"
   },
   {
-    "content": "H6: local suite assessment_fixes_test.py 25/25 + regressions green; testing agent iteration_21 = 100%",
+    "content": "S7a: tests/config.py + import in all tests incl. backend_test.py files",
+    "status": "completed"
+  },
+  {
+    "content": "S7b: audit save-creating tests -> finally cleanup",
+    "status": "completed"
+  },
+  {
+    "content": "S7c: new determinism_test.py, save_compat_test.py, birth_boundary_test.py",
+    "status": "completed"
+  },
+  {
+    "content": "S9: purge DB saves; run acceptance suites in order; update test_result.md",
+    "status": "completed"
+  },
+  {
+    "content": "S10: testing agent iteration_22 = 100%; DB confirmed clean; final report",
     "status": "completed"
   }
 ]

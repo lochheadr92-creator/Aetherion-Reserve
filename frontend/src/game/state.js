@@ -15,13 +15,16 @@ export const emit = (evt, data) => { (listeners[evt] || []).forEach((fn) => { tr
 // ---- Deterministic RNG (H4) ----
 // Every sim-side random draw goes through rnd(), a 31-bit LCG. The live cursor is
 // module-level (98 call sites take no state argument) but it is OWNED by the state:
-// createNewGame seeds it from state.seed, serialize() snapshots it into state.rng and
+// createNewGame seeds it from state.seed, serialize() snapshots it into state.rngState and
 // deserialize() restores it, so a loaded save replays identically every time.
 const RNG_MOD = 2147483648;
 let seedCounter = 12345;
 export const rnd = () => { seedCounter = (seedCounter * 1103515245 + 12345) % RNG_MOD; return seedCounter / RNG_MOD; };
-export const getRngCursor = () => seedCounter;
-export const setRngCursor = (v) => { seedCounter = Number.isFinite(v) ? Math.floor(Math.abs(v)) % RNG_MOD : 12345; };
+export const getRngState = () => seedCounter;
+export const setRngState = (v) => { seedCounter = Number.isFinite(v) ? Math.floor(Math.abs(v)) % RNG_MOD : 12345; };
+// aliases kept for the debug hook / older tests
+export const getRngCursor = getRngState;
+export const setRngCursor = setRngState;
 
 export function pushAlert(state, { type = 'info', title, msg, target = null }) {
   const a = { id: state.nextId++, tick: state.tick, type, title, msg, target, read: false };
@@ -89,10 +92,10 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
   // world seed: fixed by default (reproducible starts, stable test fixtures); callers may pass
   // an explicit seed for variety. Whatever it is, it lives in state.seed and can be replayed.
   const worldSeed = Number.isFinite(seed) ? Math.floor(Math.abs(seed)) % RNG_MOD : 12345;
-  setRngCursor(worldSeed);
+  setRngState(worldSeed);
   const state = {
     version: 1, mode, parkName,
-    seed: worldSeed, rng: worldSeed,
+    seed: worldSeed, rngState: worldSeed,
     tick: 0, day: 1, speed: 1, paused: false,
     cash: mode === 'sandbox' ? 9999999 : 150000,
     ticketPrice: 25,
@@ -159,7 +162,11 @@ export function serialize(state) {
   const clean = { ...state };
   // strip derived/transient keys (start with _)
   Object.keys(clean).forEach((k) => { if (k.startsWith('_')) delete clean[k]; });
-  clean.rng = getRngCursor(); // H4: snapshot the RNG cursor so a load replays identically
+  // snapshot the RNG cursor so a load replays identically (also refreshed on the live
+  // state, so a continued game and its reloaded save carry the same value)
+  state.rngState = getRngState();
+  clean.rngState = state.rngState;
+  delete clean.rng; // pre-stabilisation key name (read on load, never written again)
   return JSON.parse(JSON.stringify(clean));
 }
 
@@ -206,9 +213,12 @@ export function deserialize(data) {
   const nc = (state.creatures || []).length;
   state.creatures = (state.creatures || []).filter((c) => SPECIES_LIST.some((sp) => sp.id === c.speciesId));
   if (state.creatures.length !== nc) warn(`dropped ${nc - state.creatures.length} creature(s) of unknown species`);
-  // H4: restore the RNG cursor (legacy saves without one fall back to the fixed seed)
-  if (!Number.isFinite(state.seed)) state.seed = 12345;
-  setRngCursor(Number.isFinite(state.rng) ? state.rng : state.seed);
+  // restore the RNG cursor; saves that predate the seed carry seed = null and start from the default cursor
+  if (!Number.isFinite(state.seed)) state.seed = null;
+  const cursor = typeof state.rngState === 'number' ? state.rngState : (typeof state.rng === 'number' ? state.rng : null);
+  if (cursor !== null) setRngState(cursor); else setRngState(Number.isFinite(state.seed) ? state.seed : 12345);
+  if (cursor !== null) state.rngState = cursor;
+  delete state.rng;
   state._terrainDirty = true;
   state._encDirty = true;
   state._occDirty = true;

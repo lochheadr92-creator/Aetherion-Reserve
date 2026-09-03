@@ -3,9 +3,7 @@ import asyncio
 import os
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-
-
+from config import URL
 async def center(page, x, y):
     await page.evaluate("([x,y]) => window.__gameRenderer.centerOn(x, y)", [x, y])
     await page.wait_for_timeout(80)

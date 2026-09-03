@@ -4,7 +4,7 @@ import asyncio
 import os
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
+from config import URL
 SHOTS = "/tmp/p16"
 
 # new Phase 16 buildings: id -> (w, h)

@@ -1,9 +1,10 @@
 // ---- Game controller: owns the state object + fixed-timestep loop; bridge to React ----
 import axios from 'axios';
 import { TICK_MS } from './constants';
-import { createNewGame, serialize, deserialize, emit, on, setTimeControls, getRngCursor } from './state';
+import { createNewGame, serialize, deserialize, emit, on, setTimeControls, getRngCursor, getRngState } from './state';
 import { tickOnce, initObjectives } from './sim';
 import { adjacentOpenTile } from './creatures';
+import { refreshContracts } from './contracts';
 import { applyScenario } from './scenarios';
 import { ensureGenes } from './genetics';
 import { ensureLineage } from './lineage';
@@ -46,13 +47,14 @@ class GameController {
     if (typeof window !== 'undefined') {
       window.__game = this; // debug/testing access
       // pure helpers exposed for the local test suites (no gameplay side effects)
-      window.__gameDebug = { adjacentOpenTile, serialize, deserialize, getRngCursor, playerToken };
+      window.__gameDebug = { adjacentOpenTile, serialize, deserialize, getRngCursor, getRngState, playerToken };
     }
   }
 
   newGame(opts) {
-    this.state = createNewGame(opts);
+    this.state = createNewGame(opts); // opts.seed (if any) passes through unchanged
     initObjectives(this.state);
+    refreshContracts(this.state); // initial directive offers (the only call outside the tick)
     if (opts && opts.scenarioId) applyScenario(this.state, opts.scenarioId);
     ensureGenes(this.state);
     ensureLineage(this.state);
@@ -144,10 +146,13 @@ class GameController {
 
   async loadGame(saveId) {
     const res = await http.get(`/saves/${saveId}`);
-    this.state = deserialize(res.data.state);
-    initObjectives(this.state);
-    ensureGenes(this.state);
-    ensureLineage(this.state);
+    // build and validate the incoming state fully before touching controller fields:
+    // a failed load must leave the current game (if any) untouched
+    const next = deserialize(res.data.state);
+    initObjectives(next);
+    ensureGenes(next);
+    ensureLineage(next);
+    this.state = next;
     this.saveId = saveId;
     this.saveName = res.data.name;
     clearUndo();

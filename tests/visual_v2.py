@@ -3,7 +3,7 @@ import os
 import asyncio
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "http://localhost:3000")
+from config import URL
 
 
 async def main():

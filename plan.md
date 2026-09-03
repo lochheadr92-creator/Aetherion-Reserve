@@ -355,6 +355,24 @@
 
 ---
 
+### Stabilisation pass (post-Phase F review items; executed after Phase G/H) ✅ COMPLETE (iteration_22 = 100%; determinism 8/8, save_compat 6/6, birth_boundary 7/7, acceptance suites green, DB clean)
+Scope = external review of d034801, items 1–8 only; no features / balance / renderer / UI redesign. Decisions (user, this pass):
+keep the already-live Phase H extras (per-browser save scoping, deserialize filters); default world seed stays fixed 12345
+(explicit `seed` supported); purge all leftover DB saves; single testing-agent run reported as iteration_22.
+1. Old-save crash — `deserialize` backfills `state.knowledge` for every `SPECIES_LIST` entry (done in Phase H; verified again here).
+2. Newborns across the fence — `adjacentOpenTile` skips `fenceBetween` candidates; returns the mother's tile when none survive.
+3. Error boundary at `components/ErrorBoundary.jsx` wrapping `<App/>` in `index.js` ("Back to menu" → `game.stopLoop()` + remount);
+   `GameCanvas` rAF wraps `renderer.render()` in try/catch (console.error once per distinct message, loop keeps scheduling).
+4. Load failures — `App.handleLoad` try/catch + toast; `controller.loadGame` builds/deserializes into a local before touching `this.*`.
+5. `ContractsTab` no longer calls `refreshContracts` during render; `controller.newGame` refreshes once after `initObjectives`.
+6. Determinism — `getRngState/setRngState`; `createNewGame({seed})` → `state.seed`; `serialize` writes `rngState`; `deserialize`
+   restores it (legacy `rng` key still read; missing seed → `null`).
+7. Tests — `tests/config.py` (`URL`/`API` from `AETHERION_URL`), every suite imports it (incl. `backend_test.py`, `backend/backend_test.py`);
+   save-creating tests delete in `finally`; new `determinism_test.py` (A/B/C), `save_compat_test.py`, `birth_boundary_test.py`.
+8. Docs — `.env.example` files, README run guide; backend list cap 200 + indexes on `id`, `updated_at` (and `(owner, updated_at)`).
+Acceptance: determinism → save_compat → birth_boundary → smoke_game → phase20 → phase21 → phase17, then testing agent (iteration_22);
+DB must hold no `determinism-b` / `compat-test` saves afterwards.
+
 ### Phase H — Assessment Fixes (local verification + correctness + hardening) ✅ COMPLETE (verified: iteration_21 = 100%; assessment_fixes_test 25/25)
 **Goal:** convert “green on Emergent” into “verifiable locally”, fix correctness edge cases, and harden save/load and backend scope.
 
@@ -465,4 +483,5 @@
 **Next verification to produce:**
 - **iteration_20: post-Phase G verification** ✅ (**testing_agent_v3 100% overall**; backend 12/12; creature_art 17/17; phase20 39/39; phase21 28/28; visual/sovereign/gamefeel/smoke green; perf within budget).
 - **iteration_21: post-Phase H verification** ✅ (**testing_agent_v3 100%**; backend 12/12; assessment_fixes 25/25; creature_art 17/17; keeper/gamefeel/phase17/phase20/phase21/input_ux green. phase21 LEDGER 7 was made data-independent — the ledger itself was correct).
-- **Next:** iteration_22 after the next feature phase.
+- **iteration_22: stabilisation pass** ✅ (**testing_agent_v3 100%**; items 1–8 verified; backend 6/6 + 19/19 + 11/11; all regressions green; no leftover saves).
+- **Next:** iteration_23 after the next feature phase.

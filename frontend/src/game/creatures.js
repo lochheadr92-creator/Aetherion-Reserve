@@ -577,7 +577,7 @@ export function adjacentOpenTile(state, x, y, swims) {
     if (fenceBetween(state, x, y, tx, ty)) continue;
     return { x: tx, y: ty };
   }
-  return null;
+  return { x, y }; // no fence-free neighbour: the newborn shares the mother's tile
 }
 
 // ---------- anomalous abilities: camouflage, burrowing, electrical surges ----------

@@ -6,8 +6,7 @@ import os
 from playwright.async_api import async_playwright
 from phase6_helpers import click_tile
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-
+from config import URL
 RESULTS = []
 
 

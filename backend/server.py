@@ -27,7 +27,7 @@ api_router = APIRouter(prefix="/api")
 # delete are limited to the caller's own saves. Saves written before this scheme
 # have no owner and stay visible to everyone (backward compatible).
 PLAYER_HEADER = "X-Player-Token"
-LIST_DEFAULT = 50
+LIST_DEFAULT = 200
 LIST_MAX = 200
 
 
@@ -47,6 +47,7 @@ def _can_touch(doc: Dict[str, Any], token: Optional[str]) -> bool:
 async def ensure_indexes() -> None:
     try:
         await db.saves.create_index("id", unique=True)
+        await db.saves.create_index([("updated_at", -1)])
         await db.saves.create_index([("owner", 1), ("updated_at", -1)])
     except Exception as exc:  # index creation must never block the service
         logging.getLogger(__name__).warning("index creation skipped: %s", exc)

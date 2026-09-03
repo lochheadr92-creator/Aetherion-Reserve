@@ -4,7 +4,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import MainMenu from '@/components/game/MainMenu';
 import GameScreen from '@/components/game/GameScreen';
-import { ErrorBoundary } from '@/components/game/ErrorBoundary';
 import { game } from '@/game/controller';
 import { audio } from '@/game/audio';
 
@@ -55,9 +54,7 @@ function App() {
       {screen === 'menu' ? (
         <MainMenu onStart={handleStart} onLoad={handleLoad} />
       ) : (
-        <ErrorBoundary onHome={handleExit}>
-          <GameScreen onExit={handleExit} />
-        </ErrorBoundary>
+        <GameScreen onExit={handleExit} />
       )}
       <Toaster
         position="bottom-right"

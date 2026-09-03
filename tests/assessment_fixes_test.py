@@ -14,7 +14,8 @@ import asyncio, os, sys, uuid
 import requests
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
+from config import URL
+from save_cleanup import SaveCleanup
 API = URL.rstrip("/") + "/api"
 
 results = []
@@ -80,9 +81,10 @@ def backend_checks():
 
 async def main():
     backend_checks()
-    async with async_playwright() as pw:
+    async with async_playwright() as pw, SaveCleanup() as tracker:  # deletes every save this run creates
         browser = await pw.chromium.launch()
         page = await browser.new_page(viewport={"width": 1500, "height": 900})
+        tracker.attach(page)
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)[:200]))
         await boot(page)
@@ -102,7 +104,7 @@ async def main():
             const notEast = f(s, x, y, false);
             s.fences = saved; s._encDirty = true;
             return { penned, north, notEast }; })()""")
-        check("H1.1 fully fenced tile yields no newborn spot (never across a fence)", h1["penned"] is None, str(h1))
+        check("H1.1 fully fenced tile keeps the newborn on the mother's tile (never across a fence)", h1["penned"] == {"x": 20, "y": 20}, str(h1))
         check("H1.2 with the north edge open the newborn goes north", h1["north"] == {"x": 20, "y": 19}, str(h1))
         check("H1.3 boundary tile: east fence is skipped", h1["notEast"] is not None and h1["notEast"] != {"x": 21, "y": 20}, str(h1))
 
@@ -116,8 +118,8 @@ async def main():
         check("H4.3 seed stored in state", seed_saved["seed"] == 4243, str(seed_saved))
         # save, then load twice and replay — the RNG cursor must be restored from the save
         sid = await page.evaluate("(async () => { const r = await window.__game.saveGame('H4 determinism'); return r.id; })()")
-        snap = await page.evaluate("(() => { const st = window.__gameDebug.serialize(window.__game.state); return { rng: st.rng, cursor: window.__gameDebug.getRngCursor() }; })()")
-        check("H4.4 serialize snapshots the live RNG cursor", snap["rng"] == snap["cursor"], str(snap))
+        snap = await page.evaluate("(() => { const st = window.__gameDebug.serialize(window.__game.state); return { rng: st.rngState, cursor: window.__gameDebug.getRngState() }; })()")
+        check("H4.4 serialize snapshots the live RNG cursor as rngState", snap["rng"] == snap["cursor"] and isinstance(snap["rng"], int), str(snap))
         r1 = await page.evaluate("(async () => { await window.__game.loadGame('" + sid + "'); window.__game.setPaused(true); const c0 = window.__gameDebug.getRngCursor(); window.__game.stepTicks(400); return { ...(" + HASH + "), c0 }; })()")
         # perturb the RNG between loads (as a second session would) to prove the load restores it
         await page.evaluate("(() => { window.__game.newGame({ mode: 'sandbox', seed: 99 }); window.__game.stepTicks(37); })()")
@@ -134,7 +136,7 @@ async def main():
             st.research.completed.push('bogus_project_x'); st.research.active = { id: 'ghost_research', progress: 1, total: 10 };
             st.buildings.push({ id: 90001, type: 'ghost_building', x: 10, y: 10, w: 1, h: 1, rot: 0 });
             st.creatures.push({ id: 90002, speciesId: 'not_a_species', name: 'Nope', x: 12.5, y: 12.5, path: [], state: 'idle', needs: {}, welfare: 1, stress: 0, health: 1, factors: [], dir: 1 });
-            delete st.rng; delete st.seed;  // pre-H4 save
+            delete st.rng; delete st.rngState; delete st.seed;  // pre-seed save
             const res = await fetch('""" + API + """/saves', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: 'H2 old build', state: st }) });
             return (await res.json()).id; })()""")
@@ -151,7 +153,7 @@ async def main():
         check("H2.1 knowledge backfilled for species missing from the save", h2["hasKnowledge"], str(h2.get("warns")))
         check("H2.2 unknown research ids dropped / unknown active research cleared", h2["bogusGone"] and h2["activeCleared"])
         check("H2.3 unknown building type and unknown species dropped (with load warnings)", h2["ghostGone"] and h2["speciesGone"] and len(h2["warns"]) >= 3, str(h2["warns"]))
-        check("H2.4 pre-H4 save gets a default seed and keeps ticking", h2["seed"] == 12345 and h2["tick"] >= 120, str({k: h2[k] for k in ('seed', 'tick')}))
+        check("H2.4 pre-seed save loads with seed = null and keeps ticking", h2["seed"] is None and h2["tick"] >= 120, str({k: h2[k] for k in ('seed', 'tick')}))
         await page.evaluate("window.__game.deleteSave('" + corrupt_id + "')")
         # header token is attached by the frontend client
         tok = await page.evaluate("window.__gameDebug.playerToken()")

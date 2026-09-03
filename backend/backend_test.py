@@ -4,7 +4,9 @@ from datetime import datetime
 
 import requests
 
-BASE_URL = "https://discovery-bio.preview.emergentagent.com/api"
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tests'))
+from config import API as BASE_URL  # noqa: E402  (AETHERION_URL env var, preview fallback)
 GRID_CELLS = 4096
 
 # Expected scenario field values used by the persistence test.
@@ -204,6 +206,7 @@ class APITester:
         if not success or "id" not in response:
             return None
         print(f"   Created scenario save with ID: {response['id']}")
+        self.created_ids = getattr(self, "created_ids", []) + [response["id"]]
         return response["id"]
 
     def _verify_scenario_fields(self, save_id):
@@ -256,8 +259,14 @@ def main():
         tester.test_scenario_fields_persistence,
         tester.test_delete_save,
     )
-    for test in tests:
-        test()
+    try:
+        for test in tests:
+            test()
+    finally:  # never leave test records behind, even if a step raised
+        for sid in {tester.save_id, *getattr(tester, "created_ids", [])}:
+            if sid:
+                try: requests.delete(f"{BASE_URL}/saves/{sid}", timeout=15)
+                except Exception: pass
 
     print("\n" + "=" * 60)
     print(f"📊 Tests passed: {tester.tests_passed}/{tester.tests_run}")

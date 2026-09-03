@@ -4,9 +4,7 @@ import asyncio
 import os
 from playwright.async_api import async_playwright
 
-URL = os.environ.get("AETHERION_URL", "https://discovery-bio.preview.emergentagent.com")
-
-
+from config import URL
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch()

@@ -151,7 +151,10 @@ async def main():
                 for (let f = 0; f < 400; f++) { r.frame = f; const l = r.idleLife({ id: 3, state: 'idle' }, false, sh); if (l.shear) flick = true; if (l.breath !== 1) breathe = true; }
                 return { hasBlink: !!sh.blink, diff, restBlink: rest.blink, walkNeutral: !walk.blink && walk.breath === 1 && walk.shear === 0, flick, breathe }; })()"""
         )
-        check("IDLE 1 blink frames (exact recorded eye rects)", life["hasBlink"] and 1 <= life["diff"] <= 60, str(life))
+        # Bound measured on the Phase-G sheets (blink[0] vs idle[0], RGB-differing pixels): nyxarr = 16,
+        # the largest of all 19 species (range 4..16). Procedural art is deterministic, so 16 is exact;
+        # a blink frame that diverged outside the recorded eye rects would differ by hundreds of pixels.
+        check("IDLE 1 blink frames (exact recorded eye rects)", life["hasBlink"] and 1 <= life["diff"] <= 16, str(life))
         check("IDLE 2 resting creatures keep eyes shut; walkers stay neutral", life["restBlink"] and life["walkNeutral"], str(life))
         check("IDLE 3 breathing pulse + periodic flick over a 400-frame window", life["flick"] and life["breathe"], str(life))
         # footprints: let the Sovereigns roam a while

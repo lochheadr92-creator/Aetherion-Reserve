@@ -1,46 +1,22 @@
 [
   {
-    "content": "S2: adjacentOpenTile returns mother's tile when no fence-free candidate",
+    "content": "Items 1-8 implemented",
     "status": "completed"
   },
   {
-    "content": "S3: ErrorBoundary -> components/ErrorBoundary.jsx wrapping <App/> in index.js; GameCanvas render try/catch",
+    "content": "Verify items 3/4/5 directly in browser",
     "status": "completed"
   },
   {
-    "content": "S4: controller.loadGame builds state locally before assigning this.*",
+    "content": "Run all local test suites - 17 suites green, DB clean",
     "status": "completed"
   },
   {
-    "content": "S5: remove ContractsTab render-time refreshContracts; refresh once in controller.newGame",
+    "content": "Exactly one testing-agent run - iteration_23 = 100%",
     "status": "completed"
   },
   {
-    "content": "S6: getRngState/setRngState, rngState save key (read legacy rng), seed null when missing, newGame passes seed",
-    "status": "completed"
-  },
-  {
-    "content": "S8: backend list cap 200 + updated_at index; .env.example/README check",
-    "status": "completed"
-  },
-  {
-    "content": "S7a: tests/config.py + import in all tests incl. backend_test.py files",
-    "status": "completed"
-  },
-  {
-    "content": "S7b: audit save-creating tests -> finally cleanup",
-    "status": "completed"
-  },
-  {
-    "content": "S7c: new determinism_test.py, save_compat_test.py, birth_boundary_test.py",
-    "status": "completed"
-  },
-  {
-    "content": "S9: purge DB saves; run acceptance suites in order; update test_result.md",
-    "status": "completed"
-  },
-  {
-    "content": "S10: testing agent iteration_22 = 100%; DB confirmed clean; final report",
+    "content": "Report STATUS / CHANGES / RISKS / NOT DONE",
     "status": "completed"
   }
 ]

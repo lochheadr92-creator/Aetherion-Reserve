@@ -54,10 +54,12 @@ class GameController {
   newGame(opts) {
     this.state = createNewGame(opts); // opts.seed (if any) passes through unchanged
     initObjectives(this.state);
-    refreshContracts(this.state); // initial directive offers (the only call outside the tick)
     if (opts && opts.scenarioId) applyScenario(this.state, opts.scenarioId);
     ensureGenes(this.state);
     ensureLineage(this.state);
+    // initial directive offers (the only call outside the tick) — AFTER the scenario template,
+    // so a mission's directives are generated against its populated park, not an empty one
+    refreshContracts(this.state);
     this.saveId = null;
     this.saveName = null;
     clearUndo();

@@ -16,7 +16,8 @@ Backend (requests) suites:
     with SaveCleanup() as tracker:
         ...; tracker.add(save_id)     # or tracker.add(save_id, token)
 
-Deletes are best-effort: a 404 (already deleted by the test itself) is fine.
+Deletes are best-effort. A 404 is reported as a WARNING (not counted as removed): a test that
+deletes its own save should call tracker.forget(save_id) so teardown stays quiet.
 """
 import requests
 
@@ -32,11 +33,15 @@ class SaveCleanup:
         async def on_response(resp):
             try:
                 req = resp.request
-                if req.method != "POST" or "/api/saves" not in resp.url or not resp.ok:
+                if "/api/saves" not in resp.url or not resp.ok:
                     return
-                data = await resp.json()
-                if isinstance(data, dict) and data.get("id"):
-                    self.ids[data["id"]] = req.headers.get("x-player-token")
+                if req.method == "POST":
+                    data = await resp.json()
+                    if isinstance(data, dict) and data.get("id"):
+                        self.ids[data["id"]] = req.headers.get("x-player-token")
+                elif req.method == "DELETE":
+                    # the test removed its own save through the page: nothing left for teardown
+                    self.ids.pop(resp.url.rstrip("/").rsplit("/", 1)[-1], None)
             except Exception:
                 pass
         page.on("response", on_response)
@@ -48,18 +53,28 @@ class SaveCleanup:
             self.ids[save_id] = token
         return save_id
 
+    def forget(self, save_id):
+        """A test that deletes its own save un-tracks it so teardown does not report a 404 warning."""
+        self.ids.pop(save_id, None)
+
     def cleanup(self):
-        failed = []
+        failed, warned = [], []
         for sid, tok in list(self.ids.items()):
             headers = {"X-Player-Token": tok} if tok else {}
             try:
                 r = requests.delete(f"{API}/saves/{sid}", headers=headers, timeout=15)
-                if r.status_code not in (200, 404):
+                if r.status_code == 404:
+                    warned.append(sid)  # nothing to remove: not a success, but not a leak either
+                elif r.status_code != 200:
                     failed.append((sid, r.status_code))
             except Exception as e:  # pragma: no cover - network hiccup during teardown
                 failed.append((sid, str(e)[:80]))
         if self.ids:
-            print(f"[cleanup] removed {len(self.ids) - len(failed)}/{len(self.ids)} test save(s)" + (f", failed: {failed}" if failed else ""))
+            removed = len(self.ids) - len(failed) - len(warned)
+            print(f"[cleanup] removed {removed}/{len(self.ids)} test save(s)"
+                  + (f", failed: {failed}" if failed else ""))
+            for sid in warned:
+                print(f"[cleanup] WARNING: save {sid} was already gone (404) — check the test deleted it itself, or the wrong token was recorded")
         self.ids.clear()
 
     def __enter__(self):

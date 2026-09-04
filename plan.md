@@ -429,6 +429,20 @@ DB must hold no `determinism-b` / `compat-test` saves afterwards.
 - Renderer culling and dirty-rect terrain repaint.
 - Balance items (cooldowns, difficulty tuning) until humans play.
 
+### Phase I — Remediation Pass (Status: COMPLETED, pending one testing-agent run)
+Eight scoped items, no features / no art. Phase G continuation (juveniles, voices, live portraits,
+context poses) is PAUSED; the previous agent's uncommitted `art/pixel.js` scaffolding was reverted so
+this pass contains exactly the eight items.
+1. `server.py` PUT/DELETE: `existing is None` (projection `{owner:1}` yields `{}` for ownerless docs) + `tests/backend_ownerless_test.py` (motor insert, PUT/DELETE adopt/delete).
+2. `server.py`: X-Player-Token validated (<= 64 chars, `^[A-Za-z0-9-]+$`, else 400); `skip <= 10000`; three separate `create_index` try blocks.
+3. `state.js createNewGame`: seed = `(Date.now() % 2147483647) || 1` when absent / non-integer / non-finite; explicit integer seeds replay exactly. (assessment_fixes_test has no literal-12345 assertion — nothing to update.)
+4. `state.js deserialize`: SAVE REPAIRED warning alert on any scrub; scrubs `expeditions[].specimens` + `research.dynamicProjects` of unknown species; backfills `objectives: []`; `setRngState` moved to the very end.
+5. `GameCanvas.jsx`: `render-error-banner` + `game.setPaused(true)` on first caught frame error; `input.frame()` inside the try. `ErrorBoundary.retry` calls `game.stopLoop()` first.
+6. `controller.js newGame`: `refreshContracts` after `applyScenario` / `ensureGenes` / `ensureLineage`.
+7. Tests: SaveCleanup in phase5/6b/8/9; phase5 + determinism_backend collect results and `sys.exit(1)`; phase5 3a expects 5 zones; determinism_backend uses `config.API`; save_cleanup 404 = WARNING (and forgets ids the page itself deleted); LEDGER 7 compares to the living creature's name.
+8. `renderer.js`: agitated = escaped || stress > 0.55 (hungry/flee removed). phase20 IDLE 1 bound restored to **16** (measured nyxarr blink-vs-idle diff = 16 px; species range 4..16).
+Local run: 17 suites green, DB left with 0 records.
+
 ---
 
 ## 3) Next Actions (backlog — pick with the user)

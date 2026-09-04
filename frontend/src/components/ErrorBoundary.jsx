@@ -21,6 +21,8 @@ export class ErrorBoundary extends Component {
   }
 
   retry = () => {
+    // the sim loop from the crashed session must not keep ticking under a remounted tree
+    try { game.stopLoop(); } catch (e) { /* loop may already be stopped */ }
     this.setState({ error: null });
   };
 

@@ -227,7 +227,7 @@ async def main():
         m_txt = await page.locator('[data-testid="ledger-mother"]').inner_text()
         f2_txt = await page.locator('[data-testid="ledger-father"]').inner_text()
         gp = await page.locator('[data-testid="ledger-gp-mm"]').inner_text()
-        names = await S(f"(() => {{ const L = window.__game.state.lineage; return {{ m: L[{mother}].name, f: L[{father}].name }}; }})()")
+        names = await S(f"(() => {{ const cs = window.__game.state.creatures; return {{ m: cs.find(c => c.id === {mother}).name, f: cs.find(c => c.id === {father}).name }}; }})()")
         check("LEDGER 7 offspring view: both parents + wild grandparents", names["m"] in m_txt and names["f"] in f2_txt and "wild origin" in gp, f"{m_txt} | {f2_txt} | {gp}".replace("\n", " / "))
         await page.click('[data-testid="ledger-close-button"]')
         await page.wait_for_timeout(200)

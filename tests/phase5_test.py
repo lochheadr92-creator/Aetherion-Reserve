@@ -1,9 +1,21 @@
 """Phase 5 test: rectangle fence mode, security response loop, expeditions + contracts."""
 import asyncio
 import os
+import sys
 from playwright.async_api import async_playwright
 
 from config import URL
+from save_cleanup import SaveCleanup
+
+results = []
+
+
+def report(label, ok, detail=""):
+    """Print one PASS/FAIL line and record it; main() exits 1 if any check failed."""
+    results.append(bool(ok))
+    print(label, detail, "PASS" if ok else "FAIL")
+
+
 async def tile_screen(page, x, y):
     return await page.evaluate(
         """([x, y]) => {
@@ -47,9 +59,10 @@ async def drag(page, v0, v1):
 
 
 async def main():
-    async with async_playwright() as pw:
+    async with async_playwright() as pw, SaveCleanup() as tracker:  # deletes every save this run creates
         browser = await pw.chromium.launch()
         page = await browser.new_page(viewport={"width": 1920, "height": 950})
+        tracker.attach(page)
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)[:300]))
         await page.goto(URL, wait_until="networkidle", timeout=30000)
@@ -79,18 +92,18 @@ async def main():
         await drag(page, (40, 30), (46, 36))  # enclosure A: 6x6
         total = await S("Object.keys(window.__game.state.fences).length")
         placed_a = total - f0
-        print("TEST 1 rect drag placed:", placed_a, "PASS" if placed_a == 24 else "FAIL (expected 24)")
+        report("TEST 1 rect drag placed:", placed_a == 24, f"{placed_a} (expected 24)")
         # enclosure B for relocation + expedition release
         f0 = total
         await drag(page, (48, 30), (54, 36))
         placed_b = await S("Object.keys(window.__game.state.fences).length") - f0
-        print("TEST 1b second rect:", placed_b, "PASS" if placed_b == 24 else "FAIL")
+        report("TEST 1b second rect:", placed_b == 24, str(placed_b))
         # enclosure detection
         await page.click('[data-testid="tool-select"]')
         await click_tile(page, 43, 33)
         await page.wait_for_timeout(300)
         sel = await S("window.__gameRenderer.selection ? window.__gameRenderer.selection.kind : null")
-        print("TEST 1c rect forms enclosure:", sel, "PASS" if sel == "enclosure" else "FAIL")
+        report("TEST 1c rect forms enclosure:", sel == "enclosure", str(sel))
 
         # ---- prep: path + security post ----
         await page.click('[data-testid="cat-paths"]')
@@ -101,7 +114,7 @@ async def main():
         await page.click('[data-testid="building-security_post"]')
         await click_tile(page, 36, 31)
         has_post = await S("window.__game.state.buildings.some(b => b.type === 'security_post')")
-        print("TEST 2a security post built:", "PASS" if has_post else "FAIL")
+        report("TEST 2a security post built:", has_post)
 
         # ---- place a creature in enclosure A ----
         await page.click('[data-testid="hud-fieldops-button"], button:has-text("Field Ops")')
@@ -110,7 +123,7 @@ async def main():
         await page.wait_for_timeout(300)
         await click_tile(page, 43, 33)
         n_creatures = await S("window.__game.state.creatures.length")
-        print("TEST 2b creature placed:", n_creatures, "PASS" if n_creatures == 1 else "FAIL")
+        report("TEST 2b creature placed:", n_creatures == 1, str(n_creatures))
 
         # ---- TEST 2: escape -> banner -> dispatch -> capture -> relocation ----
         # break enclosure A and let the sim run at 3x
@@ -129,17 +142,17 @@ async def main():
             if await S("window.__game.state.creatures.some(c => c.escaped)"):
                 escaped = True
                 break
-        print("TEST 2c creature escaped after breach:", "PASS" if escaped else "FAIL")
+        report("TEST 2c creature escaped after breach:", escaped)
         await page.wait_for_timeout(400)
         banner = await page.locator('[data-testid="emergency-banner"]').count()
-        print("TEST 2d emergency banner visible:", "PASS" if banner == 1 else "FAIL")
+        report("TEST 2d emergency banner visible:", banner == 1)
         dispatched = False
         for _ in range(20):
             await page.wait_for_timeout(500)
             if await S("(window.__game.state.security.units || []).length > 0"):
                 dispatched = True
                 break
-        print("TEST 2e response unit dispatched:", "PASS" if dispatched else "FAIL")
+        report("TEST 2e response unit dispatched:", dispatched)
         captured = False
         for _ in range(60):
             await page.wait_for_timeout(500)
@@ -147,12 +160,12 @@ async def main():
             if done:
                 captured = True
                 break
-        print("TEST 2f creature recaptured + relocated:", "PASS" if captured else "FAIL")
+        report("TEST 2f creature recaptured + relocated:", captured)
         await page.wait_for_timeout(600)
         banner_gone = await page.locator('[data-testid="emergency-banner"]').count()
         resp_expense = await S("window.__game.state.finances.today.expenses.response")
-        print("TEST 2g banner cleared:", "PASS" if banner_gone == 0 else "FAIL", "| response expense:", resp_expense,
-              "PASS" if resp_expense >= 250 else "FAIL")
+        report("TEST 2g banner cleared:", banner_gone == 0)
+        report("TEST 2g response expense charged:", resp_expense >= 250, str(resp_expense))
 
         # ---- TEST 3: expeditions ----
         await page.click('button:has-text("Field Ops")')
@@ -160,11 +173,11 @@ async def main():
         await page.click('[data-testid="fieldops-tab-expeditions"]')
         await page.wait_for_timeout(200)
         zones = await page.locator('[data-testid^="zone-card-"]').count()
-        print("TEST 3a zone cards:", zones, "PASS" if zones == 4 else "FAIL")
+        report("TEST 3a zone cards:", zones == 5, f"{zones} (expected 5)")
         await page.click('[data-testid="launch-expedition-mirefen"]')
         await page.wait_for_timeout(400)
         n_exp = await S("window.__game.state.expeditions.length")
-        print("TEST 3b expedition launched:", "PASS" if n_exp == 1 else "FAIL")
+        report("TEST 3b expedition launched:", n_exp == 1)
         # fast-forward stages
         for _ in range(8):
             await page.evaluate("window.__game.state.expeditions.forEach(e => { if (e.status === 'active') e.stageTicks = 1; })")
@@ -174,8 +187,8 @@ async def main():
                 break
         specimens = await S("window.__game.state.expeditions[0] ? window.__game.state.expeditions[0].specimens.length : 0")
         logs = await S("window.__game.state.expeditions[0] ? window.__game.state.expeditions[0].log.length : 0")
-        print("TEST 3c expedition returned:", status, "specimens:", specimens, "log entries:", logs,
-              "PASS" if status == "returned" and specimens >= 1 and logs >= 3 else "FAIL")
+        report("TEST 3c expedition returned:", status == "returned" and specimens >= 1 and logs >= 3,
+               f"{status} specimens: {specimens} log entries: {logs}")
         # claim + release into enclosure B
         n0 = await S("window.__game.state.creatures.length")
         await page.wait_for_timeout(300)
@@ -187,7 +200,7 @@ async def main():
         await page.wait_for_timeout(400)
         await click_tile(page, 51, 33)
         n1 = await S("window.__game.state.creatures.length")
-        print("TEST 3d specimen claimed & released:", n1 - n0, "PASS" if n1 - n0 == 1 else "FAIL")
+        report("TEST 3d specimen claimed & released:", n1 - n0 == 1, str(n1 - n0))
 
         # ---- TEST 4: contracts ----
         await page.click('button:has-text("Field Ops")')
@@ -195,11 +208,11 @@ async def main():
         await page.click('[data-testid="fieldops-tab-contracts"]')
         await page.wait_for_timeout(400)
         offers = await page.locator('[data-testid^="contract-offer-"]').count()
-        print("TEST 4a contract offers:", offers, "PASS" if offers >= 1 else "FAIL")
+        report("TEST 4a contract offers:", offers >= 1, str(offers))
         await page.locator('[data-testid^="contract-accept-"]').first.click()
         await page.wait_for_timeout(400)
         n_active = await S("window.__game.state.contracts.active.length")
-        print("TEST 4b contract accepted:", "PASS" if n_active == 1 else "FAIL")
+        report("TEST 4b contract accepted:", n_active == 1)
         # force completion regardless of type
         await page.evaluate(
             """(() => {
@@ -216,7 +229,7 @@ async def main():
                 done = True
                 break
         cash1 = await S("window.__game.state.cash")
-        print("TEST 4c contract completed + payout:", "PASS" if done and cash1 > cash0 else f"FAIL done={done}")
+        report("TEST 4c contract completed + payout:", done and cash1 > cash0, f"done={done}")
 
         # ---- TEST 5: save/load round-trip persists new systems ----
         await page.click('[data-testid="fieldops-close-button"]')
@@ -224,11 +237,14 @@ async def main():
         await page.click('button:has-text("Save")')
         await page.wait_for_timeout(1500)
         saved = await S("window.__game.saveId !== null")
-        print("TEST 5 save with phase-5 state:", "PASS" if saved else "FAIL")
+        report("TEST 5 save with phase-5 state:", saved)
 
         print("No page errors." if not errors else f"PAGE ERRORS: {errors}")
         await page.screenshot(path="/tmp/phase5.jpg", quality=35, type="jpeg")
         await browser.close()
+
+    print(f"\n{sum(results)}/{len(results)} checks passed")
+    sys.exit(0 if all(results) else 1)
 
 
 asyncio.run(main())

@@ -883,7 +883,8 @@ export class GameRenderer {
     const predator = !!sheet.menace;
     const pace = sheet.pace || 1;
     // threat display: stationary, agitated organisms bare teeth / raise hackles
-    const agitated = !moving && !c.cloaked && (c.escaped || stress > 0.55 || c.state === 'hungry' || c.state === 'flee');
+    // (escaped or genuinely stressed only — 'hungry' is a routine need state, not agitation)
+    const agitated = !moving && !c.cloaked && (c.escaped || stress > 0.55);
     const threat = !!sheet.threat && agitated;
     // lunge bursts: escaped animals snap at their surroundings, predators tear
     // into meat while feeding, extreme stress boils over. A burst plays the

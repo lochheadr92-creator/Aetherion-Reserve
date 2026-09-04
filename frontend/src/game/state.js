@@ -89,9 +89,11 @@ function genTerrain(state) {
 
 export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'management', seed = null } = {}) {
   const S = MAP_SIZE;
-  // world seed: fixed by default (reproducible starts, stable test fixtures); callers may pass
-  // an explicit seed for variety. Whatever it is, it lives in state.seed and can be replayed.
-  const worldSeed = Number.isFinite(seed) ? Math.floor(Math.abs(seed)) % RNG_MOD : 12345;
+  // world seed: derived from the clock when the caller passes none, so every new park differs;
+  // an explicit finite integer seed replays exactly (tests / sharing). Anything that is not a
+  // finite integer falls back to the clock-derived value — never to a fixed constant.
+  const derivedSeed = (Date.now() % 2147483647) || 1;
+  const worldSeed = Number.isInteger(seed) ? Math.floor(Math.abs(seed)) % RNG_MOD : derivedSeed;
   setRngState(worldSeed);
   const state = {
     version: 1, mode, parkName,
@@ -175,6 +177,11 @@ const freshKnowledge = () => ({ discovered: {}, evidence: {}, hypothesized: {} }
 export function deserialize(data) {
   const state = data;
   const warn = (msg) => { if (typeof console !== 'undefined') console.warn(`[load] ${msg}`); };
+  // every scrub is counted here and surfaced to the player as ONE 'SAVE REPAIRED' alert
+  // (in addition to the console warning), so silent data loss on load is impossible
+  const removed = [];
+  let removedCount = 0;
+  const scrubbed = (n, what) => { if (n > 0) { removed.push(`${n} ${what}`); removedCount += n; warn(`dropped ${n} ${what}`); } };
   if (!state.weather) state.weather = { type: 'clear', ticksLeft: 900 };
   if (!state.security) state.security = { units: [] };
   if (!state.expeditions) state.expeditions = [];
@@ -186,6 +193,7 @@ export function deserialize(data) {
   if (!state.events) state.events = [];
   if (!state.rivalries) state.rivalries = [];
   if (!state.transport) state.transport = { cars: [] };
+  if (!Array.isArray(state.objectives)) state.objectives = [];
   if (state.stats && state.stats.buzz === undefined) state.stats.buzz = 0;
   // ---- H2: defensive backfills for saves written by an older build ----
   // species added after the save was written need a knowledge slot (every accessor assumes one)
@@ -197,31 +205,54 @@ export function deserialize(data) {
     if (!k.evidence) k.evidence = {};
     if (!k.hypothesized) k.hypothesized = {};
   }
-  // research ids that no longer exist (renamed/removed projects) are dropped; dynamic projects keep their generated ids
+  const knownSpecies = (id) => SPECIES_LIST.some((sp) => sp.id === id);
+  // research ids that no longer exist (renamed/removed projects) are dropped; dynamic projects keep
+  // their generated ids unless they study a species that no longer exists
   if (!state.research) state.research = { completed: [], active: null, dynamicProjects: [] };
   if (!Array.isArray(state.research.dynamicProjects)) state.research.dynamicProjects = [];
+  const nd = state.research.dynamicProjects.length;
+  state.research.dynamicProjects = state.research.dynamicProjects.filter((p) => !!p && knownSpecies(p.speciesId));
+  scrubbed(nd - state.research.dynamicProjects.length, 'field study project(s) of unknown species');
   const dynIds = new Set(state.research.dynamicProjects.map((p) => p.id));
   const knownResearch = (id) => !!RESEARCH[id] || dynIds.has(id);
   const before = (state.research.completed || []).length;
   state.research.completed = (state.research.completed || []).filter(knownResearch);
-  if (state.research.completed.length !== before) warn(`dropped ${before - state.research.completed.length} unknown research id(s)`);
-  if (state.research.active && !knownResearch(state.research.active.id)) { warn(`cleared unknown active research '${state.research.active.id}'`); state.research.active = null; }
+  scrubbed(before - state.research.completed.length, 'unknown research id(s)');
+  if (state.research.active && !knownResearch(state.research.active.id)) {
+    removed.push(`active research '${state.research.active.id}'`); removedCount += 1;
+    warn(`cleared unknown active research '${state.research.active.id}'`);
+    state.research.active = null;
+  }
   // buildings / creatures of unknown types would crash the sim and renderer — drop them (and their footprint)
   const nb = (state.buildings || []).length;
   state.buildings = (state.buildings || []).filter((b) => !!BUILDINGS[b.type]);
-  if (state.buildings.length !== nb) warn(`dropped ${nb - state.buildings.length} building(s) of unknown type`);
+  scrubbed(nb - state.buildings.length, 'building(s) of unknown type');
   const nc = (state.creatures || []).length;
-  state.creatures = (state.creatures || []).filter((c) => SPECIES_LIST.some((sp) => sp.id === c.speciesId));
-  if (state.creatures.length !== nc) warn(`dropped ${nc - state.creatures.length} creature(s) of unknown species`);
-  // restore the RNG cursor; saves that predate the seed carry seed = null and start from the default cursor
+  state.creatures = (state.creatures || []).filter((c) => knownSpecies(c.speciesId));
+  scrubbed(nc - state.creatures.length, 'creature(s) of unknown species');
+  // expedition specimens of an unknown species could never be claimed and would crash the claim UI
+  let ns = 0;
+  for (const e of state.expeditions) {
+    const n0 = (e.specimens || []).length;
+    e.specimens = (e.specimens || []).filter((sp) => !!sp && knownSpecies(sp.speciesId));
+    ns += n0 - e.specimens.length;
+  }
+  scrubbed(ns, 'expedition specimen(s) of unknown species');
+  if (removedCount > 0) {
+    if (!Array.isArray(state.alerts)) state.alerts = [];
+    pushAlert(state, { type: 'warning', title: 'SAVE REPAIRED', msg: `${removedCount} item(s) removed because they no longer exist: ${removed.join(', ')}` });
+  }
+  // saves that predate the seed carry seed = null and start from the default cursor
   if (!Number.isFinite(state.seed)) state.seed = null;
   const cursor = typeof state.rngState === 'number' ? state.rngState : (typeof state.rng === 'number' ? state.rng : null);
-  if (cursor !== null) setRngState(cursor); else setRngState(Number.isFinite(state.seed) ? state.seed : 12345);
   if (cursor !== null) state.rngState = cursor;
   delete state.rng;
   state._terrainDirty = true;
   state._encDirty = true;
   state._occDirty = true;
+  // restore the RNG cursor LAST: if anything above throws, the live cursor (and the game that
+  // may still be running) is left exactly as it was
+  if (cursor !== null) setRngState(cursor); else setRngState(Number.isFinite(state.seed) ? state.seed : 12345);
   return state;
 }
 

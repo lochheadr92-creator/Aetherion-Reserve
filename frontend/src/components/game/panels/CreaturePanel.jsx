@@ -10,6 +10,7 @@ import { recallCreature, removeCreature } from '@/game/creatures';
 import { traitLabels, morphOf } from '@/game/genetics';
 import { earn } from '@/game/economy';
 import Portrait from '@/components/game/Portrait';
+import { juvenileStage } from '@/game/art/juvenile';
 import Bar from '@/components/game/panels/Bar';
 import BloodlineLedger from '@/components/game/BloodlineLedger';
 
@@ -184,7 +185,7 @@ function StatusBadge({ testId, color, children }) {
 function CreatureHeader({ c, sp, view }) {
   return (
     <div className="flex gap-3">
-      <Portrait speciesId={sp.id} size={72} />
+      <Portrait speciesId={sp.id} size={72} stage={juvenileStage(c)} />
       <div className="min-w-0">
         <div className="text-base font-semibold text-[var(--text-1)] flex items-center gap-2">
           {c.name}

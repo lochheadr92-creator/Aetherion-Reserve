@@ -4,6 +4,7 @@ import { ART_V2 } from './flags';
 import { CREATURES_A } from './creatures_a';
 import { CREATURES_B } from './creatures_b';
 import { CREATURES_C } from './creatures_c';
+import { deriveJuvenileSheet, JUVENILE_STAGES } from './juvenile';
 
 export const CREATURE_ART = { ...CREATURES_A, ...CREATURES_B, ...CREATURES_C };
 
@@ -129,7 +130,16 @@ function blinkFromRects(src, rects) {
   return { canvas: shadeEyes(src, px), eyes: px.length };
 }
 
-export function getCreatureSheet(id) {
+// stage: 'adult' (default — the baked sheet, unchanged) | 'cub' | 'young' (derived, see juvenile.js)
+export function getCreatureSheet(id, stage = 'adult') {
+  if (stage !== 'adult' && JUVENILE_STAGES[stage]) {
+    const key = `${id}:${stage}`;
+    if (cache.has(key)) return cache.get(key);
+    const adult = getCreatureSheet(id);
+    const sheet = adult ? deriveJuvenileSheet(adult, stage) : null;
+    cache.set(key, sheet);
+    return sheet;
+  }
   if (cache.has(id)) return cache.get(id);
   const def = CREATURE_ART[id];
   if (!def) return null;

@@ -7,6 +7,7 @@ import { computeEnclosures, enclosureAt } from './enclosures';
 import { getDayPhase } from './weather';
 import { SPRITE_SCALE, hexRgb } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
+import { juvenileStage } from './art/juvenile';
 import { contactShadow, groundAO } from './art/rig';
 import { ART_V2 } from './art/flags';
 import { getBuildingSprite } from './art/buildings';
@@ -845,8 +846,9 @@ export class GameRenderer {
 
   // ---------- creature idle life (render-only micro-animation) ----------
   // Exposed for tests/debugging: baked sheet (idle/walk/blink frames) per species.
-  sheetFor(speciesId) { return getCreatureSheet(speciesId); }
+  sheetFor(speciesId, stage = 'adult') { return getCreatureSheet(speciesId, stage); }
   tileTextureFor(matId, x, y) { return getTileTexture(matId, x, y); } // test hook (ART_V2 tile acceptance)
+  portraitFor(canvas, speciesId, stage = 'adult') { return renderPortrait(canvas, speciesId, stage); } // test hook (juvenile portraits)
   // Stationary creatures blink on a per-creature cadence (eyes shut while
   // resting/sheltering), breathe with a tiny vertical pulse and occasionally
   // flick — a brief shear that reads as a tail/body twitch. Nothing here
@@ -877,7 +879,8 @@ export class GameRenderer {
     const h = s.heights[ti] || 0;
     const inWater = s.water[ti] > 0;
     const p = worldPx(c.x, c.y, h);
-    const sheet = getCreatureSheet(c.speciesId);
+    // juveniles draw from a derived sheet (big head, stubby legs) until fully grown
+    const sheet = getCreatureSheet(c.speciesId, juvenileStage(c));
     const grow = c.juvenile ? 0.5 + 0.5 * (c.growth || 0) : 1;
     const geneSize = c.genes?.size || 1;
     const S = (sheet.scale ?? SPRITE_SCALE) * grow * geneSize * (inWater ? 0.85 : 1);
@@ -1348,7 +1351,7 @@ export class GameRenderer {
 }
 
 // ---------- Species Database portraits (baked pixel sprites in the archive frame) ----------
-export function renderPortrait(canvas, speciesId) {
+export function renderPortrait(canvas, speciesId, stage = 'adult') {
   const sp = speciesById(speciesId);
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1357,7 +1360,7 @@ export function renderPortrait(canvas, speciesId) {
   // vignette rings (archive framing preserved)
   ctx.strokeStyle = 'rgba(45,226,230,0.12)';
   ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width * 0.42, 0, Math.PI * 2); ctx.stroke();
-  const sheet = getCreatureSheet(speciesId);
+  const sheet = getCreatureSheet(speciesId, stage);
   if (!sheet) return;
   const frame = sheet.idle[0];
   const b = sheet.bounds || { x: 0, y: 0, w: sheet.w, h: sheet.h };

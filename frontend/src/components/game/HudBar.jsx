@@ -194,7 +194,7 @@ function AudioPopover({ enabled, volume, onToggle, onVolume, edgeScroll, onEdgeS
         <span className="mono text-[10px] text-[var(--text-2)] w-8 text-right" data-testid="audio-volume-value">{Math.round(volume * 100)}%</span>
       </div>
       <p className="text-[10px] text-[var(--text-3)] leading-snug">
-        Wind follows the weather, glowing exhibits hum after dark, and alerts carry a short stinger. Synthesised live — no downloads.
+        Wind follows the weather, glowing exhibits hum after dark, agitated creatures snarl and bellow, and alerts carry a short stinger. Synthesised live — no downloads.
       </p>
       <div className="pt-2 border-t border-[var(--line)] space-y-2">
         <div className="flex items-center justify-between">

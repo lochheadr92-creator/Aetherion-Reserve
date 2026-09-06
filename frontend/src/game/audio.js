@@ -13,6 +13,11 @@ const LS_VOLUME = 'aetherion_audio_volume';
 const STINGER_GAP_MS = 380;     // minimum spacing between stingers
 const UPDATE_EVERY = 20;        // frames between ambience re-targeting
 const LOG_MAX = 24;             // one-shot history kept for debugging/tests
+// creature voices (render-layer cues): per-animal spacing, global spacing and a rolling cap
+const VOICE_GAP_MS = 2600;
+const VOICE_GLOBAL_GAP_MS = 320;
+const VOICE_WINDOW_MS = 2000;
+const VOICE_WINDOW_MAX = 3;
 
 const readLS = (k, fallback) => {
   try { const v = localStorage.getItem(k); return v == null ? fallback : v; } catch (e) { return fallback; }
@@ -33,6 +38,19 @@ function makeNoiseBuffer(ctx, seconds = 2) {
   return buf;
 }
 
+// Species voice profile derived from its baked sheet (no species-data edits): predators snarl,
+// heavy slow bodies bellow, floaters/hoverers keen, everything else chirps. Pitch follows the
+// silhouette height (bigger animal, lower voice) so the 19 species never sound identical.
+export function voiceProfile(sheet) {
+  if (!sheet) return { kind: 'chirp', pitch: 1 };
+  const h = sheet.bounds ? sheet.bounds.h : sheet.h;
+  const pitch = Math.max(0.55, Math.min(1.8, 44 / Math.max(12, h)));
+  if (sheet.menace) return { kind: 'snarl', pitch };
+  if (sheet.bob || sheet.hover) return { kind: 'keen', pitch };
+  if ((sheet.pace || 1) >= 1.25 || h >= 50) return { kind: 'bellow', pitch }; // pace > 1 = slow, heavy cadence
+  return { kind: 'chirp', pitch };
+}
+
 export class AudioManager {
   constructor() {
     this.ctx = null;
@@ -40,6 +58,10 @@ export class AudioManager {
     this.enabled = readLS(LS_ENABLED, 'true') !== 'false';
     this.volume = Math.max(0, Math.min(1, parseFloat(readLS(LS_VOLUME, '0.6')) || 0));
     this.log = [];                 // recent one-shots: { kind, t }
+    this.voices = { attempted: 0, played: 0, limited: 0, muted: 0 }; // creature-voice counters (tests/debug)
+    this._voiceAt = new Map();     // creature id -> last voice time
+    this._voiceTimes = [];         // recent voice times (rolling cap)
+    this._lastVoiceAt = 0;
     this.lastStingerAt = 0;
     this.frame = 0;
     this._lastBreaches = null;
@@ -154,6 +176,7 @@ export class AudioManager {
     if (state !== this._lastState) {
       this._lastState = state;
       this._lastBreaches = state.stats?.breaches || 0; // adopt silently on new game/load
+      this._voiceAt.clear();                            // creature ids restart per game
     }
     const b = state.stats?.breaches || 0;
     if (b > this._lastBreaches) this.impact();
@@ -256,6 +279,59 @@ export class AudioManager {
     if (!res) return;
     if (res.ok) this.place();
     else if (res.reason) this.deny();
+  }
+
+  // ---------- creature voices ----------
+  voiceProfileFor(sheet) { return voiceProfile(sheet); } // test/debug hook
+
+  // Called from the renderer on the rising edge of a threat display or a lunge burst.
+  // `proximity` 1 = viewport centre .. 0 = far edge (distance attenuation); juveniles pipe up an
+  // octave-ish. Rate limited per animal and globally so a stressed herd never becomes a wall of
+  // noise. Returns 'played' | 'muted' | 'silent' (no context) | 'limited-self' (this animal spoke
+  // recently: drop the cue) | 'limited-global' (spacing / rolling cap: the caller may retry next
+  // frame so a chorus staggers instead of vanishing). Never touches the sim.
+  creatureVoice(c, event, { sheet = null, proximity = 1, juvenile = false } = {}) {
+    const now = Date.now();
+    this.voices.attempted++;
+    const last = this._voiceAt.get(c.id) || 0;
+    if (now - last < VOICE_GAP_MS) { this.voices.limited++; return 'limited-self'; }
+    this._voiceTimes = this._voiceTimes.filter((t) => now - t < VOICE_WINDOW_MS);
+    if (now - this._lastVoiceAt < VOICE_GLOBAL_GAP_MS || this._voiceTimes.length >= VOICE_WINDOW_MAX) {
+      this.voices.limited++;
+      return 'limited-global';
+    }
+    this._voiceAt.set(c.id, now);
+    this._lastVoiceAt = now;
+    this._voiceTimes.push(now);
+    const prof = voiceProfile(sheet);
+    this._note(`voice:${prof.kind}:${event}`);
+    if (!this._can()) { if (!this.enabled) { this.voices.muted++; return 'muted'; } return 'silent'; }
+    this.voices.played++;
+    const g = 0.3 + 0.7 * Math.max(0, Math.min(1, proximity));
+    const k = prof.pitch * (juvenile ? 1.6 : 1);
+    const d = juvenile ? 0.7 : 1;
+    const hard = event === 'lunge';
+    switch (prof.kind) {
+      case 'snarl':
+        this._tone({ type: 'sawtooth', freq: 170 * k, to: 92 * k, dur: (hard ? 0.3 : 0.4) * d, gain: 0.13 * g, attack: 0.012, lp: 1300 });
+        this._tone({ type: 'square', freq: 96 * k, to: 70 * k, dur: 0.34 * d, gain: 0.05 * g, attack: 0.02, lp: 700, when: 0.03 });
+        this._noiseBurst({ dur: (hard ? 0.28 : 0.2) * d, gain: 0.07 * g, hp: 900, when: hard ? 0 : 0.05 });
+        break;
+      case 'bellow':
+        this._tone({ type: 'triangle', freq: 120 * k, to: 72 * k, dur: 0.75 * d, gain: 0.2 * g, attack: 0.05, lp: 650 });
+        this._tone({ type: 'sine', freq: 58 * k, to: 46 * k, dur: 0.7 * d, gain: 0.12 * g, attack: 0.06, when: 0.02 });
+        if (hard) this._noiseBurst({ dur: 0.18, gain: 0.05 * g, hp: 500 });
+        break;
+      case 'keen':
+        this._tone({ type: 'sawtooth', freq: 620 * k, to: 1150 * k, dur: 0.16 * d, gain: 0.045 * g, attack: 0.01, lp: 3200 });
+        this._tone({ type: 'sawtooth', freq: 1150 * k, to: 420 * k, dur: 0.26 * d, gain: 0.045 * g, attack: 0.01, lp: 3200, when: 0.15 * d });
+        break;
+      default: // chirp / grunt
+        this._tone({ type: 'square', freq: 520 * k, to: 760 * k, dur: 0.07 * d, gain: 0.06 * g, lp: 2600 });
+        this._tone({ type: 'square', freq: 640 * k, to: 430 * k, dur: 0.11 * d, gain: 0.06 * g, lp: 2600, when: 0.09 * d });
+        if (hard) this._noiseBurst({ dur: 0.08, gain: 0.03 * g, hp: 1500, when: 0.02 });
+    }
+    return 'played';
   }
 
   // alert stingers keyed by alert type; throttled so bursts do not stack

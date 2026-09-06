@@ -87,7 +87,7 @@ function genTerrain(state) {
   }
 }
 
-export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'management', seed = null } = {}) {
+export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'management', seed = null, seedLabel = null } = {}) {
   const S = MAP_SIZE;
   // world seed: derived from the clock when the caller passes none, so every new park differs;
   // an explicit finite integer seed replays exactly (tests / sharing). Anything that is not a
@@ -98,6 +98,7 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
   const state = {
     version: 1, mode, parkName,
     seed: worldSeed, rngState: worldSeed,
+    seedLabel: typeof seedLabel === 'string' && seedLabel ? seedLabel.slice(0, 40) : null, // what the player typed (seed picker); null = clock-derived
     tick: 0, day: 1, speed: 1, paused: false,
     cash: mode === 'sandbox' ? 9999999 : 150000,
     ticketPrice: 25,
@@ -244,6 +245,7 @@ export function deserialize(data) {
   }
   // saves that predate the seed carry seed = null and start from the default cursor
   if (!Number.isFinite(state.seed)) state.seed = null;
+  if (typeof state.seedLabel !== 'string' || !state.seedLabel) state.seedLabel = null; // additive (older saves)
   const cursor = typeof state.rngState === 'number' ? state.rngState : (typeof state.rng === 'number' ? state.rng : null);
   if (cursor !== null) state.rngState = cursor;
   delete state.rng;

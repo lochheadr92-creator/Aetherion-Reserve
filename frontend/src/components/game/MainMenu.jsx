@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Play, FolderOpen, Trash2, Beaker, Coins, Target, CheckCircle2 } from 'lucide-react';
+import { Play, FolderOpen, Trash2, Beaker, Coins, Target, CheckCircle2, Dices, Copy, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import { game } from '@/game/controller';
 import { fmtMoney } from '@/game/constants';
 import { SCENARIO_LIST } from '@/game/data/scenarios';
+import { parseSeed, copyText, SEED_MAX_LEN } from '@/game/seed';
 
 const DIFF_COLORS = { EASY: 'var(--success)', MEDIUM: 'var(--accent-amber)', HARD: 'var(--danger)', EXPERT: 'var(--accent-violet)', BRUTAL: 'var(--accent-rose)' };
 
@@ -158,16 +159,71 @@ function ScenarioPicker({ selected, onSelect }) {
 
 // ---------- new game form ----------
 
+// UI-only randomness (never touches the sim RNG): a 9-digit seed code the player can share
+function randomSeedText() {
+  const buf = new Uint32Array(1);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(buf);
+  else buf[0] = Math.floor(Math.random() * 4294967296);
+  return String(100000000 + (buf[0] % 900000000));
+}
+
+function SeedField({ seedText, onChange }) {
+  const parsed = parseSeed(seedText);
+  const copy = async () => {
+    if (!seedText.trim()) return;
+    const ok = await copyText(seedText.trim());
+    if (ok) toast.success('Seed copied — share it to replay this exact world.', { duration: 2200 });
+    else toast.error('Clipboard unavailable — select the seed and copy it manually.', { duration: 2600 });
+  };
+  return (
+    <div data-testid="seed-field">
+      <label className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] flex items-center gap-1.5">
+        <Hash size={10} /> WORLD SEED
+      </label>
+      <div className="mt-1.5 flex items-center gap-2">
+        <input
+          data-testid="seed-input"
+          value={seedText}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Leave blank for a random world"
+          spellCheck={false}
+          aria-label="World seed"
+          className="mono flex-1 min-w-0 h-10 rounded-lg bg-[var(--panel-2)] border border-[var(--line-2)] px-3 text-sm text-[var(--text-1)] outline-none focus:border-[var(--accent-cyan)] transition-colors placeholder:text-[var(--text-3)] placeholder:font-sans"
+          maxLength={SEED_MAX_LEN}
+        />
+        <button type="button" data-testid="seed-random-button" onClick={() => onChange(randomSeedText())} title="Roll a random seed code"
+          className="nl-tool h-10 px-3 flex items-center gap-1.5 text-xs">
+          <Dices size={14} /> Random
+        </button>
+        <button type="button" data-testid="seed-copy-button" onClick={copy} disabled={!seedText.trim()} title="Copy seed"
+          className="nl-tool h-10 w-10 flex items-center justify-center disabled:opacity-40 disabled:pointer-events-none">
+          <Copy size={14} />
+        </button>
+      </div>
+      <div className="mono text-[9px] tracking-wider text-[var(--text-3)] mt-1.5" data-testid="seed-hint">
+        {parsed.seed === null
+          ? 'RANDOM — a fresh world every time. Type a number or a phrase to replay a world exactly.'
+          : `CODE ${parsed.seed} — same seed, same terrain and starting conditions.`}
+      </div>
+    </div>
+  );
+}
+
 function NewGamePanel({ onStart }) {
   const [parkName, setParkName] = useState('Aetherion Reserve');
+  const [seedText, setSeedText] = useState('');
   const [mode, setMode] = useState('management');
   const [scenarioId, setScenarioId] = useState(SCENARIO_LIST[0].id);
 
-  const start = () => onStart({
-    parkName: parkName.trim() || 'Aetherion Reserve',
-    mode: mode === 'scenario' ? 'management' : mode,
-    scenarioId: mode === 'scenario' ? scenarioId : undefined,
-  });
+  const start = () => {
+    const { seed, label } = parseSeed(seedText);
+    onStart({
+      parkName: parkName.trim() || 'Aetherion Reserve',
+      mode: mode === 'scenario' ? 'management' : mode,
+      scenarioId: mode === 'scenario' ? scenarioId : undefined,
+      seed, seedLabel: label,
+    });
+  };
 
   return (
     <div className="nl-panel mt-8 p-5 space-y-4">
@@ -181,6 +237,7 @@ function NewGamePanel({ onStart }) {
           maxLength={40}
         />
       </div>
+      <SeedField seedText={seedText} onChange={setSeedText} />
       <ModeSelector mode={mode} onSelect={setMode} />
       {mode === 'scenario' && <ScenarioPicker selected={scenarioId} onSelect={setScenarioId} />}
       <button

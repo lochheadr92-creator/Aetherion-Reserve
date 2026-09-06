@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera, Volume2, VolumeX, MoveHorizontal, Radio } from 'lucide-react';
+import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera, Volume2, VolumeX, MoveHorizontal, Radio, Hash } from 'lucide-react';
 import { game } from '@/game/controller';
 import { audio } from '@/game/audio';
 import { isEdgeScrollEnabled, setEdgeScrollEnabled } from '@/game/input';
 import { fmtMoney } from '@/game/constants';
+import { seedCode, copyText } from '@/game/seed';
 import { getDayPhase, clockLabel } from '@/game/weather';
 import { useGameTick } from '@/components/game/useGame';
 import { Slider } from '@/components/ui/slider';
@@ -22,14 +23,33 @@ const HudButton = ({ icon: Icon, label, onClick, testId, active }) => (
   </button>
 );
 
+// world seed chip: click copies the shareable code (seed picker on the main menu replays it)
+function SeedChip({ code }) {
+  const copy = useCallback(async () => {
+    if (!code) return;
+    const ok = await copyText(code);
+    if (ok) toast.success(`Seed ${code} copied — paste it into WORLD SEED to replay this world.`, { duration: 2400 });
+    else toast.error('Clipboard unavailable — the seed is shown in the top-left chip.', { duration: 2600 });
+  }, [code]);
+  return (
+    <button data-testid="hud-seed" onClick={copy} title={`World seed ${code} — click to copy`}
+      className="mono text-[10px] tracking-wider text-[var(--text-3)] hover:text-[var(--accent-cyan)] transition-colors inline-flex items-center gap-0.5 max-w-[140px] truncate align-baseline">
+      <Hash size={9} className="shrink-0" /><span className="truncate">{code}</span>
+    </button>
+  );
+}
+
 function ParkIdentity({ s }) {
+  const code = seedCode(s);
   return (
     <div className="flex items-center gap-3 min-w-0">
       <div className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-cyan)', boxShadow: '0 0 8px rgba(45,226,230,0.8)' }} />
       <div className="min-w-0">
         <div className="text-sm font-semibold truncate text-[var(--text-1)]" data-testid="hud-park-name">{s.parkName}</div>
-        <div className="mono text-[10px] text-[var(--text-3)] tracking-wider">
-          CYCLE {s.day} · {s.mode === 'sandbox' ? 'SANDBOX' : 'MANAGEMENT'}
+        <div className="mono text-[10px] text-[var(--text-3)] tracking-wider flex items-center gap-1.5">
+          <span>CYCLE {s.day} · {s.mode === 'sandbox' ? 'SANDBOX' : 'MANAGEMENT'}</span>
+          {code && <span aria-hidden="true">·</span>}
+          {code && <SeedChip code={code} />}
         </div>
       </div>
     </div>

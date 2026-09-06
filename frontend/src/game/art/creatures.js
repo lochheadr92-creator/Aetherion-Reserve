@@ -1,5 +1,6 @@
 // ---- Creature sprite sheet registry (lazy-baked, cached) ----
-import { Px, SPRITE_SCALE, INK, LUNGE_KIN, PAD_X, PAD_TOP } from './pixel';
+import { Px, SPRITE_SCALE, INK, LUNGE_KIN, PAD_X, PAD_TOP, celRamp, rimLight2, haloGlow } from './pixel';
+import { ART_V2 } from './flags';
 import { CREATURES_A } from './creatures_a';
 import { CREATURES_B } from './creatures_b';
 import { CREATURES_C } from './creatures_c';
@@ -138,6 +139,9 @@ export function getCreatureSheet(id) {
   // symmetric x-padding preserves the sprite centre, top padding keeps the ground row at the bottom
   const padX = hires ? PAD_X : 0, padTop = hires ? PAD_TOP : 0;
   const W = def.w + padX * 2, H = def.h + padTop;
+  // ART_V2: halo only for species with an ambience aura or predator menace colour
+  const haloColor = ART_V2 ? ((def.aura && def.aura.color) || def.menace || null) : null;
+  let bounds = null;
   const bake = (mode, n) => {
     const frames = [], eyes = [];
     for (let f = 0; f < n; f++) {
@@ -147,7 +151,16 @@ export function getCreatureSheet(id) {
       P.shift(padX + kin[0], padTop + kin[1]);
       def.paint(P, f, mode);
       P.shift(0, 0);
+      if (ART_V2) {
+        // post passes run after the painter recorded its eyes (rects are masked) and before
+        // the outline, so the INK line is still the outermost opaque pixel
+        celRamp(P, { steps: 3, hueShift: 8 });
+        rimLight2(P, { dir: [-1, -1], color: '#dfe9f5', strength: 0.55 });
+      }
       P.outline(outlineColor);
+      // trimmed silhouette box is measured BEFORE any halo so it matches the non-V2 bake
+      if (mode === 'idle' && f === 0) bounds = opaqueBounds(P.canvas());
+      if (haloColor) haloGlow(P, { color: haloColor, radius: 2, alpha: 0.35 }); // beyond the outline, alpha < 1
       frames.push(P.canvas());
       eyes.push(P.eyes || []);
     }
@@ -170,7 +183,7 @@ export function getCreatureSheet(id) {
     // exact eye rects per mode/frame (drives night eye-glow that tracks the animation)
     eyesBy: { idle: idle.eyes, walk: walk ? walk.eyes : null, threat: threat ? threat.eyes : null, lunge: lunge ? lunge.eyes : null },
     w: W, h: H,
-    bounds: opaqueBounds(idle.frames[0]), // trimmed silhouette box (portraits / UI fitting)
+    bounds, // trimmed silhouette box (portraits / UI fitting), identical with the flag on or off
     scale: def.scale ?? SPRITE_SCALE,
     shadow: def.shadow || { rx: 8, ry: 3, alpha: 0.3 },
     bob: !!def.bob,
@@ -178,6 +191,7 @@ export function getCreatureSheet(id) {
     aura: def.aura || null,
     menace: def.menace || null, // predator eye-glow colour (night / threat / lunge)
     pace: def.pace || 1,        // animation cadence multiplier (heavier bodies move slower)
+    v2: ART_V2,                 // baked with the ART_V2 post passes
   };
   cache.set(id, sheet);
   return sheet;

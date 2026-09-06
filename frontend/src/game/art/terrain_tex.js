@@ -4,7 +4,8 @@
 // Dark bioluminescent sci-fi identity: low-value bases, cool ambient,
 // upper-left key light, restrained accent glints.
 import { TILE_W, TILE_H } from '../constants';
-import { tone, mixc } from './pixel';
+import { tone, mixc, celRamp } from './pixel';
+import { ART_V2 } from './flags';
 
 const HW = TILE_W / 2, HH = TILE_H / 2;
 const VARIANTS = 4;
@@ -213,6 +214,9 @@ function bakeTile(matId, variant) {
     }
   }
   (FEATURES[R.feat] || FEATURES.grass)(ctx, R, sd);
+  // ART_V2: posterise the tile into 4 luminance bands (cooler shadow / warmer light). The pass
+  // is pure over a Px-shaped view of this canvas; with the flag off the tile is untouched.
+  if (ART_V2) celRamp({ ctx, w: TILE_W, h: TILE_H }, { steps: 4, hueShift: 8 });
   return cv;
 }
 

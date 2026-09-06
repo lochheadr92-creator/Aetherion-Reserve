@@ -7,6 +7,8 @@ import { computeEnclosures, enclosureAt } from './enclosures';
 import { getDayPhase } from './weather';
 import { SPRITE_SCALE, hexRgb } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
+import { contactShadow, groundAO } from './art/rig';
+import { ART_V2 } from './art/flags';
 import { getBuildingSprite } from './art/buildings';
 import { getStaffSprite } from './art/staff';
 import { getTileTexture, drawCliff, drawPathTile, h2 } from './art/terrain_tex';
@@ -844,6 +846,7 @@ export class GameRenderer {
   // ---------- creature idle life (render-only micro-animation) ----------
   // Exposed for tests/debugging: baked sheet (idle/walk/blink frames) per species.
   sheetFor(speciesId) { return getCreatureSheet(speciesId); }
+  tileTextureFor(matId, x, y) { return getTileTexture(matId, x, y); } // test hook (ART_V2 tile acceptance)
   // Stationary creatures blink on a per-creature cadence (eyes shut while
   // resting/sheltering), breathe with a tiny vertical pulse and occasionally
   // flick — a brief shear that reads as a tail/body twitch. Nothing here
@@ -922,11 +925,17 @@ export class GameRenderer {
       ctx.fillStyle = `rgba(96,6,20,${(0.22 + 0.06 * Math.sin(this.frame / 7 + c.id)).toFixed(3)})`;
       ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S * 1.4, sh.ry * S * 1.4, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = `rgba(0,0,0,${sh.alpha * (sh.detached ? 0.8 : 1) + (display ? 0.12 : 0)})`;
-    ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S, sh.ry * S, 0, 0, Math.PI * 2); ctx.fill();
-    if (sh.soft) {
-      ctx.fillStyle = `rgba(0,0,0,${sh.alpha * 0.4})`;
-      ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S * 1.5, sh.ry * S * 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    if (ART_V2) {
+      // ART_V2 grounding: penumbra + contact ellipse, then a tight AO pool under the feet
+      contactShadow(ctx, sheet, shx, shy, S, display ? 0.12 : 0);
+      groundAO(ctx, sheet, shx, shy, S);
+    } else {
+      ctx.fillStyle = `rgba(0,0,0,${sh.alpha * (sh.detached ? 0.8 : 1) + (display ? 0.12 : 0)})`;
+      ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S, sh.ry * S, 0, 0, Math.PI * 2); ctx.fill();
+      if (sh.soft) {
+        ctx.fillStyle = `rgba(0,0,0,${sh.alpha * 0.4})`;
+        ctx.beginPath(); ctx.ellipse(shx, shy, sh.rx * S * 1.5, sh.ry * S * 1.5, 0, 0, Math.PI * 2); ctx.fill();
+      }
     }
     if (c.escaped && this.frame % 40 < 24) {
       ctx.strokeStyle = '#FF4D6D'; ctx.lineWidth = 2;

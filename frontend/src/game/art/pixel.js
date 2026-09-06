@@ -390,3 +390,149 @@ export function isoBox(P, ox, oy, w, h, z, top, right, left, opts = {}) {
   ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - z); ctx.stroke();
   return { pt, z };
 }
+
+// ---------- ART_V2 post passes (Ops Deck redesign, Step 1) ----------
+// Pure functions over a Px buffer (anything exposing { ctx, w, h[, eyes] }): each reads the
+// buffer's pixels once, mutates them in place and writes them back. No DOM, no other canvas,
+// no Math.random — the same input always yields the same output. Recorded eye rects
+// (P.eyes) are never recoloured so blink derivation and night eye-glow stay exact.
+const OPAQUE_A = 40;       // same "solid" threshold as outline()/opaqueBounds()
+const INK_LUMA = 12;       // near-black detail (pupils, ink) is left alone by the ramp
+const WARM_HUE = 40, COOL_HUE = 220;
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn;
+  const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  let h;
+  if (mx === r) h = (g - b) / d + (g < b ? 6 : 0);
+  else if (mx === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = (t) => {
+    t = ((t % 1) + 1) % 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [Math.round(f(h / 360 + 1 / 3) * 255), Math.round(f(h / 360) * 255), Math.round(f(h / 360 - 1 / 3) * 255)];
+}
+
+// shortest rotation of `h` toward `target`, capped at `deg`
+function hueToward(h, target, deg) {
+  let d = ((target - h + 540) % 360) - 180;
+  if (Math.abs(d) < deg) return target;
+  return h + Math.sign(d) * deg;
+}
+
+function eyeMask(P) {
+  const mask = new Uint8Array(P.w * P.h);
+  for (const e of P.eyes || []) {
+    for (let yy = 0; yy < e.h; yy++) for (let xx = 0; xx < e.w; xx++) {
+      const x = e.x + xx, y = e.y + yy;
+      if (x >= 0 && y >= 0 && x < P.w && y < P.h) mask[y * P.w + x] = 1;
+    }
+  }
+  return mask;
+}
+
+// Quantise the luminance of every opaque pixel into `steps` bands spanning the buffer's own
+// luminance range; the dark band leans cooler (toward blue) and the light band warmer
+// (toward orange) by up to `hueShift` degrees. Hue/saturation identity is otherwise kept.
+export function celRamp(P, { steps = 3, hueShift = 8 } = {}) {
+  const { w, h } = P;
+  const img = P.ctx.getImageData(0, 0, w, h), d = img.data;
+  const mask = P.eyes ? eyeMask(P) : null;
+  const skip = (i) => d[i * 4 + 3] <= OPAQUE_A || (mask && mask[i]) || (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) < INK_LUMA;
+  let lo = 1, hi = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (skip(i)) continue;
+    const l = rgbToHsl(d[i * 4], d[i * 4 + 1], d[i * 4 + 2])[2];
+    if (l < lo) lo = l; if (l > hi) hi = l;
+  }
+  if (hi <= lo) return P;
+  const span = hi - lo, bandW = span / steps;
+  for (let i = 0; i < w * h; i++) {
+    if (skip(i)) continue;
+    const [hh, s, l] = rgbToHsl(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]);
+    const k = Math.min(steps - 1, Math.floor((l - lo) / bandW));
+    const t = steps === 1 ? 0 : (k / (steps - 1)) * 2 - 1;      // -1 shadow .. +1 light
+    const nl = lo + (k + 0.5) * bandW;
+    const nh = t === 0 || s === 0 ? hh : hueToward(hh, t > 0 ? WARM_HUE : COOL_HUE, Math.abs(t) * hueShift);
+    const [r, g, b] = hslToRgb(nh, s, nl);
+    d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b;
+  }
+  P.ctx.putImageData(img, 0, 0);
+  return P;
+}
+
+// 1px lit edge: opaque pixels whose neighbour in `dir` is transparent are blended toward
+// `color` by `strength`. (Distinct from the legacy ellipse helper `rimlight`.)
+export function rimLight2(P, { dir = [-1, -1], color = '#dfe9f5', strength = 0.55 } = {}) {
+  const { w, h } = P;
+  const img = P.ctx.getImageData(0, 0, w, h), d = img.data;
+  const mask = P.eyes ? eyeMask(P) : null;
+  const solid = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > OPAQUE_A;
+  const [cr, cg, cb] = hexRgb(color);
+  const hits = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (!solid(x, y) || (mask && mask[i])) continue;
+    if (!solid(x + dir[0], y + dir[1])) hits.push(i);
+  }
+  for (const i of hits) {
+    const o = i * 4;
+    d[o] = Math.round(d[o] + (cr - d[o]) * strength);
+    d[o + 1] = Math.round(d[o + 1] + (cg - d[o + 1]) * strength);
+    d[o + 2] = Math.round(d[o + 2] + (cb - d[o + 2]) * strength);
+  }
+  P.ctx.putImageData(img, 0, 0);
+  return P;
+}
+
+// Soft additive ring OUTSIDE the silhouette: transparent pixels within `radius` of an opaque
+// pixel receive `color` at `alpha` fading with distance (alpha is always < 1 so the halo can
+// never read as solid). Existing pixels are never darkened or replaced.
+export function haloGlow(P, { color, radius = 2, alpha = 0.35 } = {}) {
+  if (!color) return P;
+  const { w, h } = P;
+  const img = P.ctx.getImageData(0, 0, w, h), d = img.data;
+  const solid = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) solid[i] = d[i * 4 + 3] > OPAQUE_A ? 1 : 0;
+  const [cr, cg, cb] = hexRgb(color);
+  const a0 = Math.min(0.95, Math.max(0, alpha));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (solid[i]) continue;
+    let best = Infinity;
+    for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || !solid[ny * w + nx]) continue;
+      const dist = Math.hypot(dx, dy);
+      if (dist < best) best = dist;
+    }
+    if (best > radius) continue;
+    const fall = 1 - (best - 1) / radius;                  // 1 at the outline .. ~0 at radius
+    const a = Math.round(255 * a0 * Math.max(0.15, Math.min(1, fall)));
+    const o = i * 4;
+    if (d[o + 3] >= a) continue;                             // never weaken an existing pixel
+    const t = d[o + 3] / 255;                                // blend over whatever faint colour was there
+    d[o] = Math.round(cr * (1 - t) + d[o] * t);
+    d[o + 1] = Math.round(cg * (1 - t) + d[o + 1] * t);
+    d[o + 2] = Math.round(cb * (1 - t) + d[o + 2] * t);
+    d[o + 3] = a;
+  }
+  P.ctx.putImageData(img, 0, 0);
+  return P;
+}
+
+export const post = { celRamp, rimLight2, haloGlow };

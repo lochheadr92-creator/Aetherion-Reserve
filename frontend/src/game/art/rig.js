@@ -92,4 +92,29 @@ export function stripes(P, x, y, w, h, color, gap = 4, slant = 1) {
   }
 }
 
+// ---------- ART_V2 ground grounding (draw-time helpers, renderer side) ----------
+// Both read `sheet.shadow {rx, ry, alpha[, soft, detached]}` and draw under the sprite at
+// the creature's ground point (x, y) in screen px; `scale` is the sprite draw scale.
+const DEFAULT_SHADOW = { rx: 8, ry: 3, alpha: 0.3 };
+
+// Contact shadow: the species' grounding ellipse plus a wider, fainter penumbra
+// (soft profiles spread further, detached profiles — floaters/hoverers — read lighter).
+export function contactShadow(ctx, sheet, x, y, scale = 1, boost = 0) {
+  const sh = sheet.shadow || DEFAULT_SHADOW;
+  const spread = sh.soft ? 1.5 : 1.25;
+  ctx.fillStyle = `rgba(0,0,0,${(sh.alpha * (sh.soft ? 0.4 : 0.22)).toFixed(3)})`;
+  ctx.beginPath(); ctx.ellipse(x, y, sh.rx * scale * spread, sh.ry * scale * spread, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(0,0,0,${(sh.alpha * (sh.detached ? 0.8 : 1) + boost).toFixed(3)})`;
+  ctx.beginPath(); ctx.ellipse(x, y, sh.rx * scale, sh.ry * scale, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// Ground AO: a darker, tighter ellipse inside the contact shadow that hugs the feet
+// (weaker under detached profiles, which hover above the ground).
+export function groundAO(ctx, sheet, x, y, scale = 1) {
+  const sh = sheet.shadow || DEFAULT_SHADOW;
+  const a = Math.min(0.85, sh.alpha * (sh.detached ? 0.8 : 1.6));
+  ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
+  ctx.beginPath(); ctx.ellipse(x, y, sh.rx * scale * 0.55, sh.ry * scale * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+}
+
 export { mixc };

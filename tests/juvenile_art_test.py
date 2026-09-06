@@ -117,11 +117,13 @@ async def main():
         await page.click('[data-testid="start-game-button"]')
         await page.wait_for_timeout(1500)
         await page.click('[data-testid="hud-time-pause-button"]')
+        await page.evaluate("""(() => { const s = window.__game.state, r = window.__gameRenderer; const c = s.creatures[1];
+            c.juvenile = true; c.growth = 0.1; c.path = []; c.state = 'idle'; r.cam.zoom = 3; r.centerOn(c.x, c.y); })()""")
+        await page.wait_for_timeout(700)  # let camera easing settle before projecting the creature
         pos = await page.evaluate("""(() => { const s = window.__game.state, r = window.__gameRenderer; const c = s.creatures[1];
-            c.juvenile = true; c.growth = 0.1; c.path = []; r.cam.zoom = 3; r.centerOn(c.x, c.y);
             const h = s.heights[Math.floor(c.y) * s.size + Math.floor(c.x)] || 0;
-            const wx = (c.x - c.y) * 32, wy = (c.x + c.y) * 16 - h * 10; return { x: wx * r.cam.zoom + r.cam.x, y: wy * r.cam.zoom + r.cam.y - 10 }; })()""")
-        await page.wait_for_timeout(500)
+            const wx = (c.x - c.y) * 32, wy = (c.x + c.y) * 16 - h * 10; // creature pick point sits 12 world px above the feet (input.select)
+            return { x: wx * r.cam.zoom + r.cam.x, y: (wy - 12) * r.cam.zoom + r.cam.y }; })()""")
         n_err = len(errors)
         await page.mouse.click(pos["x"], pos["y"])
         await page.wait_for_timeout(500)

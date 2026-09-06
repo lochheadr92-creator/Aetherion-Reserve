@@ -848,7 +848,7 @@ export class GameRenderer {
   // Exposed for tests/debugging: baked sheet (idle/walk/blink frames) per species.
   sheetFor(speciesId, stage = 'adult') { return getCreatureSheet(speciesId, stage); }
   tileTextureFor(matId, x, y) { return getTileTexture(matId, x, y); } // test hook (ART_V2 tile acceptance)
-  portraitFor(canvas, speciesId, stage = 'adult') { return renderPortrait(canvas, speciesId, stage); } // test hook (juvenile portraits)
+  portraitFor(canvas, speciesId, stage = 'adult', pose) { return renderPortrait(canvas, speciesId, stage, pose); } // test hook (juvenile / live portraits)
   // Stationary creatures blink on a per-creature cadence (eyes shut while
   // resting/sheltering), breathe with a tiny vertical pulse and occasionally
   // flick — a brief shear that reads as a tail/body twitch. Nothing here
@@ -1351,7 +1351,10 @@ export class GameRenderer {
 }
 
 // ---------- Species Database portraits (baked pixel sprites in the archive frame) ----------
-export function renderPortrait(canvas, speciesId, stage = 'adult') {
+// `frame` picks an idle frame (live portraits cycle it), `blink` swaps in the matching blink
+// frame. The crop box is the idle[0] silhouette padded by 2px so breathing frames never clip
+// and the fit (scale / ground line) stays identical across the whole loop.
+export function renderPortrait(canvas, speciesId, stage = 'adult', { frame = 0, blink = false } = {}) {
   const sp = speciesById(speciesId);
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1362,8 +1365,12 @@ export function renderPortrait(canvas, speciesId, stage = 'adult') {
   ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width * 0.42, 0, Math.PI * 2); ctx.stroke();
   const sheet = getCreatureSheet(speciesId, stage);
   if (!sheet) return;
-  const frame = sheet.idle[0];
-  const b = sheet.bounds || { x: 0, y: 0, w: sheet.w, h: sheet.h };
+  const frames = blink && sheet.blink ? sheet.blink : sheet.idle;
+  const img = frames[((frame % frames.length) + frames.length) % frames.length];
+  const b0 = sheet.bounds || { x: 0, y: 0, w: sheet.w, h: sheet.h };
+  const pad = 2;
+  const bx = Math.max(0, b0.x - pad), by = Math.max(0, b0.y - pad);
+  const b = { x: bx, y: by, w: Math.min(sheet.w, b0.x + b0.w + pad) - bx, h: Math.min(sheet.h, b0.y + b0.h + pad) - by };
   // fit the trimmed silhouette into the frame: integer upscale when it fits (crisp),
   // smooth downscale for the largest colossi in small thumbnails
   const box = canvas.width * 0.78;
@@ -1379,6 +1386,16 @@ export function renderPortrait(canvas, speciesId, stage = 'adult') {
   ctx.ellipse(canvas.width / 2 + 2, canvas.height * 0.86, dw * 0.34, dh * 0.08 + 2, 0, 0, Math.PI * 2);
   ctx.fill();
   if (sp.colors.glow) { ctx.shadowColor = sp.colors.glow; ctx.shadowBlur = 6; }
-  ctx.drawImage(frame, b.x, b.y, b.w, b.h, (canvas.width - dw) / 2, canvas.height * 0.86 - dh, dw, dh);
+  ctx.drawImage(img, b.x, b.y, b.w, b.h, (canvas.width - dw) / 2, canvas.height * 0.86 - dh, dw, dh);
   ctx.restore();
+}
+
+// idle-life cadence for a live portrait at wall-clock `now` (ms): which idle frame, and whether
+// the eyes are shut. Phase-offset per portrait so a list of species never blinks in unison.
+export function portraitPose(sheet, now, phase = 0) {
+  const n = sheet && sheet.idle ? sheet.idle.length : 1;
+  const frame = Math.floor(now / 240 + phase) % n;                  // ~4 idle steps / second
+  const cycle = 2600 + (phase * 37) % 1500;                         // 2.6-4.1s between blinks
+  const blink = !!(sheet && sheet.blink) && ((now + phase * 530) % cycle) < 110; // shut ~110ms
+  return { frame, blink };
 }

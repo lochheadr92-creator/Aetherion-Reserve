@@ -13,8 +13,10 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- The game is feature-complete through **Phase 21**, and the post-Phase-19 code health + QoL + feel + polish passes are **complete and verified**.
-- Top priority is **Phase G: Creature Art Rework** — redesign the creature visuals (all 19 species) to look sharper/crisper, more dynamic, and more threatening (predators), while preserving the deterministic sim.
+- Ops Deck Step 1 is landed and verified.
+- Phase G continuation backlog (render/UI-only) is now landed and verified:
+  1) **Juveniles** → 2) **Seed Picker** → 3) **Live Portraits** → 4) **Creature Voices**
+- Next: pick the next roadmap item (see **Next Actions**).
 
 **User confirmations (scope decisions):**
 - Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
@@ -35,422 +37,352 @@
   - Audio, idle life, and keeper markers must remain **render/UI-layer only** (no sim determinism impacts).
   - Scenario work may add state/logic **additively** with backward-compatible defaults.
 - Phase F constraints:
-  - **Edge scrolling is input/render layer only** and must not be triggered by HUD/toolbars/modals (target must be the canvas).
-  - **Bloodline Ledger** is an **additive registry** (backwards compatible; safe on old saves).
+  - **Edge scrolling is input/render layer only** and must not be triggered by HUD/toolbars/modals.
+  - **Bloodline Ledger** is an **additive registry**.
   - **Keeper Radio Chatter** is **lightweight + rate-limited** and should not spam toasts.
-- **Phase G constraints (hard):**
-  - Creature art overhaul is a **render/art layer change**; do not change sim rules.
-  - Keep old saves compatible.
-  - Preserve the existing “unknown biology” readability: silhouettes must remain legible on dark terrain.
 
-**Phase G scope confirmations (recent):**
-- Animation depth: **RICH**
-  - Target per species: **idle 6 frames** + **walk 8-frame gait** + **threat 4 frames** + **lunge/attack 4 frames**.
-- Predator ambience: approved
-  - **Faint eye-glow at night** (preferably via recorded eye rects)
-  - **Crimson/darker shadow halo** when in threat/lunge display
+**Phase G constraints (hard):**
+- Creature art overhaul is a **render/art layer change**; do not change sim rules.
+- Keep old saves compatible.
+- Preserve the existing “unknown biology” readability: silhouettes must remain legible on dark terrain.
+
+**Ops Deck Step-1 constraints (hard):**
+- ART_V2 and OPS_DECK are **behind flags** and must be removable.
+- **Flag off must match main byte-for-byte / DOM-identical** (as applicable).
+- No drive-by refactors; keep diffs in the scoped files only.
 
 **Status (high-level):**
-- **Phase 1–21 COMPLETE & VERIFIED** (see testing baselines below).
-- **Phase G (Creature Art Rework): ✅ COMPLETE & VERIFIED (iteration_20 = 100%)**. All 19 species repainted at scale 1 with idle 6 / walk 8 / threat 4 / lunge 4; predator eye-glow + crimson halo; species auras; portraits fit trimmed bounds at 2x backing.
-  - Toolkits: `pixel.js` crisp primitives + `rig.js` anatomy helpers ✅
-  - Species repaints:
-    - `creatures_a.js` ✅ repainted
-    - `creatures_b.js` ✅ repainted (also fixed a build-breaking syntax error at `creatures_b.js:306`)
-    - `creatures_c.js` ❌ still legacy (Tier-4 apex set needs repaint)
-  - Integration updates partially present:
-    - `creatures.js` baker + `renderer.js` updated to support `threat` and per-sheet scale ✅ (but needs extension for lunge, 8-frame gait, menace glow/halo metadata)
-    - `fx.js` has general FX (dust/prints) ✅ but still needs **species aura emitters**
-- **Phase H — Assessment Fixes: ✅ COMPLETE & VERIFIED (iteration_21 = 100%)**: H1 fence-aware newborn placement, H2 load backfills, H3 ErrorBoundary + M3 load toast, H4 RNG cursor in state (exact replay), H5 per-player save scoping + indexes + pagination, .env.example/README/AETHERION_URL.
-- **Project health:** ✅ **Green** (after the `creatures_b.js` syntax fix, build passes again).
-
-> Constraint (hard): changes must be **systemic, reusable, and interconnected**; changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
+- **Phase 1–21 COMPLETE & VERIFIED**.
+- **Phase G (Creature Art Rework): ✅ COMPLETE & VERIFIED (iteration_20 = 100%)**.
+- **Phase H (Assessment Fixes): ✅ COMPLETE & VERIFIED (iteration_21 = 100%)**.
+- **Stabilisation + Remediation passes:** ✅ COMPLETE & VERIFIED (iteration_22 and iteration_23 = 100%).
+- **Phase J (ART_V2 post-passes): ✅ COMPLETE & VERIFIED (iteration_24 = 100%)**.
+- **Phase K (Ops Deck shell): ✅ COMPLETE & VERIFIED (iteration_24 = 100%)**.
+- **Phase L (Phase G continuation: juveniles/seed picker/live portraits/voices): ✅ COMPLETE & VERIFIED (iteration_25 = 100%)**.
 
 **Testing baselines:**
-- iteration_5: pre-Phase 7 green baseline.
-- iteration_6: post-Phase 7 green baseline (**testing_agent_v3 100%**, plus local suites).
-- iteration_7: post-Phase 8+9 green baseline (**testing_agent_v3 100% backend**, local suites green).
-- iteration_8: post-Phase 10 refactor verification (**testing_agent_v3 100% frontend**, 16/16).
-- iteration_9: post-Phase 11 visual remake verification (**testing_agent_v3 100% overall**, backend 7/7, frontend 29/29; local suites green).
-- iteration_10: post-Phase 12 apex species verification (**testing_agent_v3 100% frontend**, 12/12; local suites green).
-- **iteration_11: post-Phase 13–16 verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 100%; regression 100%).
-- **iteration_12: post-Phase 17 verification** (**testing_agent_v3 100% overall**; backend 10/10; frontend 100% + regression 5/5).
-- **iteration_13: post-Phase 19 verification** (**testing_agent_v3 100% overall**; backend/frontend/integration 100%; Photo Mode fully verified).
-- **iteration_14: post-Phase A Code-Quality Completion verification** (**testing_agent_v3 100% overall**; backend 11/11; frontend green; smoke + visual suites pass).
-- **iteration_15: post-Phase B Keeper Priorities verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 21/21; feature tests pass).
-- **iteration_16: post-Phase C Input UX + Staff Report Card verification** (**testing_agent_v3 100% overall**; all new feature tests + regressions pass).
-- **iteration_17: post-Phase D Game-Feel Pass verification** (**testing_agent_v3 100% overall**; gamefeel + regressions + determinism/backend sanity pass).
-- **iteration_18: post-Phase E (Phase 20) verification** (**testing_agent_v3 100% overall**; backend 6/6; frontend 39/39; integration + regressions 100%).
-- **iteration_19: post-Phase F (Phase 21) verification** (**testing_agent_v3 100% overall**; backend 19/19; frontend 28/28; integration 100%; regressions green).
+- iteration_5–19: all green milestones as recorded.
+- iteration_20: Phase G verified.
+- iteration_21: Phase H verified.
+- iteration_22: stabilisation pass verified.
+- iteration_23: remediation pass verified.
+- **iteration_24: Ops Deck Step 1 verified (Phase J + K) — 100%**.
+- **iteration_25: Phase L verified (L1–L4) + regressions — 100% (109/109)**.
+
+> Constraint (hard): changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
 ---
 
 ## 2) Implementation Steps
 
-### Phase 1 — Core POC (in-app vertical proof; no separate Python script) ✅ COMPLETE
-**Goal:** validate the hardest parts (Canvas isometric + terrain editing + deterministic sim + creature nav + discovery gating) before full content/UI.
-
-**Built (confirmed via /app/tests/smoke_game.py):**
-1. Canvas isometric engine: tile grid, camera pan/zoom, render height, water, materials; selection highlight.
-2. Deterministic sim loop: fixed timestep (100ms) decoupled from render; pause/1x/3x.
-3. Terrain tools: raise/lower/flatten/smooth + paint materials + water brush (shallow/deep gated by research) + vegetation + undo stack.
-4. Placement system: paths + buildings + fences (edges) + gates; collision/slope rules; refunds.
-5. Enclosure detection: flood-fill regions bounded by fences; composition stats.
-6. Creature prototype expanded to roster-ready framework: needs + state machine + A* pathfinding respecting slope/water/fences.
-7. Unknown biology gating: hidden prefs enforced at the data layer via knowledge accessors.
-8. Evidence logging + discoveries: observe behaviour → evidence thresholds → hypothesis + breakthrough notifications.
-9. Minimal viewing system: platform visibility score.
-10. Instrumentation: alerts/cause log; deterministic authoritative state.
-
-**Exit criteria:** all passed.
-
-**POC fixes captured:**
-- Fixed **E-edge fence geometry bug** (fenceCorners wrong edge) → correct fence placement/render/snap.
-- Edge picking now snaps to **nearest visible elevated edge midpoint**.
-- Social evidence bug fixed: renamed movement state to **seekSocial** so arrival triggers evidence.
-- Resting now generates **terrain/elevation/forest** evidence.
+### Phase 1 — Core POC ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 2 — V1 App Development (First Playable) ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+### Phase 2 — V1 App Development ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
 ### Phase 3 — Stabilization + Proving Scenarios + Polish ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+(unchanged; complete and verified)
 
 ---
 
 ### Phase 4 — Fence UX Rework ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+(unchanged; complete and verified)
 
 ---
 
 ### Phase 5 — Feature Expansion: Rectangles + Security + Expeditions ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+(unchanged; complete and verified)
 
 ---
 
-### Phase 6 — Immersion + Late Game Systems (Panic, Night Tours, Breeding, Abilities) ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+### Phase 6 — Immersion + Late Game Systems ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 7 — Dedicated Visual Quality Pass (Pixel Art Cohesion) ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+### Phase 7 — Dedicated Visual Quality Pass ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
 ### Phase 8 — Keeper Staff ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+(unchanged; complete and verified)
 
 ---
 
 ### Phase 9 — Scenario Missions ✅ COMPLETE
-(unchanged; complete and verified — see prior plan)
+(unchanged; complete and verified)
 
 ---
 
-### Phase 10 — Code Quality / Code Review Remediation ✅ COMPLETE (accepted)
-(unchanged; complete and verified — see prior plan)
+### Phase 10 — Code Quality / Code Review Remediation ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 11 — High-End Visual Asset Redesign Pass ✅ COMPLETE (fully verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 11 — High-End Visual Asset Redesign Pass ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 12 — Apex-Class Species (Tier 4) ✅ COMPLETE (fully verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 12 — Apex-Class Species (Tier 4) ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 13 — Genetics & Breeding Lines ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 13 — Genetics & Breeding Lines ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 14 — Park Events Engine + Rival Rumbles ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 14 — Park Events Engine + Rival Rumbles ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 15 — Guest Interest System ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 15 — Guest Interest System ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 16 — Attractions, Amenities & Transport (~30 buildings) ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 16 — Attractions, Amenities & Transport ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 17 — Apex Scenario: “Sovereign Containment” (Nyxarr) ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 17 — Apex Scenario: “Sovereign Containment” ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 18 — Verification & Regression ✅ COMPLETE (Phases 13–17)
-(unchanged; complete and verified — see prior plan)
+### Phase 18 — Verification & Regression ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase 19 — Photo Mode ✅ COMPLETE (fully verified)
-(unchanged; complete and verified — see prior plan)
+### Phase 19 — Photo Mode ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase A — Code Quality Completion & Re-Verification (post-Phase 19) ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase A — Code Quality Completion & Re-Verification ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase B — Feature: Keeper Priorities (post-Phase 19) ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase B — Feature: Keeper Priorities ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase C — QoL: Staff Report Card + Input UX Improvements ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase C — QoL: Staff Report Card + Input UX Improvements ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase D — Game-Feel Pass (render-only polish) ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase D — Game-Feel Pass ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase E (Phase 20) — Ambient Audio + Sovereign Bloodline + Creature Idle Life + Keeper Markers ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase E (Phase 20) — Ambient Audio + Sovereign Bloodline + Creature Idle Life + Keeper Markers ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase F (Phase 21) — Edge Scrolling + Bloodline Ledger + Keeper Radio Chatter ✅ COMPLETE (verified)
-(unchanged; complete and verified — see prior plan)
+### Phase F (Phase 21) — Edge Scrolling + Bloodline Ledger + Keeper Radio Chatter ✅ COMPLETE
+(unchanged; complete and verified)
 
 ---
 
-### Phase G (Phase 22) — Creature Art Rework (Sharper, crisper, richly animated, more menacing) ✅ COMPLETE (verified: iteration_20 = 100%)
-**Goal:** Rework **all 19 species sprites** so they are visibly different from the old art: sharper/crisper rendering, richer animation, stronger silhouettes; predators more threatening/maniacal; herbivores powerful/dynamic.
-
-**High-level deliverables:**
-1. **Pixel art tool upgrades** (`/app/frontend/src/game/art/pixel.js`) ✅ DONE
-2. **Shared rig/anatomy helpers** (`/app/frontend/src/game/art/rig.js`) ✅ DONE
-3. **Repaint all species** (`/app/frontend/src/game/art/creatures_a.js`, `_b.js`, `_c.js`) 🚧 IN PROGRESS
-4. **Sheet pipeline** (`/app/frontend/src/game/art/creatures.js`) 🚧 IN PROGRESS
-5. **Renderer integration** (`/app/frontend/src/game/renderer.js`) 🚧 IN PROGRESS
-6. **Ambient creature auras + predator menace** (`/app/frontend/src/game/fx.js` + renderer touchpoints) ❌ NOT STARTED
-7. **Verification**: gallery + tests + regressions + testing agent **iteration_20** ❌ NOT STARTED
-
-#### Phase G1 — Pixel painter “crisp” toolkit ✅ COMPLETE
-**Delivered:**
-- Crisp primitives in `pixel.js`: `line`, `poly`, `wedge`, `band`, `eye` (records rects), `fang`, `claw`, `spike`, `rim`.
-- Motion helpers: `stride()` (6-phase) and `breathe()`.
-- Shared rig in `rig.js`: articulated `legs`, `tail`, `ridge`, `jaw`, `plates`, `stripes`.
-
-**Acceptance:** achieved; existing art still bakes; new painters use the helpers.
-
-#### Phase G2 — Repaint all 19 species with richer animation 🚧 IN PROGRESS
-**Target frame counts (final):**
-- `idleFrames: 6`
-- `walkFrames: 8` (rich gait cycle)
-- `threatFrames: 4`
-- `lungeFrames: 4` (attack burst / predatory pounce / charge)
-
-**Completed:**
-- `creatures_a.js` repainted (Phase G style) ✅
-- `creatures_b.js` repainted (Phase G style) ✅
-  - Build issue fixed: `creatures_b.js:306` syntax error ✅
-
-**Remaining:**
-- **G2c:** repaint `creatures_c.js` (nyxarr, zephyrmaw, aurox, sylvarr) to Phase G style at `scale: 1` with `idle/walk/threat/lunge`.
-- **G2-rich:** bump all repainted species to **8-frame walk**:
-  - Ensure `stride()` defaults/uses `frames: 8` for walk.
-  - Fix any per-frame arrays indexed by `f` that assume 6 frames (notably the current walk-indexed arrays like `veyra`’s `bob` and `umbra`’s `wf` mapping).
-- **G2-lunge:** implement `paint(P,f,'lunge')` per species:
-  - Predators: forward head snap, jaw open, forelimb extension.
-  - Herbivores: power shove/charge, hoof-stomp, horn sweep.
-  - Neutral/floaters: burst pulse or aggressive flare.
-- **Anti-clipping:** pad bake canvas (or per-mode bounds) so tall spikes / threat raises / lunges do not clip.
-
-**Acceptance:** all species render with new crisp style; predators are visibly menacing; herbivores look assertive/powerful; silhouettes read at night.
-
-#### Phase G3 — Sheet baking pipeline: add lunge + eye metadata + padding 🚧 IN PROGRESS
-**Files:** `/app/frontend/src/game/art/creatures.js`
-
-**Required changes:**
-- Bake modes: `idle`, `walk`, `threat`, **`lunge`**.
-- Blink generation:
-  - Prefer recorded eye rects from `P.eye()`.
-  - Maintain fallback heuristic for any unrecorded species.
-- Record eye rects **per frame per mode**:
-  - Store `sheet.eyesBy = { idle: [...], walk: [...], threat: [...], lunge: [...] }` (or equivalent).
-- Add bake padding support:
-  - Either inflate painter canvas by `pad` per mode and record draw offsets, or add a standardized internal margin.
-- Pass metadata needed by renderer/fx:
-  - `sheet.pace` (cadence tuning by species)
-  - `sheet.menace` (predator menace settings)
-  - `sheet.aura` (already in some A/B species)
-
-**Acceptance:** `getCreatureSheet(id)` returns `{ idle, walk, threat, lunge, blink, scale, shadow, hover, aura, eyesBy, pace, menace }` without errors for all 19.
-
-#### Phase G4 — Renderer integration: lunge bursts, cadence by pace, menace glow/halo 🚧 IN PROGRESS
-**Files:** `/app/frontend/src/game/renderer.js`
-
-**Required changes:**
-- Frame selection:
-  - Add `lunge` selection above `threat` when conditions hit.
-  - Proposed trigger (render-only; no sim changes):
-    - escaped + high stress OR
-    - hungry/flee + stationary burst OR
-    - recent feeding (if available) OR
-    - periodic “display burst” while threat is active.
-- Cadence:
-  - Tune cadence per mode (walk faster than idle; lunge fastest) and allow per-species overrides.
-- Menace:
-  - **Night eye-glow** for predators using exact eye rects (`sheet.eyesBy`) to paint glow pixels cleanly.
-  - **Crimson/darker shadow halo** when `threat` or `lunge` selected.
-- Pixel crispness:
-  - Preserve integer snapping of sprite origin.
-
-**Acceptance:** lunge/threat appear at the right times; sprites remain crisp; no regressions in selection/shadows.
-
-#### Phase G5 — Creature ambience: per-species auras + predator menace FX ❌ NOT STARTED
-**Files:** `/app/frontend/src/game/fx.js` (and minimal call site wiring)
-
-**Required changes:**
-- Add render-only aura emitters driven by `sheet.aura`:
-  - embers (emberoot/rhoak)
-  - spores (mosswarden)
-  - sparks (voltari)
-  - motes (skitter/shardling)
-  - wisps (umbra)
-  - glints (crystal)
-- Night gating and reduced-motion support.
-- Cap emissions to avoid perf spikes.
-
-**Acceptance:** subtle ambience, no sim changes, respects reduced-motion.
-
-#### Phase G6 — Testing + verification ❌ NOT STARTED
-**Gallery:**
-- Update `art_gallery.py` to render **5 rows**: `idle / walk / threat / lunge / blink`.
-- Capture day/night screenshots for A/B/C sets.
-
-**Add tests:**
-- New: `/app/tests/creature_art_test.py`
-  - All 19 sheets bake
-  - Frame counts match: idle 6, walk 8, threat 4, lunge 4
-  - Blink frames present (recorded eyes preferred)
-  - Threat/lunge differ from idle (pixel diff threshold)
-  - No page errors
-- Update existing tests:
-  - `phase20_features_test.py` “IDLE 1 blink frames auto-derived” diff-range may need widening due to exact eye-rect blink shading and increased sprite detail.
-
-**Verification sequence:**
-1. Local: `python -m pytest -q tests/creature_art_test.py` + smoke/regressions
-2. Visual: run `python tests/art_gallery.py a|b|c`, inspect screenshots
-3. Run `testing_agent_v3` → **iteration_20**
+### Phase G (Phase 22) — Creature Art Rework ✅ COMPLETE
+(unchanged; complete and verified; Phase G continuation moved to Phase L)
 
 ---
 
-### Stabilisation pass (post-Phase F review items; executed after Phase G/H) ✅ COMPLETE (iteration_22 = 100%; determinism 8/8, save_compat 6/6, birth_boundary 7/7, acceptance suites green, DB clean)
-Scope = external review of d034801, items 1–8 only; no features / balance / renderer / UI redesign. Decisions (user, this pass):
-keep the already-live Phase H extras (per-browser save scoping, deserialize filters); default world seed stays fixed 12345
-(explicit `seed` supported); purge all leftover DB saves; single testing-agent run reported as iteration_22.
-1. Old-save crash — `deserialize` backfills `state.knowledge` for every `SPECIES_LIST` entry (done in Phase H; verified again here).
-2. Newborns across the fence — `adjacentOpenTile` skips `fenceBetween` candidates; returns the mother's tile when none survive.
-3. Error boundary at `components/ErrorBoundary.jsx` wrapping `<App/>` in `index.js` ("Back to menu" → `game.stopLoop()` + remount);
-   `GameCanvas` rAF wraps `renderer.render()` in try/catch (console.error once per distinct message, loop keeps scheduling).
-4. Load failures — `App.handleLoad` try/catch + toast; `controller.loadGame` builds/deserializes into a local before touching `this.*`.
-5. `ContractsTab` no longer calls `refreshContracts` during render; `controller.newGame` refreshes once after `initObjectives`.
-6. Determinism — `getRngState/setRngState`; `createNewGame({seed})` → `state.seed`; `serialize` writes `rngState`; `deserialize`
-   restores it (legacy `rng` key still read; missing seed → `null`).
-7. Tests — `tests/config.py` (`URL`/`API` from `AETHERION_URL`), every suite imports it (incl. `backend_test.py`, `backend/backend_test.py`);
-   save-creating tests delete in `finally`; new `determinism_test.py` (A/B/C), `save_compat_test.py`, `birth_boundary_test.py`.
-8. Docs — `.env.example` files, README run guide; backend list cap 200 + indexes on `id`, `updated_at` (and `(owner, updated_at)`).
-Acceptance: determinism → save_compat → birth_boundary → smoke_game → phase20 → phase21 → phase17, then testing agent (iteration_22);
-DB must hold no `determinism-b` / `compat-test` saves afterwards.
+### Phase H — Assessment Fixes ✅ COMPLETE
+(unchanged; complete and verified)
 
-### Phase H — Assessment Fixes (local verification + correctness + hardening) ✅ COMPLETE (verified: iteration_21 = 100%; assessment_fixes_test 25/25)
-**Goal:** convert “green on Emergent” into “verifiable locally”, fix correctness edge cases, and harden save/load and backend scope.
+---
 
-> User decision: **do Phase H after Phase G**, but start the backend per-player token work immediately once Phase H begins.
+### Phase I — Remediation Pass ✅ COMPLETE
+(unchanged; complete and verified; iteration_23 = 100%)
 
-#### Phase H0 — Dev ergonomics + local run parity
-**Deliverables:**
-- Add:
-  - `frontend/.env.example` with `REACT_APP_BACKEND_URL=http://localhost:8001`
-  - `backend/.env.example` with `MONGO_URL` and `DB_NAME`
-  - A short `README.md` with the three run commands (frontend, backend, mongodb docker)
-- Parametrize all hard-coded test URLs through one env var:
-  - Use `AETHERION_URL` (fallback to preview URL)
-  - Update all impacted test files (currently 27)
-- Ensure tests never touch Emergent DB during local runs (document docker mongo).
+---
 
-#### Phase H1 — Newborn spawn correctness (fence boundary)
-**Issue:** `adjacentOpenTile()` in `frontend/src/game/creatures.js` does not check `fenceBetween()`.
-- Fix: when picking an adjacent tile, reject tiles across fences.
-- Add test: breeding on a boundary tile must not place newborn outside enclosure.
+### Phase J — ART_V2 post-passes (cel ramp, rim light, ground AO/contact shadow, glow halo) behind flag (Ops Deck Step 1) ✅ COMPLETE & VERIFIED
+**Spec source:** `01-sprite-pipeline-v2.md` (artifact)
 
-#### Phase H2 — Deserialize defensive backfills
-**Issue:** `frontend/src/game/state.js` `deserialize()` lacks knowledge backfill from `SPECIES_LIST`.
-- Fix: on load, ensure `state.knowledge[sp.id]` exists for every species.
-- Add defensive filtering:
-  - unknown `research.completed` ids should be filtered out (or ignored safely)
-  - unknown building types should be filtered or replaced with safe defaults
+**Status:** ✅ COMPLETE & VERIFIED (iteration_24 = 100%)
 
-#### Phase H3 / M3 — Error boundary + load error toast
-- Add React error boundary around the game screen.
-- Add load/save try/catch path with a user-facing toast on failure.
+**Flag design:**
+- `frontend/src/game/art/flags.js`
+  - `export const ART_V2` from `localStorage.getItem('aetherion.artV2')` (default `'on'`).
 
-#### Phase H4 — Determinism (seeded LCG state)
-**Issue:** `rnd()` LCG `seedCounter` is module-level in `frontend/src/game/state.js`, not stored in state, not reset on `newGame`, not restored on `loadGame`.
-- Fix:
-  - Put seed into state (e.g., `state.rng = { seed, counter }`)
-  - Reset LCG in `newGame` / scenario init
-  - Restore LCG on load
-- Add determinism tests:
-  - Hash serialized state at fixed tick across two loads
-  - Replay a save for N ticks twice and compare hashes
+**What landed (high level):**
+- `pixel.js`: deterministic post passes `celRamp`, `rimLight2`, `haloGlow` that **mask recorded eye rects**.
+- `creatures.js`: bake ordering:
+  - cel/rim after `def.paint()` and before outline.
+  - halo after outline, and silhouette `bounds` measured pre-halo so bounds match flag-off.
+  - `sheet.v2 = ART_V2`.
+- `terrain_tex.js`: apply `celRamp(steps=4)` when ART_V2 is on.
+- `rig.js` + `renderer.js`: `groundAO` and `contactShadow` wired into the single shadow draw site.
 
-#### Phase H5 — Backend hardening + per-player token
-**User-approved:** add per-player token now (when Phase H starts).
-- Generate random UUID in localStorage.
-- Send as `X-Player-Token` header on save CRUD.
-- Store on save document as owner token.
-- Compatibility rule: legacy saves with no owner remain visible to everyone.
-- Add index on save `id`.
-- Consider list cap raise or pagination.
-- Add separate DB_NAME for tests (doc + optional env default).
+**Verification:**
+- `tests/art_v2_test.py` passes (9/9).
+- Flag-off outputs match baseline (`tests/art_v2_baseline.json`).
 
-**Deferred (measure-first):**
-- Renderer culling and dirty-rect terrain repaint.
-- Balance items (cooldowns, difficulty tuning) until humans play.
+**Commit:**
+- `e138f63 art: ART_V2 post-passes (cel/rim/halo/AO) behind flag`
 
-### Phase I — Remediation Pass (Status: COMPLETED, pending one testing-agent run)
-Eight scoped items, no features / no art. Phase G continuation (juveniles, voices, live portraits,
-context poses) is PAUSED; the previous agent's uncommitted `art/pixel.js` scaffolding was reverted so
-this pass contains exactly the eight items.
-1. `server.py` PUT/DELETE: `existing is None` (projection `{owner:1}` yields `{}` for ownerless docs) + `tests/backend_ownerless_test.py` (motor insert, PUT/DELETE adopt/delete).
-2. `server.py`: X-Player-Token validated (<= 64 chars, `^[A-Za-z0-9-]+$`, else 400); `skip <= 10000`; three separate `create_index` try blocks.
-3. `state.js createNewGame`: seed = `(Date.now() % 2147483647) || 1` when absent / non-integer / non-finite; explicit integer seeds replay exactly. (assessment_fixes_test has no literal-12345 assertion — nothing to update.)
-4. `state.js deserialize`: SAVE REPAIRED warning alert on any scrub; scrubs `expeditions[].specimens` + `research.dynamicProjects` of unknown species; backfills `objectives: []`; `setRngState` moved to the very end.
-5. `GameCanvas.jsx`: `render-error-banner` + `game.setPaused(true)` on first caught frame error; `input.frame()` inside the try. `ErrorBoundary.retry` calls `game.stopLoop()` first.
-6. `controller.js newGame`: `refreshContracts` after `applyScenario` / `ensureGenes` / `ensureLineage`.
-7. Tests: SaveCleanup in phase5/6b/8/9; phase5 + determinism_backend collect results and `sys.exit(1)`; phase5 3a expects 5 zones; determinism_backend uses `config.API`; save_cleanup 404 = WARNING (and forgets ids the page itself deleted); LEDGER 7 compares to the living creature's name.
-8. `renderer.js`: agitated = escaped || stress > 0.55 (hungry/flee removed). phase20 IDLE 1 bound restored to **16** (measured nyxarr blink-vs-idle diff = 16 px; species range 4..16).
-Local run: 17 suites green, DB left with 0 records.
+---
+
+### Phase K — Ops Deck dock + drawer shell behind OPS_DECK flag (Ops Deck Step 1) ✅ COMPLETE & VERIFIED
+**Spec source:** `02-ops-deck-shell.md` (artifact)
+
+**Status:** ✅ COMPLETE & VERIFIED (iteration_24 = 100%)
+
+**Flag design (user-confirmed):**
+- `OPS_DECK` defaults **ON**.
+- `?legacyHud=1` **forces legacy HUD**.
+- `localStorage.setItem('aetherion.opsDeck','off')` **forces legacy HUD**.
+- Flags read once at module load: set localStorage then reload.
+
+**Implementation notes (landed decisions):**
+- `OpsDock.jsx`: left 56px dock; `data-testid` values are **`dock-` prefixed** to avoid Playwright strict-mode collisions with legacy HudBar.
+- `Drawer.jsx`: 320px drawer with title/close; Esc closes.
+- `useDrawer.js`: single drawer state; same-id toggles closed; `{toggle:false}` to guarantee open.
+- `GameScreen.jsx`:
+  - In deck mode, `HudBar.onOpenModal` routes to `openDrawer`, and `GameModals` is **not mounted**.
+  - Legacy `setModal` writers (alerts + inspect panel open-species) are routed into the deck via an effect.
+  - Left overlays wrapper `ops-left-shift` sits at **left-14** with the drawer closed and **left-[376px]** when open (prevents the build toolbar being covered).
+- `index.css`:
+  - `.ops-drawer-host` neutralises only the **modal chrome** (absolute inset-0 backdrop and fixed-width centered panel) with screen files untouched.
+  - Adds a **generic narrow-host reflow** (grids → 1 column; Species list stacks above detail; header wraps).
+
+**Verification:**
+- `tests/ops_deck_test.py` passes (26/26).
+- Legacy DOM baseline re-recording script: `tests/ops_deck_record_baseline.py`.
+- Regression suites all green with Ops Deck on.
+- Note (pre-existing): `focused_test.py` and `comprehensive_test.py` are stale (do not dismiss tutorial overlay) and are ignored.
+- `ui_integration_test.py` screenshot call updated for Playwright 1.62 (PNG + quality unsupported).
+- Playwright 1.62 required `chromium_headless_shell-1234` under `/pw-browsers`.
+
+**Commit:**
+- `9996f97 hud: Ops Deck dock + drawer shell behind OPS_DECK flag`
+
+---
+
+### Phase L — Phase G continuation backlog (render/UI only): Juveniles → Seed Picker → Live Portraits → Creature Voices ✅ COMPLETE & VERIFIED
+**Status:** ✅ COMPLETE & VERIFIED (**iteration_25 = 100% (109/109)**)
+
+#### L1) Juveniles (distinct proportions) — ✅ COMPLETE
+**Goal:** Newborns read as distinct: **big head, stubby legs**, while preserving silhouette legibility and determinism.
+
+**Landed decisions (implementation):**
+- `frontend/src/game/art/juvenile.js`: deterministic image-space transform derived from the adult bake:
+  - `cub`: head 1.4 / legs 0.6 / torso 0.9
+  - `young`: head 1.18 / legs 0.8 / torso 0.95
+  - Uses recorded eye rects to anchor the head region.
+  - Remaps eye rects so blink derivation + night eye-glow remain exact.
+  - Uses INK outline-gap repair.
+- `frontend/src/game/art/creatures.js`: `getCreatureSheet(id, stage='adult')` keeps **adult path byte-identical**, and caches derived `cub`/`young` sheets.
+- `frontend/src/game/renderer.js`: stage chosen via `juvenileStage(c)`.
+- `frontend/src/components/game/Portrait.jsx`: adds a `stage` prop; juveniles show `data-stage='cub'|'young'`.
+
+**Verification:**
+- `tests/juvenile_art_test.py` passes (14/14).
+- In-game juvenile renders; inspect panel portrait uses the cub sheet.
+
+**Commit:**
+- `f14171a art: juvenile proportions (big head, stubby legs) derived from adult sheets`
+
+#### L2) Seed Picker — ✅ COMPLETE
+**Goal:** Let players type/paste/share seeds for world generation.
+
+**Landed decisions (implementation):**
+- `frontend/src/game/seed.js`:
+  - `parseSeed(text)`:
+    - blank → `seed=null` (clock-derived in `createNewGame`)
+    - digits → `Number % 2^31`
+    - phrase → deterministic FNV-1a hash of lowercase phrase
+  - Clipboard helper `copyText` (Clipboard API with textarea fallback).
+- `frontend/src/game/state.js`: additive `seedLabel` stored in state (defaults to null on deserialize).
+- `frontend/src/components/game/MainMenu.jsx`: SeedField UI:
+  - `seed-input`, `seed-random-button`, `seed-copy-button`, `seed-hint`
+- `frontend/src/components/game/HudBar.jsx`: `hud-seed` chip (click copies)
+- **Note:** `tests/ops_deck_dom_baseline.json` was re-recorded because `hud-seed` now exists in both HUD modes.
+
+**Verification:**
+- `tests/seed_picker_test.py` passes (13/13).
+- Determinism confirmed: same seed → same terrain hash; blank → fresh worlds.
+- Save/load retains `seed` + `seedLabel`.
+
+**Commit:**
+- `9b2f788 menu: world seed picker (type/paste/random/copy) + HUD seed chip`
+
+#### L3) Live Portraits — ✅ COMPLETE
+**Goal:** UI portraits animate with idle/blink (render-only), without harming performance.
+
+**Landed decisions (implementation):**
+- `frontend/src/components/game/Portrait.jsx`:
+  - One shared rAF ticker drives all portraits (≈25Hz), `window.__portraitLive` holds the count.
+  - Repaint-on-change only (idle frame index + blink boolean).
+  - Pauses off-screen via IntersectionObserver and pauses when `document.hidden`.
+  - `prefers-reduced-motion: reduce` → `data-live='off'` + still frame.
+- `frontend/src/game/renderer.js`:
+  - `renderPortrait(canvas, speciesId, stage, {frame, blink})`
+  - `portraitPose(sheet, now, phase)`
+
+**Verification:**
+- `tests/live_portraits_test.py` passes (9/9).
+
+**Commit:**
+- `bf1282b ui: live portraits (idle/blink loop, shared ticker, reduced-motion + visibility aware)`
+
+#### L4) Creature Voices — ✅ COMPLETE
+**Goal:** Synthesized snarls/bellows to make threat/lunge/breach events feel alive.
+
+**Landed decisions (implementation):**
+- `frontend/src/game/audio.js`:
+  - `audio.creatureVoice(c, event, {sheet, proximity, juvenile})` synthesises the voice and returns:
+    - `played` / `muted` / `silent` / `limited-self` / `limited-global`
+  - `voiceProfile(sheet)` derived from the baked art:
+    - `snarl` for predators (`sheet.menace`)
+    - `keen` for bob/hover
+    - `bellow` for heavy/slow bodies
+    - `chirp` default
+  - Pitch based on silhouette height; juveniles ×1.6 pitch.
+  - Rate limits: 2.6s per animal / 320ms global / 3 per 2s rolling window.
+  - `limited-global` keeps the edge pending so a chorus staggers rather than disappearing.
+  - Debug counters: `window.__audio.voices` (attempted/played/limited/muted).
+- `frontend/src/game/renderer.js`: `voiceCue` called on rising edges of threat/lunge, distance attenuated from viewport centre.
+
+**Verification:**
+- `tests/creature_voices_test.py` passes (12/12).
+- Regression audio suite remains green (`phase20_features_test.py`).
+
+**Commit:**
+- `662b0e5 audio: creature voices (synthesised snarl/bellow/keen/chirp on threat + lunge, rate-limited, distance-attenuated)`
+
+#### Phase L documentation / artifacts
+- `memory/PRD.md` updated with a Phase L section.
+
+**Commit:**
+- `a122eea docs: Phase L memory + refreshed art artifacts (iteration_25 = 100%)`
 
 ---
 
 ## 3) Next Actions (backlog — pick with the user)
-1. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
-2. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger.
-3. **World-seed picker (P2)** — surface `createNewGame({ seed })` on the new-game screen (plumbing done in Phase H).
-4. **Ambient Mix / Keeper Voices (P2)**, popover outside-click dismissal (P2).
-5. **Deferred from the assessment (measure first)** — renderer culling / dirty-rect terrain; balance items after human playtests.
+1. **Ops Deck Step 2 (P1)** — adapt the five management screens natively to the 320px drawer (instead of relying on generic narrow-host reflow CSS).
+2. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
+3. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger.
+4. **Ambient Mix sliders / Keeper Voices (P2)**.
 
 ---
 
@@ -461,41 +393,28 @@ Local run: 17 suites green, DB left with 0 records.
 - **No fake systems:** every UI metric corresponds to actual sim causes.
 - **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns.
 - **Code quality restored:** no known Code Quality Analysis findings outstanding; tests reflect correct semantics; art API is maintainable.
-- **Keeper Priorities delivered:** per-keeper enclosure assignment with **flexible prioritization**, persisted via save/load.
-- **Staff report cards delivered:** per-cycle per-staff tallies that reset at daily rollover.
-- **Modern input UX delivered:** drag-pan, right-click cancel/clear, with toolbar sync and preserved workflows.
-- **Game-feel delivered (render-only):** eased zoom, pan inertia, breach shake, placement pop + dust — with reduced-motion support.
-- **Phase E delivered (verified):** ambient audio, Sovereign Bloodline, idle life, keeper markers.
-- **Phase F delivered (verified):** edge scrolling, bloodline ledger, keeper radio.
-- **Phase G delivered (to be verified):**
-  - All 19 species repainted with crisper, sharper silhouette.
-  - Rich animation: **idle 6 + walk 8 + threat 4 + lunge 4**.
-  - Predators visibly menacing; herbivores powerful/dynamic.
-  - Predator menace: eye-glow at night + threat/lunge halo.
-  - Aura ambience implemented (render-only) for selected species.
-  - No regressions; **iteration_20 passes**.
-- **Phase H delivered (to be verified):**
-  - Local run parity docs + env examples
-  - Tests use `AETHERION_URL`
-  - H1/H2/H4 correctness fixed and covered by tests
-  - Error boundary + load error toast
-  - Backend save scoping via per-player token (legacy compatible)
 
-**Verified milestones:**
-- Phase 11 acceptance: ✅ met (iteration_9 = 100%).
-- Phase 12 acceptance: ✅ met (iteration_10 = 100%).
-- Phase 13–16 acceptance: ✅ met (iteration_11 = 100% + `phase16_visual.py` PASS).
-- Phase 17 acceptance: ✅ met (iteration_12 = 100% + `phase17_sovereign_test.py` PASS).
-- Phase 19 acceptance: ✅ met (iteration_13 = 100% + `phase19_photo_test.py` PASS).
-- Phase A acceptance: ✅ met (iteration_14 = 100%).
-- Phase B acceptance: ✅ met (iteration_15 = 100%).
-- Phase C acceptance: ✅ met (iteration_16 = 100%).
-- Phase D acceptance: ✅ met (iteration_17 = 100%).
-- Phase E acceptance: ✅ met (iteration_18 = 100%).
-- Phase F acceptance: ✅ met (iteration_19 = 100%).
+**Delivered milestones (verified):**
+- Phase E (iteration_18), Phase F (iteration_19), Phase G (iteration_20), Phase H (iteration_21), stabilisation (iteration_22), remediation (iteration_23).
+- **Ops Deck Step 1: Phase J + Phase K (iteration_24 = 100%)**.
+- **Phase L (juveniles/seed picker/live portraits/voices): iteration_25 = 100% (109/109)**.
+
+**Phase J (ART_V2) acceptance:**
+- ART_V2 off: creature sheet hashes match baseline; terrain textures match baseline.
+- ART_V2 on: `sheet.v2:true`, hashes differ, `bounds` unchanged; no recolor of eye rects; halo does not affect bounds.
+- Toggling `localStorage['aetherion.artV2']` and reload switches look without console errors.
+
+**Phase K (OPS_DECK) acceptance:**
+- Default ON: OpsDock opens a single drawer at a time; close/toggle/Esc works; existing screens mount inside.
+- Deck mode: `GameModals` absent; legacy modal writers route into the drawer.
+- Flag off / `?legacyHud=1`: legacy HUD/modals render; DOM matches main baseline.
+- Canvas remains interactive at x=400 while drawer open; dock+drawer cover ≤376px.
+
+**Phase L acceptance (new):**
+- Juveniles: derived cub/young sheets render; adult sheets unchanged; eye rects remap correctly.
+- Seed Picker: typed seeds replay identical worlds; HUD seed chip copies; save/load preserves.
+- Live Portraits: idle/blink animation with shared ticker; pauses off-screen; reduced-motion supported.
+- Creature Voices: synthesised voices on threat/lunge; distance-attenuated; rate-limited; mute supported; sim untouched.
 
 **Next verification to produce:**
-- **iteration_20: post-Phase G verification** ✅ (**testing_agent_v3 100% overall**; backend 12/12; creature_art 17/17; phase20 39/39; phase21 28/28; visual/sovereign/gamefeel/smoke green; perf within budget).
-- **iteration_21: post-Phase H verification** ✅ (**testing_agent_v3 100%**; backend 12/12; assessment_fixes 25/25; creature_art 17/17; keeper/gamefeel/phase17/phase20/phase21/input_ux green. phase21 LEDGER 7 was made data-independent — the ledger itself was correct).
-- **iteration_22: stabilisation pass** ✅ (**testing_agent_v3 100%**; items 1–8 verified; backend 6/6 + 19/19 + 11/11; all regressions green; no leftover saves).
-- **Next:** iteration_23 after the next feature phase.
+- **iteration_26**: whichever P1 roadmap item is selected next (plus regressions).

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import GameCanvas from '@/components/game/GameCanvas';
 import HudBar from '@/components/game/HudBar';
 import BuildToolbar from '@/components/game/BuildToolbar';
@@ -10,10 +10,32 @@ import GameModals from '@/components/game/GameModals';
 import EmergencyBanner from '@/components/game/EmergencyBanner';
 import ScenarioTracker from '@/components/game/ScenarioTracker';
 import PhotoMode from '@/components/game/PhotoMode';
+import { OpsDock } from '@/components/game/OpsDock';
+import { Drawer } from '@/components/game/Drawer';
+import SpeciesDatabase from '@/components/game/SpeciesDatabase';
+import ResearchScreen from '@/components/game/ResearchScreen';
+import FinanceScreen from '@/components/game/FinanceScreen';
+import AcquisitionScreen from '@/components/game/AcquisitionScreen';
+import StaffScreen from '@/components/game/StaffScreen';
+import { useDrawer } from '@/components/game/hooks/useDrawer';
 import { useGameTick } from '@/components/game/useGame';
 import { useGameScreenActions } from '@/components/game/hooks/useGameScreenActions';
+import { OPS_DECK } from '@/game/art/flags';
 
 const firstRun = () => !localStorage.getItem('aetherion_tutorial_done');
+
+// Deck mode hosts the existing management screens unchanged inside the Drawer
+// (GameModals itself is only mounted when the flag is off).
+function DeckScreen({ id, dbSpecies, onClose, onBuy, onClaimSpecimen }) {
+  switch (id) {
+    case 'db': return <SpeciesDatabase initialSpecies={dbSpecies} onClose={onClose} />;
+    case 'research': return <ResearchScreen onClose={onClose} />;
+    case 'finances': return <FinanceScreen onClose={onClose} />;
+    case 'fieldops': return <AcquisitionScreen onClose={onClose} onBuy={onBuy} onClaimSpecimen={onClaimSpecimen} />;
+    case 'staff': return <StaffScreen onClose={onClose} />;
+    default: return null;
+  }
+}
 
 export default function GameScreen({ onExit }) {
   useGameTick();
@@ -21,11 +43,25 @@ export default function GameScreen({ onExit }) {
   const [tutorialFirstTime] = useState(firstRun);
   const [photoMode, setPhotoMode] = useState(false);
   const ui = useGameScreenActions();
+  const { drawer, openDrawer, closeDrawer } = useDrawer();
 
   const openHelp = useCallback(() => setTutorialOpen(true), [setTutorialOpen]);
   const closeHelp = useCallback(() => setTutorialOpen(false), [setTutorialOpen]);
   const openPhoto = useCallback(() => setPhotoMode(true), [setPhotoMode]);
   const closePhoto = useCallback(() => setPhotoMode(false), [setPhotoMode]);
+
+  // ---- Ops Deck (flag on): the shell is presentational; every action still goes through ui.* ----
+  // legacy modal writers (inspect panel "open species", alert navigation) route into the deck
+  const { modal: legacyModal, setModal: setLegacyModal, closeModal: closeLegacyModal } = ui;
+  useEffect(() => {
+    if (!OPS_DECK || !legacyModal) return;
+    openDrawer(legacyModal, { toggle: false });
+    setLegacyModal(null); // GameModals is not mounted in deck mode; dbSpecies focus is kept
+  }, [legacyModal, setLegacyModal, openDrawer]);
+  const closeDeck = useCallback(() => { closeDrawer(); closeLegacyModal(); }, [closeDrawer, closeLegacyModal]);
+  const { buyCreature, claimSpecimen } = ui;
+  const deckBuy = useCallback((speciesId) => { closeDrawer(); buyCreature(speciesId); }, [closeDrawer, buyCreature]);
+  const deckClaim = useCallback((expeditionId, specimen) => { closeDrawer(); claimSpecimen(expeditionId, specimen); }, [closeDrawer, claimSpecimen]);
 
   return (
     <div className="relative w-full h-full" data-testid="game-screen">
@@ -35,12 +71,23 @@ export default function GameScreen({ onExit }) {
 
       {!photoMode && (
         <>
-          <HudBar onOpenModal={ui.setModal} onExit={onExit} onNavigate={ui.navigateTo} onHelp={openHelp} onPhoto={openPhoto} />
+          <HudBar onOpenModal={OPS_DECK ? openDrawer : ui.setModal} onExit={onExit} onNavigate={ui.navigateTo} onHelp={openHelp} onPhoto={openPhoto} />
           <EmergencyBanner onNavigate={ui.navigateTo} />
           <ScenarioTracker onExit={onExit} />
-          <ObjectivesPanel />
-          <OverlayToggles rendererRef={ui.rendererRef} />
-          <BuildToolbar activeTool={ui.activeTool} setTool={ui.setTool} />
+          {OPS_DECK ? (
+            // left-anchored overlays sit right of the dock (56px), or right of dock + drawer (376px) while one is open
+            <div className={`ops-left-shift absolute inset-y-0 right-0 ${drawer ? 'left-[376px]' : 'left-14'}`} data-testid="ops-left-shift">
+              <ObjectivesPanel />
+              <BuildToolbar activeTool={ui.activeTool} setTool={ui.setTool} />
+            </div>
+          ) : (
+            <>
+              <ObjectivesPanel />
+              <OverlayToggles rendererRef={ui.rendererRef} />
+              <BuildToolbar activeTool={ui.activeTool} setTool={ui.setTool} />
+            </>
+          )}
+          {OPS_DECK && <OverlayToggles rendererRef={ui.rendererRef} />}
         </>
       )}
 
@@ -55,7 +102,18 @@ export default function GameScreen({ onExit }) {
         />
       )}
 
-      <GameModals modal={ui.modal} dbSpecies={ui.dbSpecies} onClose={ui.closeModal} onBuy={ui.buyCreature} onClaimSpecimen={ui.claimSpecimen} />
+      {OPS_DECK ? (
+        !photoMode && (
+          <>
+            <OpsDock active={drawer} onOpen={openDrawer} />
+            <Drawer id={drawer} onClose={closeDeck}>
+              <DeckScreen id={drawer} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} />
+            </Drawer>
+          </>
+        )
+      ) : (
+        <GameModals modal={ui.modal} dbSpecies={ui.dbSpecies} onClose={ui.closeModal} onBuy={ui.buyCreature} onClaimSpecimen={ui.claimSpecimen} />
+      )}
 
       {tutorialOpen && <TutorialOverlay firstTime={tutorialFirstTime} onClose={closeHelp} />}
     </div>

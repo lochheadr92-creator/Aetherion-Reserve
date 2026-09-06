@@ -240,7 +240,8 @@ async def main():
             
             # Test 12: Visual check - take screenshot
             print("\n1️⃣2️⃣ Taking screenshot for visual verification...")
-            await page.screenshot(path="/app/.screenshots/ui_integration_final.png", quality=40, full_page=False)
+            os.makedirs("/app/.screenshots", exist_ok=True)
+            await page.screenshot(path="/app/.screenshots/ui_integration_final.jpg", type="jpeg", quality=40, full_page=False)
             print(f"   ✅ Screenshot saved")
             
             print("\n" + "="*60)

@@ -1,0 +1,93 @@
+{
+  "summary": "Phase L (iteration 25) complete — all four render/UI-layer features tested and verified: Juveniles (L1), Seed Picker (L2), Live Portraits (L3), and Creature Voices (L4). Backend regression passed. All Playwright acceptance suites passed.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend API regression: 11/11 tests passed (GET/POST/GET-by-id/PUT/DELETE /api/saves with X-Player-Token scoping)",
+    "L1 Juveniles: 14/14 checks passed - derived sheets (cub/young) with big-head/stubby-leg proportions, inspect panel portraits use correct stage, adult sheets untouched",
+    "L2 Seed Picker: 13/13 checks passed - WORLD SEED field with Random/Copy buttons, HUD seed chip, deterministic terrain replay, save/load persistence",
+    "L3 Live Portraits: 9/9 checks passed - Species Database portraits animate idle/blink loop, shared rAF ticker (window.__portraitLive), IntersectionObserver pausing, prefers-reduced-motion support",
+    "L4 Creature Voices: 12/12 checks passed - WebAudio synthesized snarl/bellow/keen/chirp on threat/lunge, distance attenuation, rate limiting (2.6s per animal, 320ms global gap, 3 voices/2s), mute support, debug counters",
+    "Ops Deck regression: 26/26 checks passed - dock/drawer shell, HUD routing, canvas interactivity, legacy fallback",
+    "ART_V2 regression: 9/9 checks passed - cel-shading, rim lighting, halo glow, terrain textures"
+  ],
+  "test_report_links": [
+    "/app/backend/backend_test.py",
+    "/app/tests/juvenile_art_test.py",
+    "/app/tests/seed_picker_test.py",
+    "/app/tests/live_portraits_test.py",
+    "/app/tests/creature_voices_test.py",
+    "/app/tests/ops_deck_test.py",
+    "/app/tests/art_v2_test.py"
+  ],
+  "action_item_for_main_agent": "",
+  "updated_files": [],
+  "success_percentage": {
+    "backend": "100% (11/11)",
+    "frontend_L1_juveniles": "100% (14/14)",
+    "frontend_L2_seed_picker": "100% (13/13)",
+    "frontend_L3_live_portraits": "100% (9/9)",
+    "frontend_L4_creature_voices": "100% (12/12)",
+    "regression_ops_deck": "100% (26/26)",
+    "regression_art_v2": "100% (9/9)",
+    "overall": "100% (109/109)"
+  },
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": false,
+  "detailed_results": {
+    "L1_juveniles": {
+      "sheet_derivation": "All 19 species derive cub/young sheets without mutating adult frames",
+      "proportions": "Cub silhouettes shorter with head-mass share >= 1.1x adult for all eyed species",
+      "eye_remapping": "Per-frame eye rects preserved and remapped onto solid pixels",
+      "blink_frames": "Cub blink frames differ from idle only around remapped eyes",
+      "ingame_render": "Juvenile creatures render correctly with inspect panel portrait using cub sheet (data-stage='cub')",
+      "art_v2_compatibility": "Adult sheets with ART_V2 off still match recorded baseline"
+    },
+    "L2_seed_picker": {
+      "menu_field": "WORLD SEED field with blank→RANDOM hint, numeric/phrase→CODE hint, Random button (9 digits), Copy button",
+      "determinism": "Same seed replays identical terrain (heights/materials/water/veg hash), different seeds differ",
+      "phrase_seeds": "Phrase seeds hash deterministically (case-insensitive) via FNV-1a",
+      "hud_chip": "HUD seed chip (data-testid='hud-seed') shows typed label, click copies to clipboard",
+      "persistence": "seed + seedLabel survive save/load, legacy saves without seed show no chip"
+    },
+    "L3_live_portraits": {
+      "animation": "Species Database portraits animate idle/blink loop at ~25Hz, pixels change over 1.2s",
+      "ticker": "Shared rAF ticker (window.__portraitLive) matches mounted portrait count, drops to 0 when drawer closes",
+      "optimization": "IntersectionObserver pauses off-screen rows (no repaints), first paint unchanged (frame 0)",
+      "reduced_motion": "prefers-reduced-motion: reduce → data-live='off', portraits static"
+    },
+    "L4_creature_voices": {
+      "profiles": "Predators snarl, floaters keen, colossi bellow, small animals chirp; bigger silhouettes get lower pitch",
+      "cues": "Threat display rising edge logs voice:snarl:threat, lunge burst logs voice:snarl:lunge",
+      "rate_limiting": "Per-animal 2.6s gap, global 320ms gap, rolling cap 3 voices/2s enforced",
+      "mute": "Muted: cues logged but not played (voices.muted grows), unmute resumes playback",
+      "distance": "Off-screen animals attempt no voices (distance attenuation)",
+      "sim_isolation": "Voices never touch simulation state (paused tick + cash unchanged)"
+    },
+    "regression": {
+      "ops_deck": "Dock/drawer shell, single-drawer invariant, canvas interactivity, HUD routing, legacy fallback all working",
+      "art_v2": "Cel-shading, rim lighting, halo glow, terrain textures all working with flag on/off"
+    }
+  },
+  "test_environment": {
+    "url": "https://discovery-bio.preview.emergentagent.com",
+    "backend_api": "https://discovery-bio.preview.emergentagent.com/api",
+    "playwright_version": "chromium headless",
+    "viewport": "1600x900",
+    "test_date": "2025-09-06"
+  },
+  "notes": [
+    "All Phase L features are render/UI-layer only and do not modify simulation rules or save format (only additive state.seedLabel)",
+    "No console or page errors detected across all test runs",
+    "Backend API scoping with X-Player-Token working correctly",
+    "All test saves cleaned up after execution",
+    "Ops Deck shell (iteration 24) remains stable with Phase L additions"
+  ]
+}

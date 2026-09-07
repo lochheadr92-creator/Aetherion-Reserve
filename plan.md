@@ -65,8 +65,8 @@
 - **Phase J (ART_V2 post-passes): ✅ COMPLETE & VERIFIED (iteration_24 = 100%)**.
 - **Phase K (Ops Deck Step 1 shell): ✅ COMPLETE & VERIFIED (iteration_24 = 100%)**.
 - **Phase L (juveniles/seed picker/live portraits/voices): ✅ COMPLETE & VERIFIED (iteration_25 = 100%)**.
-- **Phase M (Ops Deck Step 2 native drawer panels): ⏳ NEXT**.
-- **Phase N (Polish/QA pass): ⏳ NEXT**.
+- **Phase M (Ops Deck Step 2 native drawer panels): ✅ COMPLETE & VERIFIED (iteration_26 = 100%, 289/289)**.
+- **Phase N (Polish/QA pass): ✅ COMPLETE & VERIFIED (iteration_26 = 100%)**.
 
 **Testing baselines:**
 - iteration_5–19: all green milestones as recorded.
@@ -76,6 +76,7 @@
 - iteration_23: remediation pass verified.
 - **iteration_24: Ops Deck Step 1 verified (Phase J + K) — 100%**.
 - **iteration_25: Phase L verified (L1–L4) + regressions — 100% (109/109)**.
+- **iteration_26: Phase M (native drawer panels) + Phase N (QA pass) + 21 regression suites — 100% (289/289)**.
 
 > Constraint (hard): changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
@@ -289,7 +290,11 @@
 
 ---
 
-### Phase M — Ops Deck Step 2: Native Drawer Panels (Species DB + Bloodline Ledger focus) ⏳ PLANNED
+### Phase M — Ops Deck Step 2: Native Drawer Panels (Species DB + Bloodline Ledger focus) ✅ COMPLETE & VERIFIED
+**Status:** ✅ COMPLETE & VERIFIED (iteration_26 = 100%). Commits: `47cbb00` (native panels + tests), `3bfff50` (QA fixes).
+**Landed exactly as designed below**, plus: `catalogued(s, species)` in SpeciesDatabase (a species the park holds/held is documented even before its acquisition tier is researched — fixes scenario Sovereigns showing as locked); ledger subject node 220px wide in the drawer; `ledger-empty` state; `drawer-close` testid retired (the header close IS the screen's `*-close-button`).
+
+**Original plan:**
 **Goal:** Remove the “CSS chrome-neutralising” approach and make Ops Deck drawer panels **native**.
 
 **Scope (user-confirmed):**
@@ -345,7 +350,10 @@
 
 ---
 
-### Phase N — Polish / QA Pass ⏳ PLANNED
+### Phase N — Polish / QA Pass ✅ COMPLETE & VERIFIED
+**Status:** ✅ COMPLETE (iteration_26 = 100%). Findings fixed: HUD overflow at 1366–1700px (labels `hidden min-[1720px]:inline`, identity block `flex-auto min-w-0 overflow-hidden`, right cluster `shrink-0`, Menu never clipped); build-toolbar category tabs `px-1 whitespace-nowrap`; Species DB lock for held species (see Phase M). Smoke-tested: menu/seed picker → start, all drawers at 1366/1600/1920, dossier → species deep-link → ledger, photo mode, save → menu list, legacy HUD + legacy modals. New suites: `tests/ops_deck_native_test.py` (17), `tests/hud_responsiveness_test.py` (19, added by the testing agent).
+
+**Original plan:**
 **Goal:** A short, practical polish pass after Phase M to catch UI regressions and usability issues, without changing simulation determinism.
 
 **Activities:**
@@ -374,11 +382,10 @@
 ---
 
 ## 3) Next Actions (backlog — pick with the user)
-1. **Ops Deck Step 2 (P1)** — native drawer panels for management screens (Phase M).
-2. **Polish / QA pass (P1)** — smoke test + screenshot review + fixes (Phase N).
-3. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
-4. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger.
-5. **Ambient Mix sliders / Keeper Voices (P2)**.
+1. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
+2. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger (now a native drawer — natural home).
+3. **Ambient Mix sliders / Keeper Voices (P2)**.
+4. **Legacy HUD retirement (P2)** — once the deck has soaked, drop the `OPS_DECK` flag + GameModals path (ScreenFrame's modal host + the DOM baseline test become removable).
 
 ---
 
@@ -412,5 +419,11 @@
 - Live Portraits: idle/blink animation with shared ticker; pauses off-screen; reduced-motion supported.
 - Creature Voices: synthesised voices on threat/lunge; distance-attenuated; rate-limited; mute supported; sim untouched.
 
+**Phase M/N acceptance (verified, iteration_26):**
+- Every drawer screen: `data-host=drawer`, one header + one close, no horizontal overflow, no `.ops-drawer-host`; legacy DOM baseline unchanged.
+- Species DB: roster strip + detail; dossier deep-link lands on the species with its row in view; held species catalogued.
+- Ledger: contextual `ledger` drawer (no dock button), cards outlook, locate/Esc/close; legacy portal modal unchanged.
+- HUD fits 1366→1920 with nothing clipped.
+
 **Next verification to produce:**
-- **iteration_26**: Phase M (native drawer panels) + Phase N (polish/QA) + regressions.
+- **iteration_27**: whichever P1 roadmap item is selected next (plus regressions).

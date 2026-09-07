@@ -29,10 +29,10 @@
   },
   {
     "content": "Phase N QA pass: smoke flows + screenshot review (1600x900, 1366x768), fix findings",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Testing agent (iteration_26), fix issues, update plan.md + PRD.md, commit",
-    "status": "pending"
+    "status": "in_progress"
   }
 ]

@@ -15,11 +15,12 @@ const HudButton = ({ icon: Icon, label, onClick, testId, active }) => (
     data-testid={testId}
     onClick={onClick}
     data-active={active ? 'true' : 'false'}
-    className="nl-tool flex items-center gap-1.5 h-9 px-3 text-xs font-medium"
+    className="nl-tool flex items-center gap-1.5 h-9 px-3 text-xs font-medium whitespace-nowrap shrink-0"
     title={label}
+    aria-label={label}
   >
     <Icon size={15} />
-    <span className="hidden xl:inline">{label}</span>
+    <span className="hidden min-[1720px]:inline">{label}</span>
   </button>
 );
 
@@ -42,11 +43,11 @@ function SeedChip({ code }) {
 function ParkIdentity({ s }) {
   const code = seedCode(s);
   return (
-    <div className="flex items-center gap-3 min-w-0">
-      <div className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-cyan)', boxShadow: '0 0 8px rgba(45,226,230,0.8)' }} />
+    <div className="flex items-center gap-3 min-w-0 flex-auto overflow-hidden">
+      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--accent-cyan)', boxShadow: '0 0 8px rgba(45,226,230,0.8)' }} />
       <div className="min-w-0">
         <div className="text-sm font-semibold truncate text-[var(--text-1)]" data-testid="hud-park-name">{s.parkName}</div>
-        <div className="mono text-[10px] text-[var(--text-3)] tracking-wider flex items-center gap-1.5">
+        <div className="mono text-[10px] text-[var(--text-3)] tracking-wider flex items-center gap-1.5 whitespace-nowrap">
           <span>CYCLE {s.day} · {s.mode === 'sandbox' ? 'SANDBOX' : 'MANAGEMENT'}</span>
           {code && <span aria-hidden="true">·</span>}
           {code && <SeedChip code={code} />}
@@ -269,11 +270,12 @@ export default function HudBar({ onOpenModal, onExit, onNavigate, onHelp, onPhot
     <div className="absolute top-0 left-0 right-0 z-30">
       <div className="nl-panel !rounded-none !rounded-b-none border-t-0 border-x-0 flex items-center gap-3 px-4 h-14">
         <ParkIdentity s={s} />
-        <div className="flex items-center mx-auto">
+        <div className="flex items-center shrink-0">
           <TimeControls s={s} />
           <WeatherChip s={s} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0" aria-hidden="true" />
+        <div className="flex items-center gap-2 shrink-0">
           <HudKpis s={s} />
           <div className="w-px h-6 bg-[var(--line)]" />
           <HudButton icon={Rocket} label="Field Ops" testId="open-fieldops-button" onClick={() => onOpenModal('fieldops')} />

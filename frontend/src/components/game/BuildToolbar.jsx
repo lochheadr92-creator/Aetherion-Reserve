@@ -281,7 +281,7 @@ function CategoryTabs({ cat, setCat }) {
     <div className="flex border-b border-[var(--line)] bg-[var(--panel-3)]" data-testid="build-toolbar-category-tabs">
       {CATS.map((c) => (
         <button key={c.id} data-testid={`cat-${c.id}`} onClick={() => setCat(c.id)}
-          className="flex-1 py-2 text-[11px] font-medium transition-colors"
+          className="flex-1 py-2 px-1 text-[11px] font-medium whitespace-nowrap transition-colors"
           style={catTabStyle(cat === c.id)}>{c.label}</button>
       ))}
     </div>

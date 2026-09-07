@@ -13,23 +13,23 @@
   },
   {
     "content": "Convert Research/Finance/Acquisition(+tabs)/Staff to ScreenFrame + drawer: layouts",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "BloodlineLedger -> ScreenFrame drawer panel (portal only legacy); thread onOpenLedger via InspectPanel/CreaturePanel/GameScreen",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Delete .ops-drawer-host CSS block; esbuild/yarn build check; screenshots of each drawer",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Update ops_deck_test + live_portraits_test; write tests/ops_deck_native_test.py; run affected suites",
-    "status": "pending"
+    "status": "completed"
   },
   {
     "content": "Phase N QA pass: smoke flows + screenshot review (1600x900, 1366x768), fix findings",
-    "status": "pending"
+    "status": "in_progress"
   },
   {
     "content": "Testing agent (iteration_26), fix issues, update plan.md + PRD.md, commit",

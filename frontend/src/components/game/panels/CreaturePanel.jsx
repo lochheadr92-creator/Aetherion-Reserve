@@ -234,7 +234,7 @@ function ActionRow({ c, sp, onNavigate, onOpenSpecies, onTransfer }) {
   );
 }
 
-export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }) {
+export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onOpenLedger, onClose }) {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const s = game.state;
   const c = s.creatures.find((q) => q.id === id);
@@ -245,6 +245,8 @@ export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }
   const sp = speciesById(c.speciesId);
   const enc = computeEnclosures(s).enclosures.find((e) => e.id === c.enclosureId);
   const habitat = evaluateHabitat(s, c, enc);
+  // Ops Deck routes the ledger into a contextual drawer; the legacy HUD keeps the local portal modal
+  const openLedger = onOpenLedger ? () => onOpenLedger(c.id) : () => setLedgerOpen(true);
 
   return (
     <div className="flex flex-col gap-3 p-4" data-testid="creature-panel">
@@ -253,11 +255,11 @@ export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onClose }
       <div className="text-[11px] mono text-[var(--accent-cyan)]">▸ {ACTIVITY[c.state] || c.state}</div>
       <VitalsBars c={c} />
       <HabitatFactors habitat={habitat} />
-      <GeneticsSection c={c} onOpenLedger={() => setLedgerOpen(true)} />
+      <GeneticsSection c={c} onOpenLedger={openLedger} />
       <BiologySection view={view} knownEntries={knownEntries} />
       <ActionRow c={c} sp={sp} onNavigate={onNavigate} onOpenSpecies={onOpenSpecies}
         onTransfer={() => transferCreature(s, c, sp, onClose)} />
-      {ledgerOpen && <BloodlineLedger creatureId={c.id} onClose={() => setLedgerOpen(false)} onNavigate={onNavigate} />}
+      {ledgerOpen && !onOpenLedger && <BloodlineLedger creatureId={c.id} onClose={() => setLedgerOpen(false)} onNavigate={onNavigate} />}
     </div>
   );
 }

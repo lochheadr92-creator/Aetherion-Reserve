@@ -194,65 +194,8 @@ code, .mono {
 /* left-anchored overlays (directives, build toolbar) sit right of the dock while it is present */
 .ops-left-shift { pointer-events: none; }
 .ops-left-shift > * { pointer-events: auto; }
-/* Host wrapper: the management screens are full-screen modals — an `absolute inset-0` backdrop
-   around a fixed-width, centred `.nl-panel`. Only that chrome is neutralised here (the screen
-   files are untouched): the panel fills the drawer body and keeps its own internal scrolling. */
-.ops-drawer-host {
-    display: flex;
-    flex-direction: column;
-}
-.ops-drawer-host > div {
-    position: relative !important;
-    inset: auto !important;
-    z-index: auto !important;
-    background: transparent !important;
-    display: flex;
-    flex: 1 1 0%;
-    min-height: 0;
-    align-items: stretch;
-    justify-content: flex-start;
-}
-.ops-drawer-host > div > .nl-panel {
-    flex: 1 1 0%;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
-    min-height: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-}
-/* Narrow-host reflow: the screens were laid out for ~1000px panels; inside the 320px drawer
-   their multi-column grids and the fixed-width side list stack vertically. Generic selectors
-   only — no screen-specific hooks. */
-.ops-drawer-host .nl-panel .grid {
-    grid-template-columns: minmax(0, 1fr) !important;
-}
-.ops-drawer-host .nl-panel .grid > [class*="col-span-"] {
-    grid-column: auto !important;
-}
-.ops-drawer-host .nl-panel > .flex.flex-1.min-h-0 {
-    flex-direction: column;
-}
-.ops-drawer-host .nl-panel > .flex.flex-1.min-h-0 > [class*="w-[300px]"] {
-    width: 100% !important;
-    flex: 0 0 auto;
-    max-height: 42%;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-}
-.ops-drawer-host .nl-panel-header {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-.ops-drawer-host .nl-panel-header > :first-child {
-    min-width: 0;
-    flex: 1 1 200px;
-}
-.ops-drawer-host .nl-panel-header > :last-child {
-    margin-left: auto;
-}
+/* Hosted screens render their own drawer-native chrome through ScreenFrame (data-host="drawer") and
+   declare narrow layouts with the Tailwind `drawer:` variant — no override CSS lives here. */
 
 /* toast styling for sonner */
 [data-sonner-toast] {

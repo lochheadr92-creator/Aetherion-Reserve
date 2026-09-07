@@ -112,11 +112,11 @@ function ActiveExpedition({ exp, onClaimSpecimen }) {
 export default function ExpeditionsTab({ s, onClaimSpecimen }) {
   const active = s.expeditions || [];
   return (
-    <div className="grid grid-cols-3 gap-3 content-start" data-testid="expeditions-tab">
-      <div className="col-span-2 grid grid-cols-2 gap-3 content-start">
+    <div className="grid grid-cols-3 gap-3 content-start drawer:grid-cols-1" data-testid="expeditions-tab">
+      <div className="col-span-2 grid grid-cols-2 gap-3 content-start drawer:col-span-1 drawer:grid-cols-1">
         {ZONE_LIST.map((z) => <ZoneCard key={z.id} zone={z} s={s} />)}
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 min-w-0">
         <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">FIELD TEAMS ({active.filter((e) => e.status === 'active').length}/2 DEPLOYED)</div>
         {active.length === 0 && (
           <div className="text-[11px] text-[var(--text-3)] rounded-lg border border-dashed border-[var(--line)] p-4 text-center" data-testid="expeditions-empty">

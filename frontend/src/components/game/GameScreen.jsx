@@ -17,6 +17,7 @@ import ResearchScreen from '@/components/game/ResearchScreen';
 import FinanceScreen from '@/components/game/FinanceScreen';
 import AcquisitionScreen from '@/components/game/AcquisitionScreen';
 import StaffScreen from '@/components/game/StaffScreen';
+import BloodlineLedger from '@/components/game/BloodlineLedger';
 import { useDrawer } from '@/components/game/hooks/useDrawer';
 import { useGameTick } from '@/components/game/useGame';
 import { useGameScreenActions } from '@/components/game/hooks/useGameScreenActions';
@@ -24,15 +25,17 @@ import { OPS_DECK } from '@/game/art/flags';
 
 const firstRun = () => !localStorage.getItem('aetherion_tutorial_done');
 
-// Deck mode hosts the existing management screens unchanged inside the Drawer
-// (GameModals itself is only mounted when the flag is off).
-function DeckScreen({ id, dbSpecies, onClose, onBuy, onClaimSpecimen }) {
+// Deck mode hosts the management screens as native drawer panels (ScreenFrame reads the drawer
+// host from context); GameModals itself is only mounted when the flag is off. The Bloodline
+// Ledger is a contextual drawer (no dock button) opened from an organism dossier.
+function DeckScreen({ id, params, dbSpecies, onClose, onBuy, onClaimSpecimen, onNavigate }) {
   switch (id) {
     case 'db': return <SpeciesDatabase initialSpecies={dbSpecies} onClose={onClose} />;
     case 'research': return <ResearchScreen onClose={onClose} />;
     case 'finances': return <FinanceScreen onClose={onClose} />;
     case 'fieldops': return <AcquisitionScreen onClose={onClose} onBuy={onBuy} onClaimSpecimen={onClaimSpecimen} />;
     case 'staff': return <StaffScreen onClose={onClose} />;
+    case 'ledger': return <BloodlineLedger creatureId={params?.creatureId} onClose={onClose} onNavigate={onNavigate} />;
     default: return null;
   }
 }
@@ -43,7 +46,7 @@ export default function GameScreen({ onExit }) {
   const [tutorialFirstTime] = useState(firstRun);
   const [photoMode, setPhotoMode] = useState(false);
   const ui = useGameScreenActions();
-  const { drawer, openDrawer, closeDrawer } = useDrawer();
+  const { drawer, drawerParams, openDrawer, closeDrawer } = useDrawer();
 
   const openHelp = useCallback(() => setTutorialOpen(true), [setTutorialOpen]);
   const closeHelp = useCallback(() => setTutorialOpen(false), [setTutorialOpen]);
@@ -62,6 +65,8 @@ export default function GameScreen({ onExit }) {
   const { buyCreature, claimSpecimen } = ui;
   const deckBuy = useCallback((speciesId) => { closeDrawer(); buyCreature(speciesId); }, [closeDrawer, buyCreature]);
   const deckClaim = useCallback((expeditionId, specimen) => { closeDrawer(); claimSpecimen(expeditionId, specimen); }, [closeDrawer, claimSpecimen]);
+  // organism dossier → Bloodline Ledger as a contextual drawer (legacy HUD keeps its portal modal)
+  const openLedger = useCallback((creatureId) => openDrawer('ledger', { toggle: false, params: { creatureId } }), [openDrawer]);
 
   return (
     <div className="relative w-full h-full" data-testid="game-screen">
@@ -99,6 +104,7 @@ export default function GameScreen({ onExit }) {
           onClose={ui.clearSelection}
           onNavigate={ui.navigateTo}
           onOpenSpecies={ui.openSpecies}
+          onOpenLedger={OPS_DECK ? openLedger : undefined}
         />
       )}
 
@@ -107,7 +113,7 @@ export default function GameScreen({ onExit }) {
           <>
             <OpsDock active={drawer} onOpen={openDrawer} />
             <Drawer id={drawer} onClose={closeDeck}>
-              <DeckScreen id={drawer} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} />
+              <DeckScreen id={drawer} params={drawerParams} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} onNavigate={ui.navigateTo} />
             </Drawer>
           </>
         )

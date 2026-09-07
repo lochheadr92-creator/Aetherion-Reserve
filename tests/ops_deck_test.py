@@ -2,8 +2,9 @@
 
   on   (default) the dock renders five `dock-*` buttons and no drawer; clicking a dock button opens
        the matching drawer (title, data-drawer, aria-pressed), clicking it again closes it; only one
-       drawer exists at a time; Esc / drawer-close / the hosted screen's own close button all close
-       it; HudBar buttons and alert navigation route into the drawer; GameModals is not mounted
+       drawer exists at a time; Esc / the drawer header close / the hosted screen's own close button
+       all close it (they are the same single control — hosted screens are native panels with one
+       header); HudBar buttons and alert navigation route into the drawer; GameModals is not mounted
        (no *-modal element while closed, exactly one — inside the drawer, <= 320px wide — while
        open); dock + drawer cover <= 376px; the canvas is hit-testable and usable at x=400 with a
        drawer open; the left overlays (directives, build toolbar) sit right of the shell; the sim
@@ -78,7 +79,7 @@ async def deck_on(page):
     check("ON 3 dock is 56px wide at the left edge under the HudBar", dock_box and dock_box["x"] == 0 and round(dock_box["width"]) == 56 and round(dock_box["y"]) == 56, str(dock_box))
 
     # ---- open / toggle each dock button ----
-    ok_open, ok_toggle, ok_modal = True, True, True
+    ok_open, ok_toggle, ok_modal, ok_chrome = True, True, True, True
     for did, tid in DOCK.items():
         await page.click(f'[data-testid="{tid}"]')
         await page.wait_for_timeout(250)
@@ -92,12 +93,20 @@ async def deck_on(page):
         if await modal_count(page) != 1 or inside != 1 or not box or box["width"] > 320 or box["x"] < 56:
             ok_modal = False
             print("   hosted screen mismatch", did, inside, box)
+        # native panel: exactly one header + one close control inside the drawer (no duplicate modal chrome)
+        headers = await page.locator('[data-testid="ops-drawer"] .nl-panel-header').count()
+        closes = await page.locator('[data-testid="ops-drawer"] [data-testid$="-close-button"]').count()
+        host = await page.locator('[data-testid="ops-drawer"] [data-testid$="-modal"]').first.get_attribute("data-host")
+        if headers != 1 or closes != 1 or host != "drawer":
+            ok_chrome = False
+            print("   chrome mismatch", did, headers, closes, host)
         await page.click(f'[data-testid="{tid}"]')
         await page.wait_for_timeout(200)
         if await drawer_id(page) is not None or await page.locator(f'[data-testid="{tid}"]').get_attribute("aria-pressed") != "false":
             ok_toggle = False
     check("ON 4 every dock button opens its drawer (data-drawer, title, aria-pressed)", ok_open)
     check("ON 5 hosted screen mounts inside the drawer (exactly one *-modal, <= 320px wide, right of the dock)", ok_modal)
+    check("ON 5b hosted screen is a native panel: one header, one close control, data-host=drawer", ok_chrome)
     check("ON 6 clicking the active dock button toggles the drawer closed", ok_toggle)
 
     # ---- single-drawer invariant + geometry ----
@@ -141,9 +150,9 @@ async def deck_on(page):
     check("ON 13 Esc closes the drawer", await drawer_id(page) is None and await modal_count(page) == 0)
     await page.click(f'[data-testid="{DOCK["staff"]}"]')
     await page.wait_for_timeout(200)
-    await page.click('[data-testid="drawer-close"]')
+    await page.click('[data-testid="ops-drawer"] header [data-testid$="-close-button"]')
     await page.wait_for_timeout(200)
-    check("ON 14 drawer-close closes the drawer", await drawer_id(page) is None)
+    check("ON 14 the drawer header close control closes the drawer", await drawer_id(page) is None)
     await page.click(f'[data-testid="{DOCK["finances"]}"]')
     await page.wait_for_timeout(200)
     await page.click('[data-testid="finances-close-button"]')

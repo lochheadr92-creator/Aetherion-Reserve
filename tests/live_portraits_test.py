@@ -81,7 +81,7 @@ async def main():
         await page.wait_for_timeout(200)
         top = await samples(page, '[data-testid="species-row-veyra"] canvas', 900)
         check("LIVE 5 a scrolled-out row stops repainting", len(set(top)) == 1, f"distinct={len(set(top))}")
-        await page.click('[data-testid="drawer-close"]')
+        await page.click('[data-testid="species-db-close-button"]')
         await page.wait_for_timeout(300)
         check("LIVE 6 ticker registry drops to 0 once the drawer closes", await page.evaluate("window.__portraitLive") == 0)
 

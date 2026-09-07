@@ -13,7 +13,7 @@ const TITLES = {
   fence: 'BARRIER SEGMENT',
 };
 
-export default function InspectPanel({ selection, onClose, onNavigate, onOpenSpecies }) {
+export default function InspectPanel({ selection, onClose, onNavigate, onOpenSpecies, onOpenLedger }) {
   useGameTick(); // re-render on sim UI pulse
   if (!game.state || !selection) return null;
   return (
@@ -24,7 +24,7 @@ export default function InspectPanel({ selection, onClose, onNavigate, onOpenSpe
           <button data-testid="inspect-panel-close-button" onClick={onClose} className="nl-tool w-7 h-7 flex items-center justify-center"><X size={13} /></button>
         </div>
         <div className="flex-1 overflow-y-auto nl-scroll">
-          {selection.kind === 'creature' && <CreaturePanel id={selection.id} onNavigate={onNavigate} onOpenSpecies={onOpenSpecies} onClose={onClose} />}
+          {selection.kind === 'creature' && <CreaturePanel id={selection.id} onNavigate={onNavigate} onOpenSpecies={onOpenSpecies} onOpenLedger={onOpenLedger} onClose={onClose} />}
           {selection.kind === 'enclosure' && <EnclosurePanel id={selection.id} onNavigate={onNavigate} />}
           {selection.kind === 'building' && <BuildingPanel id={selection.id} onClose={onClose} />}
           {selection.kind === 'fence' && <FencePanel sel={selection} onClose={onClose} />}

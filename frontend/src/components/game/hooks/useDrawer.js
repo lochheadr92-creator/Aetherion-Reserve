@@ -4,16 +4,17 @@ import { useState, useCallback } from 'react';
 // `openDrawer(id)` on the already-open id toggles it closed (dock-button semantics);
 // pass `{ toggle: false }` to guarantee the drawer ends up open (used when the legacy
 // modal writers — inspect panel, alert navigation — route into the deck).
-export const DRAWER_IDS = ['fieldops', 'staff', 'db', 'research', 'finances'];
+// `params` carries contextual payloads (e.g. the Bloodline Ledger's creatureId).
+export const DRAWER_IDS = ['fieldops', 'staff', 'db', 'research', 'finances', 'ledger'];
 
 export function useDrawer() {
-  const [drawer, setDrawer] = useState(null);
-  const openDrawer = useCallback((id, { toggle = true } = {}) => {
+  const [drawer, setDrawer] = useState(null); // { id, params } | null
+  const openDrawer = useCallback((id, { toggle = true, params = null } = {}) => {
     if (!id || !DRAWER_IDS.includes(id)) return;
-    setDrawer((cur) => (toggle && cur === id ? null : id));
+    setDrawer((cur) => (toggle && cur?.id === id ? null : { id, params }));
   }, []);
   const closeDrawer = useCallback(() => setDrawer(null), []);
-  return { drawer, openDrawer, closeDrawer };
+  return { drawer: drawer?.id ?? null, drawerParams: drawer?.params ?? null, openDrawer, closeDrawer };
 }
 
 export default useDrawer;

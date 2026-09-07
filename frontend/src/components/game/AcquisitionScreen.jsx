@@ -1,4 +1,4 @@
-import { X, Lock, PackageCheck } from 'lucide-react';
+import { Lock, PackageCheck } from 'lucide-react';
 import { useState } from 'react';
 import { game } from '@/game/controller';
 import { useGameTick } from '@/components/game/useGame';
@@ -9,8 +9,8 @@ import { fmtMoney } from '@/game/constants';
 import Portrait from '@/components/game/Portrait';
 import ExpeditionsTab from '@/components/game/fieldops/ExpeditionsTab';
 import ContractsTab from '@/components/game/fieldops/ContractsTab';
+import { ScreenFrame, useScreenHost } from '@/components/game/ScreenFrame';
 
-const BACKDROP_STYLE = { background: 'rgba(5,7,11,0.8)' };
 const BUY_BUTTON_STYLE = { background: 'var(--accent-cyan)', color: '#061014' };
 const ATTENTION_DOT_STYLE = { background: 'var(--accent-seaglass)' };
 const TABS = [
@@ -107,10 +107,10 @@ function AcquireCard({ sp, s, onBuy }) {
 
 function FieldOpsTabs({ tab, attention, onSelect }) {
   return (
-    <div className="flex border-b border-[var(--line)] bg-[var(--panel-3)]" data-testid="fieldops-tabs">
+    <div className="flex border-b border-[var(--line)] bg-[var(--panel-3)] shrink-0" data-testid="fieldops-tabs">
       {TABS.map((t) => (
         <button key={t.id} data-testid={`fieldops-tab-${t.id}`} onClick={() => onSelect(t.id)}
-          className="px-5 py-2.5 mono text-[10px] tracking-[0.2em] font-medium transition-colors relative"
+          className="px-5 py-2.5 mono text-[10px] tracking-[0.2em] font-medium transition-colors relative drawer:flex-1 drawer:px-2 drawer:text-center"
           style={tabStyle(tab === t.id)}>
           {t.label}
           {attention[t.id] && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={ATTENTION_DOT_STYLE} />}
@@ -122,33 +122,32 @@ function FieldOpsTabs({ tab, attention, onSelect }) {
 
 export default function AcquisitionScreen({ onClose, onBuy, onClaimSpecimen }) {
   useGameTick();
+  const compact = useScreenHost() === 'drawer';
   const [tab, setTab] = useState('acquire');
   const s = game.state;
   if (!s) return null;
 
   const attention = getTabAttention(s);
+  const funds = <>Funds: <span className="mono">{fmtMoney(s.cash)}</span></>;
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center" style={BACKDROP_STYLE} data-testid="fieldops-modal">
-      <div className="nl-panel w-[1100px] max-w-[95vw] h-[80vh] flex flex-col overflow-hidden">
-        <div className="nl-panel-header flex items-center justify-between px-4 py-3">
-          <div>
-            <div className="mono text-[10px] tracking-[0.25em] text-[var(--accent-cyan)]">FIELD OPERATIONS</div>
-            <div className="text-sm text-[var(--text-2)] mt-0.5">Asset recovery, survey expeditions and Oversight directives. Funds: <span className="mono">{fmtMoney(s.cash)}</span></div>
-          </div>
-          <button data-testid="fieldops-close-button" onClick={onClose} className="nl-tool w-8 h-8 flex items-center justify-center"><X size={15} /></button>
+    <ScreenFrame
+      testId="fieldops-modal"
+      closeTestId="fieldops-close-button"
+      onClose={onClose}
+      eyebrow="FIELD OPERATIONS"
+      subtitle={compact ? funds : <>Asset recovery, survey expeditions and Oversight directives. {funds}</>}
+      toolbar={<FieldOpsTabs tab={tab} attention={attention} onSelect={setTab} />}
+      size="w-[1100px] h-[80vh]"
+      bodyClassName="p-4 drawer:p-3"
+    >
+      {tab === 'acquire' && (
+        <div className="grid grid-cols-3 gap-3 content-start drawer:grid-cols-1">
+          {SPECIES_LIST.map((sp) => <AcquireCard key={sp.id} sp={sp} s={s} onBuy={onBuy} />)}
         </div>
-        <FieldOpsTabs tab={tab} attention={attention} onSelect={setTab} />
-        <div className="flex-1 overflow-y-auto nl-scroll p-4">
-          {tab === 'acquire' && (
-            <div className="grid grid-cols-3 gap-3 content-start">
-              {SPECIES_LIST.map((sp) => <AcquireCard key={sp.id} sp={sp} s={s} onBuy={onBuy} />)}
-            </div>
-          )}
-          {tab === 'expeditions' && <ExpeditionsTab s={s} onClaimSpecimen={onClaimSpecimen} />}
-          {tab === 'contracts' && <ContractsTab s={s} />}
-        </div>
-      </div>
-    </div>
+      )}
+      {tab === 'expeditions' && <ExpeditionsTab s={s} onClaimSpecimen={onClaimSpecimen} />}
+      {tab === 'contracts' && <ContractsTab s={s} />}
+    </ScreenFrame>
   );
 }

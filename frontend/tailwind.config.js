@@ -78,5 +78,14 @@ module.exports = {
       }
     }
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    // `drawer:` variant — styles that apply only while a management screen is hosted inside the
+    // Ops Deck drawer (ScreenFrame sets data-host="drawer" on the screen root). Lets each screen
+    // declare its own narrow layout (e.g. `grid-cols-3 drawer:grid-cols-1`) instead of relying on
+    // global override CSS.
+    require("tailwindcss/plugin")(function ({ addVariant }) {
+      addVariant("drawer", '[data-host="drawer"] &');
+    }),
+  ],
 };

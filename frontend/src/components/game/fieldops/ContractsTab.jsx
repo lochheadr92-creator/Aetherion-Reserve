@@ -66,8 +66,8 @@ export default function ContractsTab({ s }) {
   const cs = s.contracts;
   const canAccept = cs.active.length < 3;
   return (
-    <div className="grid grid-cols-2 gap-4 content-start" data-testid="contracts-tab">
-      <div className="flex flex-col gap-2">
+    <div className="grid grid-cols-2 gap-4 content-start drawer:grid-cols-1" data-testid="contracts-tab">
+      <div className="flex flex-col gap-2 min-w-0">
         <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">ACTIVE DIRECTIVES ({cs.active.length}/3)</div>
         {cs.active.length === 0 && (
           <div className="text-[11px] text-[var(--text-3)] rounded-lg border border-dashed border-[var(--line)] p-4 text-center" data-testid="contracts-active-empty">

@@ -1,4 +1,4 @@
-import { X, MoonStar } from 'lucide-react';
+import { MoonStar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { game } from '@/game/controller';
 import { setTicketPrice, setPolicy } from '@/game/state';
@@ -6,11 +6,11 @@ import { Switch } from '@/components/ui/switch';
 import { useGameTick } from '@/components/game/useGame';
 import { fmtMoney } from '@/game/constants';
 import { parkValue } from '@/game/economy';
+import { ScreenFrame } from '@/components/game/ScreenFrame';
 
 const INCOME_LABELS = { tickets: 'Entry tickets', tours: 'Tours & premiums', food: 'Food sales', drink: 'Drink sales', gift: 'Curio sales', grants: 'Grants & salvage', attractions: 'Attraction tickets', transport: 'Transport fares', lodging: 'Hotel lodging' };
 const EXPENSE_LABELS = { upkeep: 'Facility upkeep', feed: 'Creature feed', wages: 'Staff wages', construction: 'Construction', terrain: 'Terraforming', acquisition: 'Acquisitions', research: 'Research', response: 'Emergency response' };
 
-const BACKDROP_STYLE = { background: 'rgba(5,7,11,0.8)' };
 const AXIS_TICK = { fill: '#7F93AD', fontSize: 10, fontFamily: 'IBM Plex Mono' };
 const AXIS_LINE = { stroke: '#1B2A3D' };
 const TOOLTIP_CONTENT_STYLE = { background: '#0C121B', border: '1px solid #1B2A3D', borderRadius: 8, fontSize: 12 };
@@ -136,27 +136,24 @@ export default function FinanceScreen({ onClose }) {
   const feed = s._guestFeed || [];
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center" style={BACKDROP_STYLE} data-testid="finances-modal">
-      <div className="nl-panel w-[980px] max-w-[95vw] h-[78vh] flex flex-col overflow-hidden">
-        <div className="nl-panel-header flex items-center justify-between px-4 py-3">
-          <div>
-            <div className="mono text-[10px] tracking-[0.25em] text-[var(--accent-cyan)]">FISCAL OPERATIONS</div>
-            <div className="text-sm text-[var(--text-2)] mt-0.5">Cycle {s.day} · Park value {fmtMoney(parkValue(s))} · Guest satisfaction {(s.stats.guestSat * 100).toFixed(0)}%</div>
-          </div>
-          <button data-testid="finances-close-button" onClick={onClose} className="nl-tool w-8 h-8 flex items-center justify-center"><X size={15} /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto nl-scroll p-4 grid grid-cols-3 gap-4 content-start">
-          <div className="space-y-2">
-            <TodayLedger t={t} incomeSum={incomeSum} expenseSum={expenseSum} />
-            <TicketPricePanel s={s} />
-            <NightToursPanel s={s} />
-          </div>
-          <div className="col-span-2 space-y-4">
-            <NetHistoryChart chart={chart} />
-            <GuestFeed feed={feed} />
-          </div>
-        </div>
+    <ScreenFrame
+      testId="finances-modal"
+      closeTestId="finances-close-button"
+      onClose={onClose}
+      eyebrow="FISCAL OPERATIONS"
+      subtitle={`Cycle ${s.day} · Park value ${fmtMoney(parkValue(s))} · Guest satisfaction ${(s.stats.guestSat * 100).toFixed(0)}%`}
+      size="w-[980px] h-[78vh]"
+      bodyClassName="p-4 grid grid-cols-3 gap-4 content-start drawer:grid-cols-1 drawer:p-3 drawer:gap-5"
+    >
+      <div className="space-y-2 min-w-0">
+        <TodayLedger t={t} incomeSum={incomeSum} expenseSum={expenseSum} />
+        <TicketPricePanel s={s} />
+        <NightToursPanel s={s} />
       </div>
-    </div>
+      <div className="col-span-2 space-y-4 min-w-0 drawer:col-span-1">
+        <NetHistoryChart chart={chart} />
+        <GuestFeed feed={feed} />
+      </div>
+    </ScreenFrame>
   );
 }

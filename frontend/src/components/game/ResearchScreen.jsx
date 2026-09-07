@@ -1,10 +1,11 @@
-import { X, FlaskConical, Check, Lock } from 'lucide-react';
+import { FlaskConical, Check, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { game } from '@/game/controller';
 import { useGameTick } from '@/components/game/useGame';
 import { RESEARCH_LIST, RESEARCH } from '@/game/data/research';
 import { startResearch } from '@/game/sim';
 import { fmtMoney } from '@/game/constants';
+import { ScreenFrame } from '@/components/game/ScreenFrame';
 
 // ---------- pure helpers ----------
 
@@ -43,13 +44,13 @@ function ActiveProjectChip({ active, activeDef }) {
   if (!active || !activeDef) return null;
   const pct = (active.progress / active.total) * 100;
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[rgba(45,226,230,0.4)] bg-[rgba(45,226,230,0.06)]">
-      <FlaskConical size={13} className="text-[var(--accent-cyan)]" />
-      <span className="text-xs">{activeDef.name}</span>
-      <div className="nl-bar-track w-28">
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[rgba(45,226,230,0.4)] bg-[rgba(45,226,230,0.06)] drawer:w-full min-w-0">
+      <FlaskConical size={13} className="text-[var(--accent-cyan)] shrink-0" />
+      <span className="text-xs truncate min-w-0">{activeDef.name}</span>
+      <div className="nl-bar-track w-28 shrink-0 drawer:flex-1 drawer:w-auto drawer:min-w-[48px]">
         <div className="nl-bar-fill" style={{ width: `${pct}%`, background: 'var(--accent-cyan)' }} />
       </div>
-      <span className="mono text-[10px] text-[var(--text-3)]" data-testid="active-research-progress">{pct.toFixed(0)}%</span>
+      <span className="mono text-[10px] text-[var(--text-3)] shrink-0" data-testid="active-research-progress">{pct.toFixed(0)}%</span>
     </div>
   );
 }
@@ -122,26 +123,19 @@ export default function ResearchScreen({ onClose }) {
   };
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center" style={{ background: 'rgba(5,7,11,0.8)' }} data-testid="research-modal">
-      <div className="nl-panel w-[1100px] max-w-[95vw] h-[80vh] flex flex-col overflow-hidden">
-        <div className="nl-panel-header flex items-center justify-between px-4 py-3">
-          <div>
-            <div className="mono text-[10px] tracking-[0.25em] text-[var(--accent-cyan)]">RESEARCH DIVISION</div>
-            <div className="text-sm text-[var(--text-2)] mt-0.5">
-              {hasLab ? 'One active project at a time. Field studies emerge from real observations.' : 'NO LABORATORY — build a Research Laboratory to begin.'}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <ActiveProjectChip active={active} activeDef={activeDef} />
-            <button data-testid="research-close-button" onClick={onClose} className="nl-tool w-8 h-8 flex items-center justify-center"><X size={15} /></button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto nl-scroll p-4 grid grid-cols-3 gap-4 content-start">
-          {Object.entries(cats).map(([cat, list]) => (
-            <CategoryColumn key={cat} s={s} cat={cat} list={list} active={active} hasLab={hasLab} onBegin={begin} />
-          ))}
-        </div>
-      </div>
-    </div>
+    <ScreenFrame
+      testId="research-modal"
+      closeTestId="research-close-button"
+      onClose={onClose}
+      eyebrow="RESEARCH DIVISION"
+      subtitle={hasLab ? 'One active project at a time. Field studies emerge from real observations.' : 'NO LABORATORY — build a Research Laboratory to begin.'}
+      actions={active && activeDef ? <ActiveProjectChip active={active} activeDef={activeDef} /> : null}
+      size="w-[1100px] h-[80vh]"
+      bodyClassName="p-4 grid grid-cols-3 gap-4 content-start drawer:grid-cols-1 drawer:p-3 drawer:gap-4"
+    >
+      {Object.entries(cats).map(([cat, list]) => (
+        <CategoryColumn key={cat} s={s} cat={cat} list={list} active={active} hasLab={hasLab} onBegin={begin} />
+      ))}
+    </ScreenFrame>
   );
 }

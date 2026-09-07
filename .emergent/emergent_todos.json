@@ -1,26 +1,38 @@
 [
   {
-    "content": "L1: Juveniles — commit f14171a, 14/14",
+    "content": "Add Tailwind `drawer:` variant (tailwind.config.js) + create ScreenFrame.jsx (context, useScreenHost, host-aware chrome)",
     "status": "completed"
   },
   {
-    "content": "L2: Seed Picker — commit 9b2f788, 13/13",
+    "content": "Drawer.jsx -> shell + context provider (no own header); useDrawer params + ledger id",
     "status": "completed"
   },
   {
-    "content": "L3: Live Portraits — commit bf1282b, 9/9",
+    "content": "Convert SpeciesDatabase to ScreenFrame with native drawer layout",
     "status": "completed"
   },
   {
-    "content": "L4: Creature Voices — commit 662b0e5, 12/12",
-    "status": "completed"
-  },
-  {
-    "content": "Testing agent iteration_25 (Phase L1-L4 + regressions)",
+    "content": "Convert Research/Finance/Acquisition(+tabs)/Staff to ScreenFrame + drawer: layouts",
     "status": "in_progress"
   },
   {
-    "content": "Fix any iteration_25 findings; update plan.md + PRD.md; final commit",
+    "content": "BloodlineLedger -> ScreenFrame drawer panel (portal only legacy); thread onOpenLedger via InspectPanel/CreaturePanel/GameScreen",
+    "status": "pending"
+  },
+  {
+    "content": "Delete .ops-drawer-host CSS block; esbuild/yarn build check; screenshots of each drawer",
+    "status": "pending"
+  },
+  {
+    "content": "Update ops_deck_test + live_portraits_test; write tests/ops_deck_native_test.py; run affected suites",
+    "status": "pending"
+  },
+  {
+    "content": "Phase N QA pass: smoke flows + screenshot review (1600x900, 1366x768), fix findings",
+    "status": "pending"
+  },
+  {
+    "content": "Testing agent (iteration_26), fix issues, update plan.md + PRD.md, commit",
     "status": "pending"
   }
 ]

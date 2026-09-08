@@ -79,20 +79,22 @@ async def main():
             # ========== MAIN MENU TESTS ==========
             print("\n[1/15] MAIN MENU TESTS")
             await page.goto(URL, wait_until="networkidle", timeout=30000)
+            await page.evaluate("localStorage.setItem('aetherion_tutorial_done','1')")  # skip the first-run tutorial overlay
+            await page.reload(wait_until="networkidle")
             await page.wait_for_timeout(1500)
             
             # Check dark sci-fi styling (look for key elements)
-            title = await page.locator("text=AETHERION RESERVE").count()
+            title = await page.locator("text=/AETHERION/").count()  # menu masthead reads "AETHERION INITIATIVE · SITE-04"
             results["main_menu"].append(("Title present", title > 0))
             print(f"  ✓ Title present: {'PASS' if title > 0 else 'FAIL'}")
             
             # Park name input
-            park_input = await page.locator('input[placeholder*="park" i], input[placeholder*="facility" i]').count()
+            park_input = await page.locator('[data-testid="park-name-input"]').count()
             results["main_menu"].append(("Park name input", park_input > 0))
             print(f"  ✓ Park name input: {'PASS' if park_input > 0 else 'FAIL'}")
             
             if park_input > 0:
-                await page.locator('input[placeholder*="park" i], input[placeholder*="facility" i]').first.fill("Test Facility")
+                await page.locator('[data-testid="park-name-input"]').first.fill("Test Facility")
             
             # Mode selection cards
             mgmt_mode = await page.locator('[data-testid="mode-management"]').count()
@@ -205,8 +207,10 @@ async def main():
             h_before = await S("window.__game.state.heights[50 * 72 + 50]")
             await click_tile(page, 50, 50)
             h_after = await S("window.__game.state.heights[50 * 72 + 50]")
-            results["canvas_tools"].append(("Flatten terrain", h_after != h_before or h_after == 0))
-            print(f"  ✓ Flatten terrain (height {h_before} → {h_after}): PASS")
+            # flatten levels the brush to the centre tile's height: every neighbour now matches it
+            flat = await S("(() => { const s = window.__game.state; const h = s.heights[50 * 72 + 50]; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (s.heights[(50 + dy) * 72 + 50 + dx] !== h) return false; return true; })()")
+            results["canvas_tools"].append(("Flatten terrain", flat))
+            print(f"  ✓ Flatten terrain (height {h_before} → {h_after}, brush level={flat}): {'PASS' if flat else 'FAIL'}")
             
             # Raise terrain
             await page.click('[data-testid="tool-raise"]')
@@ -219,7 +223,7 @@ async def main():
             
             # Paint material (rock)
             await page.click('[data-testid="cat-ground"]')
-            await page.click('[data-testid="tool-rock"]')
+            await page.click('[data-testid="paint-rock"]')
             m_before = await S("window.__game.state.materials[52 * 72 + 52]")
             await click_tile(page, 52, 52)
             m_after = await S("window.__game.state.materials[52 * 72 + 52]")
@@ -245,7 +249,7 @@ async def main():
             print(f"  ✓ Place path (paths {p_before} → {p_after}): {'PASS' if p_after > p_before else 'FAIL'}")
             
             # Undo button
-            undo_btn = await page.locator('[data-testid="undo-button"]').count()
+            undo_btn = await page.locator('[data-testid="tool-undo"]').count()
             results["canvas_tools"].append(("Undo button exists", undo_btn > 0))
             print(f"  ✓ Undo button exists: {'PASS' if undo_btn > 0 else 'FAIL'}")
             
@@ -353,11 +357,14 @@ async def main():
                 await page.wait_for_timeout(400)
                 await page.click('[data-testid="acquire-buy-skitter"]')
                 await page.wait_for_timeout(300)
+                await page.evaluate("window.__gameRenderer.centerOn(20, 20)")  # bring the open ground on screen
+                await page.wait_for_timeout(200)
                 await click_tile(page, 20, 20)  # Outside enclosure
                 await page.wait_for_timeout(500)
+                await page.evaluate("window.__gameRenderer.centerOn(45, 33)")
                 
                 # Check for error toast
-                error_toast = await page.locator('text=/must be released inside.*enclosure/i').count()
+                error_toast = await page.locator('text=/released inside a fenced enclosure/i').count()
                 results["creatures"].append(("Release outside error", error_toast > 0))
                 print(f"  ✓ Release outside enclosure error: {'PASS' if error_toast > 0 else 'SOFT-FAIL (toast may have disappeared)'}")
             
@@ -390,7 +397,7 @@ async def main():
                     print(f"  ✓ Welfare shown: {'PASS' if has_welfare else 'FAIL'}")
                     
                     # Check for activity
-                    has_activity = "activity" in panel_text.lower() or "state" in panel_text.lower()
+                    has_activity = await page.locator('[data-testid="creature-panel"] >> text=/▸/').count() > 0 or "activity" in panel_text.lower()  # dossier shows "▸ <activity>"
                     results["creature_panel"].append(("Activity shown", has_activity))
                     print(f"  ✓ Activity shown: {'PASS' if has_activity else 'FAIL'}")
                     

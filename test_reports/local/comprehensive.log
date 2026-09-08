@@ -1,0 +1,118 @@
+================================================================================
+AETHERION RESERVE - COMPREHENSIVE FEATURE TEST
+================================================================================
+
+[1/15] MAIN MENU TESTS
+  ✓ Title present: FAIL
+  ✓ Park name input: FAIL
+  ✓ Management mode card: PASS
+  ✓ Sandbox mode card: PASS
+  ✓ Start game button: PASS
+CONSOLE: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently
+  ✓ Canvas loaded: PASS
+
+[2/15] HUD TESTS
+  ✓ Sandbox cash (◈9,999,999): PASS
+  ✓ Pause button: PASS
+  ✓ Pause toggle: PASS
+  ✓ Speed buttons (1x/3x): PASS
+  ✓ Guest count display: PASS
+  ✓ Modal buttons (Field Ops, Species DB, Research, Finances): PASS
+  ✓ Field Ops modal opens: PASS
+
+[3/15] BUILD TOOLBAR TESTS
+  ✓ Category terrain: PASS
+  ✓ Category ground: PASS
+  ✓ Category water: PASS
+  ✓ Category flora: PASS
+  ✓ Category paths: PASS
+  ✓ Category fences: PASS
+  ✓ Category habitat: PASS
+  ✓ Category facilities: PASS
+  ✓ Brush sizes (1/2/3): PASS
+  ✓ Deep water unlocked in sandbox: PASS
+
+[4/15] CANVAS TOOL APPLICATION TESTS
+  ✓ Flatten terrain (height 1 → 1): PASS
+  ✓ Raise terrain (height 1 → 2): PASS
+  ✓ Paint rock material (mat 0 → 4): PASS
+  ✓ Place shallow water (water 0 → 1): PASS
+  ✓ Place path (paths 5 → 6): PASS
+  ✓ Undo button exists: FAIL
+
+[5/15] ENCLOSURE FLOW TESTS
+  ✓ Fence perimeter complete: PASS
+  ✓ Gate placed: PASS
+  ✓ Enclosure panel opens: PASS
+  ✓ Enclosure composition shown: PASS
+
+[6/15] CREATURE ACQUISITION TESTS
+  ✓ Species available (19): PASS
+  ✓ All species unlocked in sandbox: PASS
+  ✓ Skitterling available: PASS
+  ✓ Creature released (1 total): PASS
+  ✓ Release outside enclosure error: SOFT-FAIL (toast may have disappeared)
+
+[7/15] CREATURE INSPECT PANEL TESTS
+  ✓ Creature panel opens: PASS
+  ✓ Needs bars shown: PASS
+  ✓ Welfare shown: PASS
+  ✓ Activity shown: FAIL
+  ✓ Transfer button: PASS
+
+[8/15] OBJECTIVES TESTS
+  ✓ Objectives panel exists: PASS
+  ✓ Objectives shown: PASS
+
+[9/15] ALERTS TESTS
+  ✓ Alerts button exists: PASS
+  ✓ Alerts dropdown opens: PASS
+
+[10/15] OVERLAYS TESTS
+  ✓ Overlay buttons (habitat/power/view): PASS
+  ✓ Overlay activates: PASS
+
+[11/15] SAVE/LOAD TESTS
+  ✓ Save button exists: PASS
+  ✓ Save toast shown: PASS
+  ✓ Save slots shown (1): PASS
+  ✓ State restored (creatures 1/1, fences 24/24): PASS
+
+[12/15] STABILITY TEST
+  Running at 3x speed for 30 seconds...
+    t+5s: tick 184, errors: 0
+    t+10s: tick 337, errors: 0
+    t+15s: tick 487, errors: 0
+    t+20s: tick 646, errors: 0
+    t+25s: tick 796, errors: 0
+    t+30s: tick 946, errors: 0
+  ✓ No page errors: PASS
+
+================================================================================
+TEST SUMMARY
+================================================================================
+⚠️ MAIN_MENU: 4/6
+✅ HUD: 7/7
+✅ BUILD_TOOLBAR: 10/10
+⚠️ CANVAS_TOOLS: 4/6
+✅ ENCLOSURE: 4/4
+⚠️ CREATURES: 4/5
+✅ UNKNOWN_BIOLOGY: 0/0
+⚠️ CREATURE_PANEL: 4/5
+✅ GUESTS_ECONOMY: 0/0
+✅ RESEARCH: 0/0
+✅ OBJECTIVES: 2/2
+✅ ALERTS: 2/2
+✅ OVERLAYS: 2/2
+✅ SAVE_LOAD: 4/4
+✅ STABILITY: 1/1
+================================================================================
+OVERALL: 48/54 tests passed (88%)
+================================================================================
+
+✅ No page errors detected
+
+📸 Screenshot saved to /tmp/comprehensive_test.jpg
+
+📄 Results saved to /tmp/comprehensive_test_results.json
+[cleanup] removed 1/1 test save(s)

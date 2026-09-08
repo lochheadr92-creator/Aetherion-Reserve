@@ -21,6 +21,8 @@ async def main():
             # ========== MAIN MENU - Park Name Input ==========
             print("\n[1] MAIN MENU - Park Name Input")
             await page.goto(URL, wait_until="networkidle", timeout=30000)
+            await page.evaluate("localStorage.setItem('aetherion_tutorial_done','1')")  # skip the first-run tutorial overlay
+            await page.reload(wait_until="networkidle")
             await page.wait_for_timeout(1500)
             
             park_input = await page.locator('[data-testid="park-name-input"]').count()
@@ -141,13 +143,18 @@ async def main():
                     # Try to start research
                     start_btn = await page.locator('[data-testid^="research-start-"]').first.count()
                     if start_btn > 0:
-                        await page.locator('[data-testid^="research-start-"]').first.click()
-                        await page.wait_for_timeout(500)
-                        
-                        # Check for error message
-                        error_msg = await page.locator('text=/requires.*laboratory/i').count()
-                        results.append(("Research requires lab error", error_msg > 0))
-                        print(f"  ✓ Research requires lab error: {'PASS' if error_msg > 0 else 'SOFT-FAIL (toast may have disappeared)'}")
+                        btn = page.locator('[data-testid^="research-start-"]').first
+                        if await btn.is_disabled():
+                            # the current UI gates the button itself when no laboratory exists
+                            results.append(("Research requires lab error", True))
+                            print("  ✓ Research requires lab error: PASS (start button disabled without a lab)")
+                        else:
+                            await btn.click()
+                            await page.wait_for_timeout(500)
+                            # Check for error message
+                            error_msg = await page.locator('text=/requires.*laboratory/i').count()
+                            results.append(("Research requires lab error", error_msg > 0))
+                            print(f"  ✓ Research requires lab error: {'PASS' if error_msg > 0 else 'SOFT-FAIL (toast may have disappeared)'}")
                 else:
                     print(f"  ⚠️  Lab already exists, skipping lab requirement test")
                 

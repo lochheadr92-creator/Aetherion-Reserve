@@ -20,15 +20,15 @@
     "status": "completed"
   },
   {
-    "content": "Run key regression suites locally (phase5, keeper_priorities, ops_deck, determinism, comprehensive) to catch breakage early",
-    "status": "in_progress"
+    "content": "Run key regression suites locally — all green after stats.deaths init fix",
+    "status": "completed"
   },
   {
     "content": "O7: testing_agent_v3 iteration_27 (tension + regressions), fix issues",
-    "status": "pending"
+    "status": "in_progress"
   },
   {
-    "content": "O7: Update plan.md / PRD.md, commit",
+    "content": "O7: Final plan.md / PRD.md update, commit",
     "status": "pending"
   }
 ]

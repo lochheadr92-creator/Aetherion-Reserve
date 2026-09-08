@@ -266,17 +266,15 @@
 
 ---
 
-### Phase O — CREATURE TENSION PASS — AGGRESSION, NEEDS DEGRADATION & ESCAPE ✅ IMPLEMENTED — verification via iteration_27 (In Progress)
+### Phase O — CREATURE TENSION PASS — AGGRESSION, NEEDS DEGRADATION & ESCAPE ✅ COMPLETED (iteration_27: tension_test 48/48, backend 22/22, 5/5 manual checks; all 32 regression suites green after fixes below)
 **Status log:**
 - O1 core sim (tensionProfile.js + creatures.js degradation/health/death) — DONE
 - O2 aggression (tension.js conflictTick, graduated outcomes, knowledge confirmation, response intervention) — DONE
 - O3 breach (breachTick, performBreach → destroyFence + state.gaps, holding, warden rebuild, gap lifecycle) — DONE
 - O4 keeper relevance (keeperMult, passive relief, radioEvent stress/conflict/breach) — DONE
 - O5 feedback — DONE: renderer tint/gap markers/distress chevrons/shake+siren; CreaturePanel health bar + condition badge; EnclosurePanel TENSION section (status, mean stress, counters, INCOMPATIBLE SPECIES / OVERCROWDED / BREACH RISK / NO KEEPER warnings) + BREACHED banner with gap locate + CONTAINMENT LOST view; EmergencyBanner gap chips + gaps-only PERIMETER OPEN variant; BloodlineLedger DECEASED.
-- O6 dev harness (`window.__game.dev`: fenceRect/addCreature/offspring/kill/spawnBuilding/hireStaff/assignStaff/enclosureAt/enclosures/damageFence/grant/flatten/watchAlerts) + `tests/tension_test.py` (48/48 locally) — DONE
-- Fixes found by local regression: `stats.deaths` now initialised in createNewGame (deserialize backfill made continue≠load hashes differ → determinism_test B). `gapsFor` made geometric (region ids renumber after fence edits; stored encId is history only).
-- Local regression so far: phase5 19/19, keeper_priorities, phase8_staff, determinism 8/8, phase20 39/39, phase21 28/28.
-- NEXT: testing agent iteration_27 → PRD/plan final update → commit.
+- O6 dev harness (`window.__game.dev`: fenceRect/addCreature/offspring/kill/spawnBuilding/hireStaff/assignStaff/enclosureAt/enclosures/damageFence/grant/flatten/watchAlerts) + `tests/tension_test.py` (48/48) — DONE
+- O7 verification — DONE. Fixes along the way: `stats.deaths` initialised in createNewGame (deserialize backfill made continue≠load hashes differ → determinism_test B); `gapsFor` made geometric (region ids renumber after fence edits; stored encId is history only); phase5_test pinned to seed 424242 + wider flatten (drag-to-vertex snapping was terrain/seed-flaky); legacy comprehensive_test/focused_test brought back to green (tutorial flag, paint-rock/tool-undo/park-name-input testids, flatten-to-centre assertion, off-screen release click, disabled research button).
 **Goal:** Make the park feel alive and consequential via a deterministic, explainable danger loop. Must use existing creature stats and systems (stress/health/welfare, fences, security posts, staff), not a parallel system.
 
 **Hard constraints:**

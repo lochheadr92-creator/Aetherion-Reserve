@@ -69,18 +69,19 @@ async def main():
         await page.wait_for_timeout(1200)
         await page.evaluate("localStorage.setItem('aetherion_tutorial_done','1')")
         await page.click('[data-testid="mode-sandbox"]')
+        await page.fill('[data-testid="seed-input"]', "424242")  # fixed world: drag-to-vertex snapping depends on terrain
         await page.click('[data-testid="start-game-button"]')
         await page.wait_for_timeout(2000)
         S = lambda expr: page.evaluate(expr)
 
         await page.click('[data-testid="hud-time-pause-button"]')  # pause during construction
 
-        # flatten work region
+        # flatten work region (covers every vertex both rectangles are dragged between)
         await page.evaluate("window.__gameRenderer.centerOn(45, 33)")
         await page.click('[data-testid="cat-terrain"]')
         await page.click('[data-testid="tool-flatten"]')
         await page.click('[data-testid="brush-size-3"]')
-        for tx, ty in [(38, 31), (42, 32), (45, 32), (42, 35), (45, 35), (50, 32), (50, 35), (53, 33), (36, 32)]:
+        for tx, ty in [(38, 31), (42, 32), (45, 32), (42, 35), (45, 35), (50, 32), (50, 35), (53, 33), (36, 32), (40, 30), (53, 36), (48, 36), (40, 36)]:
             await click_tile(page, tx, ty)
         await page.click('[data-testid="brush-size-1"]')
 

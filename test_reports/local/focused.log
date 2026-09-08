@@ -1,0 +1,77 @@
+================================================================================
+FOCUSED FEATURE TEST - Remaining Features
+================================================================================
+
+[1] MAIN MENU - Park Name Input
+  ✓ Park name input: PASS
+  ✓ Park name input works: PASS
+
+[2] MANAGEMENT MODE - Locked Tools
+  ✓ Management cash (◈150,000): PASS
+  ✓ Deep water locked: PASS
+  ✓ Tier 2 fence locked: PASS
+
+[3] SPECIES DATABASE - UNKNOWN Fields
+  ✓ Species database opens: PASS
+  ✓ Veyra species row: PASS
+  ✓ Veyra UNKNOWN fields (water: 1, social: 1): PASS
+  ✓ Knowledge level 'Unclassified': PASS
+  ✓ Skitterling fully documented: PASS
+
+[4] FIELD OPS - Tier Locks in Management
+  ✓ Tier 2/3 species locked (UNRESOLVED SIGNAL count: 16): PASS
+
+[5] RESEARCH - Lab Requirement
+  ✓ Research modal opens: PASS
+
+❌ FATAL ERROR: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("[data-testid^=\"research-start-\"]").first
+    - locator resolved to <button disabled x-column="10" x-dynamic="false" x-line-number="83" x-component="button" x-id="ResearchScreen_83_10" x-file-name="ResearchScreen" data-testid="research-start-bio_obs1" class="text-[10px] px-2.5 py-1 rounded font-semibold disabled:opacity-40 transition-colors">START</button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not enabled
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is not enabled
+    - retrying click action
+      - waiting 100ms
+    55 × waiting for element to be visible, enabled and stable
+       - element is not enabled
+     - retrying click action
+       - waiting 500ms
+
+Traceback (most recent call last):
+  File "/app/tests/focused_test.py", line 146, in main
+    await page.locator('[data-testid^="research-start-"]').first.click()
+  File "/root/.venv/lib/python3.11/site-packages/playwright/async_api/_generated.py", line 17894, in click
+    await self._impl_obj.click(
+  File "/root/.venv/lib/python3.11/site-packages/playwright/_impl/_locator.py", line 165, in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/playwright/_impl/_frame.py", line 593, in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+  File "/root/.venv/lib/python3.11/site-packages/playwright/_impl/_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("[data-testid^=\"research-start-\"]").first
+    - locator resolved to <button disabled x-column="10" x-dynamic="false" x-line-number="83" x-component="button" x-id="ResearchScreen_83_10" x-file-name="ResearchScreen" data-testid="research-start-bio_obs1" class="text-[10px] px-2.5 py-1 rounded font-semibold disabled:opacity-40 transition-colors">START</button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not enabled
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is not enabled
+    - retrying click action
+      - waiting 100ms
+    55 × waiting for element to be visible, enabled and stable
+       - element is not enabled
+     - retrying click action
+       - waiting 500ms
+

@@ -5,6 +5,7 @@ import { FENCES, MAP_SIZE } from './constants';
 import { idx, inMap, logCause, pushAlert, rnd } from './state';
 import { spend } from './economy';
 import { findPath, buildOccupancy } from './pathfind';
+import { rebuildGap } from './construction';
 import { speciesById } from './data/species';
 import { recordEvidence } from './knowledge';
 import { enclosureAt, computeEnclosures } from './enclosures';
@@ -13,7 +14,7 @@ import { STAFF_ROLES, STAFF_NAMES } from './data/staffRoles';
 const STAFF_SPEED = 0.08; // brisk service pace: faster than creatures (0.045), slower than response units (0.085)
 const MAX_STAFF = 12;
 const MED_COOLDOWN = 900; // ticks before the same creature can be treated again
-const WORK_TICKS = { feed: 20, clean: 18, treat: 25, observe: 50, repair: 240, patrol: 40 };
+const WORK_TICKS = { feed: 20, clean: 18, treat: 25, observe: 50, repair: 240, rebuild: 160, patrol: 40 };
 const FEED_COST = { forage: 8, meat: 26, mineral: 14, fungal: 16, energy: 30 };
 
 // ---------- hire / fire (controlled mutators; UI never touches state directly) ----------
@@ -200,15 +201,26 @@ function tryXenoTasks(state, st, pick) {
 }
 
 function tryMedTasks(state, st, pick) {
+  // injured (conflict) organisms first, then the most stressed / weakest
   const sick = state.creatures
-    .filter((c) => !c.escaped && (!c._medCd || state.tick >= c._medCd) &&
-      (c.stress > 0.55 || c.health < 0.7) && pick.creature(c) && !targeted(state, 'treat', c.id))
-    .sort((a, b) => (b.stress + (1 - b.health)) - (a.stress + (1 - a.health)))[0];
+    .filter((c) => !c.escaped && !c.held && (!c._medCd || state.tick >= c._medCd) &&
+      (c.injured || c.stress > 0.55 || c.health < 0.7) && pick.creature(c) && !targeted(state, 'treat', c.id))
+    .sort((a, b) => ((b.injured ? 1 : 0) + b.stress + (1 - b.health)) - ((a.injured ? 1 : 0) + a.stress + (1 - a.health)))[0];
   return Boolean(sick && goTo(state, st, Math.floor(sick.x), Math.floor(sick.y), { type: 'treat', targetId: sick.id }));
 }
 
 function tryWardenTasks(state, st, pick) {
   let best = null, bd = Infinity;
+  // 1) breach gaps: a destroyed segment leaves the pen open — rebuilding beats patching
+  for (const key of Object.keys(state.gaps || {})) {
+    if (!pick.fence(key)) continue;
+    if (targeted(state, 'rebuild', key)) continue;
+    const [fx, fy] = key.split(',').map(Number);
+    const d = Math.hypot(fx - st.x, fy - st.y);
+    if (d < bd) { bd = d; best = { key, x: fx, y: fy, type: 'rebuild' }; }
+  }
+  if (best) return Boolean(goTo(state, st, best.x, best.y, { type: 'rebuild', key: best.key }));
+  // 2) damaged segments
   for (const key of Object.keys(state.fences)) {
     const f = state.fences[key];
     if (f.hp >= FENCES[f.tier].hp) continue;
@@ -265,16 +277,41 @@ function bumpReport(st, key) {
 // transmission, and a quiet window then holds further chatter until it lapses.
 const RADIO_GATHER_TICKS = 30;   // ~3s: fold near-simultaneous completions into one call
 const RADIO_QUIET_TICKS = 300;   // ~30s minimum spacing between calls from one keeper
-const RADIO_KINDS = ['feeds', 'cleans', 'treats', 'repairs'];
+const RADIO_KINDS = ['feeds', 'cleans', 'treats', 'repairs', 'rebuilds', 'stress', 'conflict', 'breach'];
 const RADIO_LINES = {
   feeds: [(n, who) => `${who} fed and settled.`, (n, who) => `Rations delivered to ${who}.`, (n, who) => `${who} took the feed — appetite good.`],
   cleans: [() => 'Biowaste cleared, exhibit is clean.', () => 'Waste run done, ground is clear.', () => 'Pen swept — no residue left.'],
   treats: [(n, who) => `${who} stabilised, stress coming down.`, (n, who) => `Treated ${who}; vitals steadying.`],
   repairs: [() => 'Barrier segment restored, perimeter holding.', () => 'Fence patched to full integrity.', () => 'Repair complete — containment nominal.'],
+  rebuilds: [() => 'Breached segment rebuilt — perimeter closed again.', () => 'Gap sealed, containment restored.'],
+  // tension callouts: warnings, not completions — assigned keepers see trouble building
+  stress: [(n, who) => `${who} is agitated — stress climbing, needs attention.`, (n, who) => `Heads up: ${who} is pacing and won't settle.`],
+  conflict: [(n, who) => `Fight in the pen — ${who} is involved, trying to break it up.`, (n, who) => `Aggression incident: ${who}. Requesting support.`],
+  breach: [(n, who) => `BARRIER DOWN — ${who} is OUT of the pen!`, (n, who) => `We have a breach, ${who} has cleared the perimeter!`],
 };
-const RADIO_SUMMARY = { feeds: 'fed', cleans: 'cleaned', treats: 'treated', repairs: 'repaired' };
+const RADIO_SUMMARY = { feeds: 'fed', cleans: 'cleaned', treats: 'treated', repairs: 'repaired', rebuilds: 'rebuilt', stress: 'stress warning(s)', conflict: 'conflict(s)', breach: 'breach(es)' };
+const RADIO_URGENT = new Set(['conflict', 'breach']); // transmit immediately, ignoring the quiet window
 
 export const radioEnabled = (state) => state.policies?.keeperRadio !== false;
+
+// Tension callout for an enclosure: every keeper assigned to it notes the incident on the next
+// transmission (urgent kinds flush at once). Same batching / quiet-window rules as task notes.
+export function radioEvent(state, encId, kind, creature) {
+  if (encId == null || !radioEnabled(state) || !RADIO_KINDS.includes(kind)) return 0;
+  let n = 0;
+  for (const st of state.staff || []) {
+    if (st.assignedEnclosureId !== encId) continue;
+    if (!st.radio) st.radio = { counts: {}, names: [], flushAt: 0, quietUntil: 0, encId, targetId: null };
+    const r = st.radio;
+    r.counts[kind] = (r.counts[kind] || 0) + 1;
+    r.encId = encId;
+    if (creature) { if (!r.names.includes(creature.name)) r.names.push(creature.name); r.targetId = creature.id; }
+    if (RADIO_URGENT.has(kind)) r.flushAt = state.tick + 1;
+    else if (!r.flushAt) r.flushAt = Math.max(state.tick + RADIO_GATHER_TICKS, r.quietUntil || 0);
+    n++;
+  }
+  return n;
+}
 
 // Record a completed task for the next transmission. Only work inside the
 // keeper's own assigned enclosure is reported: `where` is a creature, a waste
@@ -310,7 +347,8 @@ function radioMessage(state, st, r) {
     return `Pen #${r.encId}: ${lines[(state.tick + st.id) % lines.length](1, who)}`;
   }
   const parts = kinds.map((k) => `${r.counts[k]} ${RADIO_SUMMARY[k]}`);
-  return `Pen #${r.encId}: ${parts.join(', ')}. All quiet.`;
+  const tense = kinds.some((k) => ['stress', 'conflict', 'breach'].includes(k));
+  return `Pen #${r.encId}: ${parts.join(', ')}. ${tense ? 'Situation developing.' : 'All quiet.'}`;
 }
 
 // Transmit a pending batch once its window closes; opens the quiet window.
@@ -373,6 +411,19 @@ function applyWork(state, st) {
       bumpReport(st, 'treats');
       radioNote(state, st, 'treats', c);
       logCause(state, st.name, `stabilised ${c.name} — stress reduced`);
+    }
+  } else if (t.type === 'rebuild') {
+    const res = rebuildGap(state, t.key, st.name);
+    if (res.ok) {
+      state.stats.staffRepairs = (state.stats.staffRepairs || 0) + 1;
+      state.stats.staffRebuilds = (state.stats.staffRebuilds || 0) + 1;
+      bumpReport(st, 'repairs');
+      radioNote(state, st, 'rebuilds', t.key);
+      logCause(state, st.name, 'rebuilt a breached barrier segment — containment restored');
+    } else if (res.reason && !state.gaps?.[t.key]) {
+      // gap already closed by the player: nothing to do
+    } else {
+      logCause(state, st.name, `could not rebuild the breached segment (${res.reason || 'unknown'})`);
     }
   } else if (t.type === 'observe') {
     const c = state.creatures.find((q) => q.id === t.targetId);

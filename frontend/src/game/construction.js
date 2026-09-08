@@ -98,6 +98,7 @@ export function placeFence(state, x, y, d, tier) {
   const existing = state.fences[key];
   if (existing) earn(state, FENCES[existing.tier].cost * 0.5, 'grants', 'Fence replacement salvage');
   state.fences[key] = { tier, hp: def.hp, gate: false };
+  if (state.gaps && state.gaps[key]) delete state.gaps[key]; // the player closed a breach gap
   state._encDirty = true;
   return { ok: true };
 }
@@ -168,6 +169,7 @@ function commitFenceEdges(state, edges, tier) {
     const existing = state.fences[key];
     if (existing) earn(state, FENCES[existing.tier].cost * 0.5, 'grants', 'Fence replacement salvage');
     state.fences[key] = { tier, hp: def.hp, gate: false };
+    if (state.gaps && state.gaps[key]) delete state.gaps[key]; // closes a breach gap
   }
   state._encDirty = true;
   return { ok: true, msg: `${def.name} × ${placeable.length} placed (−◈${total})` };
@@ -185,6 +187,7 @@ function removeFenceEdges(state, edges) {
   let count = 0, refund = 0;
   for (const e of edges) {
     const key = edgeKey(e.x, e.y, e.d);
+    if (state.gaps && state.gaps[key]) delete state.gaps[key]; // demolishing the line retires its gaps
     const f = state.fences[key];
     if (!f) continue;
     refund += FENCES[f.tier].cost * 0.5;
@@ -254,12 +257,81 @@ export function damageFence(state, key, amount, causeMsg) {
     pushAlert(state, { type: 'warning', title: 'FENCE DAMAGED', msg: causeMsg || 'A containment barrier is failing.', target: { kind: 'tile', x: +x, y: +y } });
   }
   if (f.hp <= 0) {
-    delete state.fences[key];
-    state._encDirty = true;
+    destroyFence(state, key, 'collapse');
     const [x, y] = key.split(',');
     pushAlert(state, { type: 'danger', title: 'CONTAINMENT BREACH', msg: 'A barrier segment has collapsed. Check the enclosure immediately.', target: { kind: 'tile', x: +x, y: +y } });
-    state.stats.breaches++;
     return true;
   }
   return false;
+}
+
+// ---------- breach gaps: a destroyed segment stays on record until it is rebuilt ----------
+// `state.gaps[key] = { tier, tick, encId, by }` marks the enclosure as physically open ("damaged
+// state"). The player closes it by placing a fence on the key; wardens rebuild it as a task.
+
+// which enclosure region a fence edge belonged to (cached regions from before the collapse)
+export function fenceEnclosureId(state, key) {
+  const region = state._enclosures?.region;
+  if (!region) return null;
+  const [xs, ys, d] = key.split(',');
+  const x = Number(xs), y = Number(ys);
+  const a = inMap(x, y) ? region[idx(x, y)] : 0;
+  const nx = d === 'E' ? x + 1 : x, ny = d === 'E' ? y : y + 1;
+  const b = inMap(nx, ny) ? region[idx(nx, ny)] : 0;
+  const encs = state._enclosures.enclosures;
+  const isEnc = (rid) => rid > 0 && encs.some((e) => e.id === rid);
+  return isEnc(a) ? a : isEnc(b) ? b : null;
+}
+
+// Remove a segment and register the gap (`by` = 'collapse' | 'breach' | creature name).
+export function destroyFence(state, key, by = 'collapse') {
+  const f = state.fences[key];
+  if (!f) return null;
+  const encId = fenceEnclosureId(state, key);
+  delete state.fences[key];
+  state._encDirty = true;
+  state.stats.breaches++;
+  if (!state.gaps) state.gaps = {};
+  state.gaps[key] = { tier: f.tier, tick: state.tick, encId, by };
+  return state.gaps[key];
+}
+
+// The two tiles a fence edge separates.
+const gapSides = (key) => {
+  const [xs, ys, d] = key.split(',');
+  const x = Number(xs), y = Number(ys);
+  return [[x, y], d === 'E' ? [x + 1, y] : [x, y + 1]];
+};
+
+// Live association: does this gap currently border region `rid`? Flood-fill regions renumber after
+// every fence edit, so the encId stored at destruction time is history (alert text), not identity.
+export function gapBordersRegion(state, key, rid) {
+  const region = state._enclosures?.region;
+  if (!region) return state.gaps?.[key]?.encId === rid;
+  return gapSides(key).some(([x, y]) => inMap(x, y) && region[idx(x, y)] === rid);
+}
+
+const gapList = (state, pred) => Object.entries(state.gaps || {}).filter(([key]) => pred(key)).map(([key, g]) => ({ key, ...g }));
+
+// Gaps bordering one (still closed) enclosure region — e.g. a broken divider shared with a neighbour.
+export const gapsFor = (state, encId) => gapList(state, (key) => gapBordersRegion(state, key, encId));
+
+// Gaps that leave a perimeter open: neither side sits inside a closed enclosure any more.
+export function openGaps(state) {
+  const region = state._enclosures?.region;
+  return gapList(state, (key) => !region || gapSides(key).every(([x, y]) => !inMap(x, y) || region[idx(x, y)] === 0));
+}
+
+// Warden rebuild: re-erect the segment at its previous tier (paid from park funds).
+export function rebuildGap(state, key, who = 'Warden') {
+  const g = state.gaps?.[key];
+  if (!g) return { ok: false, reason: 'No gap here' };
+  if (state.fences[key]) { delete state.gaps[key]; return { ok: true, already: true }; }
+  const def = FENCES[g.tier] || FENCES[1];
+  const pay = spend(state, def.cost, 'construction', `${who} rebuilt a ${def.name} segment`);
+  if (!pay.ok) return pay;
+  state.fences[key] = { tier: def.tier, hp: def.hp, gate: false };
+  delete state.gaps[key];
+  state._encDirty = true;
+  return { ok: true };
 }

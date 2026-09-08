@@ -3,13 +3,18 @@ import axios from 'axios';
 import { TICK_MS } from './constants';
 import { createNewGame, serialize, deserialize, emit, on, setTimeControls, getRngCursor, getRngState } from './state';
 import { tickOnce, initObjectives } from './sim';
-import { adjacentOpenTile } from './creatures';
+import { adjacentOpenTile, addCreature, killCreature } from './creatures';
 import { refreshContracts } from './contracts';
 import { applyScenario } from './scenarios';
-import { ensureGenes } from './genetics';
+import { ensureGenes, inheritGenes } from './genetics';
 import { ensureLineage } from './lineage';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
+import { placeFenceRect, damageFence } from './construction';
+import { computeEnclosures, enclosureAt } from './enclosures';
+import { hireStaff, assignStaffEnclosure } from './staff';
+import { BUILDINGS } from './data/buildings';
+import { idx } from './state';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -49,6 +54,51 @@ class GameController {
       // pure helpers exposed for the local test suites (no gameplay side effects)
       window.__gameDebug = { adjacentOpenTile, serialize, deserialize, getRngCursor, getRngState, playerToken };
     }
+    // Deterministic setup harness for tests / debug tooling: scripted world building through the
+    // same mutators the UI uses (fences, organisms, staff) plus a direct building spawn that skips
+    // path/power/cost checks. Never used by gameplay code.
+    this.dev = {
+      fenceRect: (x0, y0, x1, y1, tier = 1) => placeFenceRect(this.state, { vx: x0, vy: y0 }, { vx: x1, vy: y1 }, tier),
+      addCreature: (speciesId, x, y, opts = {}) => addCreature(this.state, speciesId, x, y, opts),
+      spawnBuilding: (typeId, x, y) => {
+        const def = BUILDINGS[typeId];
+        if (!def) return null;
+        const b = { id: this.state.nextId++, type: typeId, x, y, w: def.w, h: def.h, shelter: !!def.shelter, station: def.station || null };
+        this.state.buildings.push(b);
+        for (let dy = 0; dy < def.h; dy++) for (let dx = 0; dx < def.w; dx++) this.state.veg[idx(x + dx, y + dy)] = 0;
+        this.state._occDirty = true; this.state._encDirty = true; this.state._terrainDirty = true;
+        return b;
+      },
+      hireStaff: (role) => hireStaff(this.state, role),
+      assignStaff: (staffId, encId) => assignStaffEnclosure(this.state, staffId, encId),
+      enclosureAt: (x, y) => enclosureAt(this.state, x, y),
+      enclosures: () => computeEnclosures(this.state).enclosures.map((e) => ({ id: e.id, area: e.area, tiles: e.tiles.length })),
+      damageFence: (key, amount) => damageFence(this.state, key, amount),
+      grant: (amount) => { this.state.cash += amount; return this.state.cash; },
+      // tension pass: bloodline + death hooks so tests can stage lineage / DECEASED states deterministically
+      offspring: (motherId, fatherId, x, y, juvenile = false) => {
+        const m = this.state.creatures.find((c) => c.id === motherId);
+        const f = this.state.creatures.find((c) => c.id === fatherId) || null;
+        if (!m) return null;
+        return addCreature(this.state, m.speciesId, x, y, { genes: inheritGenes(this.state, m, f), juvenile });
+      },
+      kill: (creatureId, cause = 'test harness') => {
+        const c = this.state.creatures.find((q) => q.id === creatureId);
+        return c ? killCreature(this.state, c, cause) : false;
+      },
+      flatten: (x0, y0, x1, y1, h = 2) => {
+        const s = this.state;
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = idx(x, y); s.heights[i] = h; s.water[i] = 0; s.veg[i] = 0; }
+        s._terrainDirty = true; s._encDirty = true; s._occDirty = true;
+      },
+      // every alert since the watch started (state.alerts is capped at 60, so long runs need a log)
+      watchAlerts: () => {
+        if (!this._alertLog) { this._alertLog = []; on('alert', (a) => this._alertLog.push({ tick: a.tick, type: a.type, title: a.title, msg: a.msg })); }
+        return this._alertLog;
+      },
+      alerts: () => this._alertLog || [],
+      clearAlerts: () => { if (this._alertLog) this._alertLog.length = 0; },
+    };
   }
 
   newGame(opts) {

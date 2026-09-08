@@ -120,13 +120,15 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     rating: { overall: 0.5, comp: {} },
     entrance: { x: Math.floor(S / 2), y: S - 1 },
     weather: { type: 'clear', ticksLeft: 900 },
-    stats: { guestsTotal: 0, discoveries: 0, breaches: 0, guestSat: 0.7, captures: 0, buzz: 0 },
+    stats: { guestsTotal: 0, discoveries: 0, breaches: 0, guestSat: 0.7, captures: 0, buzz: 0, deaths: 0 },
     security: { units: [] },
     expeditions: [],
     contracts: { available: [], active: [], completed: 0, nextRefreshDay: 0 },
     policies: { nightTours: false, keeperRadio: true },
     staff: [],
     waste: [],
+    gaps: {},                                              // breached fence segments awaiting rebuild (key → {tier, tick, encId})
+    tension: { incidents: [], encCooldown: {}, alertAt: {} }, // serious-conflict incidents for response units + throttles
     events: [],
     rivalries: [],
     transport: { cars: [] },
@@ -196,6 +198,13 @@ export function deserialize(data) {
   if (!state.transport) state.transport = { cars: [] };
   if (!Array.isArray(state.objectives)) state.objectives = [];
   if (state.stats && state.stats.buzz === undefined) state.stats.buzz = 0;
+  // ---- Phase O (tension pass): additive registries with safe defaults ----
+  if (!state.gaps) state.gaps = {};                    // breached fence segments awaiting rebuild
+  if (!state.tension) state.tension = { incidents: [], encCooldown: {}, alertAt: {} };
+  if (!Array.isArray(state.tension.incidents)) state.tension.incidents = [];
+  if (!state.tension.encCooldown) state.tension.encCooldown = {};
+  if (!state.tension.alertAt) state.tension.alertAt = {};
+  if (state.stats && state.stats.deaths === undefined) state.stats.deaths = 0;
   // ---- H2: defensive backfills for saves written by an older build ----
   // species added after the save was written need a knowledge slot (every accessor assumes one)
   if (!state.knowledge) state.knowledge = {};

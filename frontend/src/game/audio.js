@@ -85,6 +85,8 @@ export class AudioManager {
       if (el && !el.hasAttribute('data-audio-silent')) this.click();
     }, { capture: true, passive: true });
     this._listeners.push(on('alert', (a) => this.stinger(a?.type || 'info')));
+    // a stress breach is an EVENT: distinctive two-tone containment siren over the danger stinger
+    this._listeners.push(on('breach', () => this.stinger('breach', { force: true })));
     window.__audio = this; // debug/testing access
   }
 
@@ -335,13 +337,21 @@ export class AudioManager {
   }
 
   // alert stingers keyed by alert type; throttled so bursts do not stack
-  stinger(type) {
+  stinger(type, { force = false } = {}) {
     const now = Date.now();
-    if (now - this.lastStingerAt < STINGER_GAP_MS) return;
+    if (!force && now - this.lastStingerAt < STINGER_GAP_MS) return;
     this.lastStingerAt = now;
     this._note(`stinger:${type}`);
     if (!this._can()) return;
     switch (type) {
+      case 'breach':
+        // containment siren: three rising/falling sweeps, band-limited so it cuts through the bed
+        for (let i = 0; i < 3; i++) {
+          this._tone({ type: 'sawtooth', freq: 520, to: 780, dur: 0.22, gain: 0.08, lp: 2400, when: i * 0.46 });
+          this._tone({ type: 'sawtooth', freq: 780, to: 520, dur: 0.22, gain: 0.08, lp: 2400, when: i * 0.46 + 0.22 });
+        }
+        this._noiseBurst({ dur: 0.12, gain: 0.03, hp: 1800 });
+        break;
       case 'danger':
         this._tone({ type: 'sawtooth', freq: 660, to: 440, dur: 0.16, gain: 0.09, lp: 2200 });
         this._tone({ type: 'sawtooth', freq: 494, to: 330, dur: 0.24, gain: 0.09, lp: 2200, when: 0.15 });

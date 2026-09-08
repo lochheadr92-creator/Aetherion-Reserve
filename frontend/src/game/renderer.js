@@ -330,9 +330,76 @@ export class GameRenderer {
     this.drawEventBeacons(ctx);
     this.drawTransport(ctx);
     this.fx.drawParticles(ctx);
+    this.drawTensionMarkers(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawAtmosphere(ctx, W, H);
+  }
+
+  // ---------- tension pass feedback (render-only) ----------
+  // 1) enclosures whose residents are collectively stressed get a faint, breathing rose tint
+  // 2) breached fence segments (state.gaps) flash as dashed red gaps until rebuilt
+  // 3) distressed / injured organisms carry a pulsing chevron so the player sees danger building
+  tensionSummary() {
+    const s = this.state;
+    const byEnc = new Map();
+    for (const c of s.creatures) {
+      if (c.enclosureId == null || c.escaped) continue;
+      const e = byEnc.get(c.enclosureId) || { sum: 0, n: 0 };
+      e.sum += c.stress || 0; e.n++;
+      byEnc.set(c.enclosureId, e);
+    }
+    const hot = [];
+    for (const [id, e] of byEnc) { const mean = e.sum / e.n; if (mean > 0.6) hot.push({ id, mean }); }
+    return hot;
+  }
+
+  drawTensionMarkers(ctx) {
+    const s = this.state;
+    const hot = this.tensionSummary();
+    this._tensionHot = hot; // exposed for tests
+    if (hot.length) {
+      const { enclosures } = computeEnclosures(s);
+      const breathe = 0.5 + 0.5 * Math.sin(this.frame / 30);
+      for (const { id, mean } of hot) {
+        const enc = enclosures.find((e) => e.id === id);
+        if (!enc) continue;
+        const alpha = (0.05 + (mean - 0.6) * 0.15) * (0.7 + 0.3 * breathe);
+        ctx.fillStyle = `rgba(255,77,109,${alpha.toFixed(3)})`;
+        for (const ti of enc.tiles) { this.diamondPath(ctx, ti % MAP_SIZE, Math.floor(ti / MAP_SIZE)); ctx.fill(); }
+      }
+    }
+    const gaps = Object.keys(s.gaps || {});
+    this._gapMarkers = gaps.length;
+    if (gaps.length && this.frame % 40 < 28) {
+      ctx.save();
+      ctx.strokeStyle = '#FF4D6D'; ctx.lineWidth = 3; ctx.setLineDash([5, 4]);
+      for (const key of gaps) {
+        const [x, y, d] = key.split(',');
+        const { a, b } = this.fenceCorners(+x, +y, d);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y - 8); ctx.lineTo(b.x, b.y - 8); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    let marked = 0;
+    for (const c of s.creatures) {
+      if (!c.distressed && !c.injured) continue;
+      if (c.cloaked) continue;
+      const ti = idx(Math.floor(c.x), Math.floor(c.y));
+      const p = worldPx(c.x, c.y, s.heights[ti] || 0);
+      const sheet = getCreatureSheet(c.speciesId, juvenileStage(c));
+      const S = (sheet.scale ?? SPRITE_SCALE) * (c.genes?.size || 1);
+      const top = p.y - sheet.h * S - 10 + Math.sin(this.frame / 9 + c.id) * 2;
+      const pulse = 0.65 + 0.35 * Math.sin(this.frame / 7 + c.id);
+      ctx.save();
+      ctx.fillStyle = `rgba(255,77,109,${pulse.toFixed(2)})`;
+      ctx.beginPath(); ctx.moveTo(p.x, top + 7); ctx.lineTo(p.x - 5, top); ctx.lineTo(p.x + 5, top); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0A0F16';
+      ctx.fillRect(p.x - 0.5, top + 1.5, 1.4, 3); ctx.fillRect(p.x - 0.5, top + 5, 1.4, 1.2);
+      ctx.restore();
+      marked++;
+    }
+    this._distressMarkers = marked;
   }
 
   // ---------- keeper assignment pins (render-only) ----------

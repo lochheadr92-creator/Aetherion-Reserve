@@ -1,0 +1,107 @@
+=== phase8_staff_test ===
+No page errors.
+--- phase8_staff_test done
+=== phase6a_test ===
+No page errors.
+--- phase6a_test done
+=== phase6b_test ===
+No page errors.
+--- phase6b_test done
+=== phase9_scenarios_test ===
+No page errors.
+--- phase9_scenarios_test done
+=== ops_deck_test ===
+PASS ON 13 Esc closes the drawer 
+PASS ON 14 the drawer header close control closes the drawer 
+PASS ON 15 the hosted screen's own close button closes the drawer 
+PASS ON 16 HudBar management buttons open the drawer 
+PASS ON 17 alert navigation (setModal path) opens the drawer 
+PASS OFF url 1 no dock / drawer in legacy mode 
+PASS OFF url 2 [data-testid] DOM equals main baseline (closed) []
+PASS OFF url 3 [data-testid] DOM equals main baseline (Species modal open) []
+PASS OFF url 4 Species screen is the full-screen modal {'x': 0, 'y': 0, 'width': 1600, 'height': 900}
+PASS OFF storage 1 no dock / drawer in legacy mode 
+PASS OFF storage 2 [data-testid] DOM equals main baseline (closed) []
+PASS OFF storage 3 [data-testid] DOM equals main baseline (Species modal open) []
+PASS OFF storage 4 Species screen is the full-screen modal {'x': 0, 'y': 0, 'width': 1600, 'height': 900}
+PASS TOGGLE no console errors across on / off loads []
+27/27 checks passed
+--- ops_deck_test done
+=== ops_deck_native_test ===
+PASS PANEL 4 staff roster card stacks: the assignment select spans the card width {'x': 81, 'y': 972.5, 'width': 269, 'height': 28} {'x': 68, 'y': 869.5, 'width': 295, 'height': 140}
+PASS DB 1 roster strip (scrollable, <= 40% of the panel) stacks above a visible detail pane {'rosterScrolls': True, 'rosterH': 305.515625, 'rootH': 844, 'detailTop': 401.515625, 'rosterBottom': 401.515625, 'detailH': 498.484375, 'rows': 19}
+PASS DB 2 detail shows the first species by default (portrait + knowledge chip) 
+PASS DB 3 selecting a roster row swaps the detail pane 
+PASS DB 4 'Species' from a dossier opens the drawer on that species with its row in view nyxarr in_view=True
+PASS DB 5 a species the park holds is catalogued even before its acquisition tier is researched (scenario Sovereigns) 
+PASS LEDGER 1 the ledger opens as data-drawer=ledger with no dock button lit; left overlays shift to 376px lit=0 shift={'x': 376, 'y': 0, 'width': 1224, 'height': 900}
+PASS LEDGER 2 native ledger panel: one header titled BLOODLINE LEDGER, one close control, no overflow, cards not a table BLOODLINE LEDGER
+PASS LEDGER 3 clicking a pairing candidate closes the drawer and selects that organism {'kind': 'creature', 'id': 6}
+PASS LEDGER 4 Esc and ledger-close-button both close the ledger drawer; close keeps the dossier open 
+PASS LEGACY 1 species screen is a full-screen modal with data-host=modal (two-column layout intact) {'x': 0, 'y': 0, 'width': 1600, 'height': 900}
+PASS LEGACY 2 ledger is still a portal modal on document.body (fixed, full width) with a table outlook {'x': 0, 'y': 0, 'width': 1600, 'height': 900}
+PASS LEGACY 3 ledger-close-button closes the legacy ledger 
+PASS NO console / page errors []
+17/17 checks passed
+--- ops_deck_native_test done
+=== input_ux_test ===
+PAGE ERRORS: none
+--- input_ux_test done
+=== save_compat_test ===
+PASS 1 knowledge slot removed in memory (simulating a pre-species save) (18 slots)
+PASS 2 stored save really lacks the slot (18 slots in DB)
+PASS 3 loaded save has knowledge.skitter backfilled {'has': True, 'shape': ['discovered', 'evidence', 'hypothesized'], 'slots': 19, 'tick': 313}
+PASS 4 all 19 species have a knowledge slot after load (19)
+PASS 5 stepTicks(300) after load does not throw []
+PASS 6 test save removed from the database (status 404)
+6/6 checks passed
+--- save_compat_test done
+=== assessment_fixes_test ===
+PASS H4.2 different seed => different world 
+PASS H4.3 seed stored in state {'seed': 4243, 'rng': None}
+PASS H4.4 serialize snapshots the live RNG cursor as rngState {'rng': 544286208, 'cursor': 544286208}
+PASS H4.5 load restores the RNG cursor from the save 544286208 / 544286208 / 544286208
+PASS H4.6 two loads of one save replay to identical state after 400 ticks 4244618053 vs 4244618053
+PASS H2.1 knowledge backfilled for species missing from the save ['[load] dropped 1 unknown research id(s)', "[load] cleared unknown active research 'ghost_research'", '[load] dropped 1 building(s) of unknown type', '[load] dropped 1 creature(s) of unknown species']
+PASS H2.2 unknown research ids dropped / unknown active research cleared 
+PASS H2.3 unknown building type and unknown species dropped (with load warnings) ['[load] dropped 1 unknown research id(s)', "[load] cleared unknown active research 'ghost_research'", '[load] dropped 1 building(s) of unknown type', '[load] dropped 1 creature(s) of unknown species']
+PASS H2.4 pre-seed save loads with seed = null and keeps ticking {'seed': None, 'tick': 120}
+PASS H5.8 frontend mints a per-browser player token a5ae00c1-77a
+PASS H3.1 render crash shows the ErrorBoundary panel instead of a blank page 
+PASS H3.2 'Back to menu' returns to the main menu 
+PASS M3.1 failed load shows an error toast and stays on the menu (slot=1, toast=1, menu=1)
+PASS NO PAGE ERRORS (other than the deliberate H3 crash) []
+25/25 checks passed
+--- assessment_fixes_test done
+=== birth_boundary_test ===
+PASS 1 both adults are inside one valid enclosure {'mEnc': 1, 'fEnc': 1, 'mEsc': False, 'fEsc': False, 'count': 2}
+PASS 2 a birth happened within 400 ticks {'born': True, 'stepped': 140, 'babyId': 7, 'babyName': 'Ondra', 'bornAt': {'x': 24, 'y': 22, 'enc': 1, 'esc': False}, 'babyEnc': 1, 'babyEsc': False, 'bx': 22, 'by': 22, 'mEnc': 1, 'mEncNow': 1, 'mEsc': False, 'juvenile': True, 'births': 1}
+PASS 3 newborn spawned next to the mother INSIDE the pen (never across the east fence) born at (24,22) mother at (25,22), pen x 20..25 y 20..24
+PASS 3b newborn still inside the pen 400 ticks later baby at (22,22)
+PASS 4 newborn.enclosureId === mother.enclosureId baby 1 mother 1/1
+PASS 5 newborn.escaped === false (and mother still contained) {'babyEsc': False, 'mEsc': False}
+PASS 6 no page errors []
+7/7 checks passed
+--- birth_boundary_test done
+=== phase17_sovereign_test ===
+No page errors.
+--- phase17_sovereign_test done
+=== gamefeel_test ===
+PAGE ERRORS: none
+--- gamefeel_test done
+=== seed_picker_test ===
+PASS MENU 1 blank seed shows the RANDOM hint and Copy is disabled 
+PASS MENU 2 a phrase seed shows a numeric CODE CODE 1769989220 — same seed, same terrain and starting conditions.
+PASS MENU 3 Random fills a 9-digit seed code 295686759
+PASS MENU 4 Copy writes the seed to the clipboard '295686759' vs '295686759'
+PASS SEED 1 the same numeric seed replays identical terrain + state.seed 677498958 677498958
+PASS SEED 2 a different seed produces a different world 
+PASS SEED 3 phrase seeds hash deterministically (case-insensitive) and replay 1769989220 1769989220
+PASS SEED 4 blank seeds give fresh worlds (label null, seeds differ) 2141552419 2141554817
+PASS HUD 1 seed chip shows the typed seed label share-me-77
+PASS HUD 2 clicking the chip copies the seed 'share-me-77'
+PASS SAVE 1 seed + label + terrain survive save -> load; chip restored 
+PASS HUD 3 no seed chip for saves that predate seeds 
+PASS NO console / page errors []
+13/13 checks passed
+--- seed_picker_test done

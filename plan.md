@@ -13,10 +13,14 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- **Phase M:** Ops Deck Step 2 — refactor management screens to be **native drawer panels** (remove CSS “chrome-neutralising” hacks), with emphasis on:
-  - `SpeciesDatabase.jsx` (native drawer layout)
-  - `BloodlineLedger.jsx` (native drawer layout; still supports legacy modal/portal)
-- **Phase N:** Polish/QA pass — fresh smoke test + screenshot review; fix findings; re-verify.
+- **Phase O — CREATURE TENSION PASS — AGGRESSION, NEEDS DEGRADATION & ESCAPE**
+  - Introduce the core danger loop using **existing** creature substrate (stress/health/welfare/fence damage/security/staff), not a parallel system.
+  - Focus areas:
+    1. Needs degradation → stress escalation → health decline → distress → death (neglect can kill)
+    2. Aggression + incompatibility conflicts (minor/serious/fatal), using existing biology data (danger/social/compat)
+    3. Containment breach driven by stress + degraded containment; breach **destroys a fence segment** (physical gap)
+    4. Keeper relevance: assigned keepers slow degradation and provide warning/radio; response posts intervene
+    5. Player feedback: minimal, critical UI/renderer signals + alerts
 
 **User confirmations (scope decisions):**
 - Transport: **station-to-station rides** with a **visible elevated car** that **rises over fences/enclosures safely** mid-route and **lowers at stations**; **no full vehicle traffic sim**.
@@ -53,6 +57,19 @@
 - Keep **Ops Deck geometry unchanged**: **56px dock + 320px drawer** (≤376px total coverage).
 - **Strict determinism**: do not introduce `Math.random()` or non-deterministic operations into sim logic (`src/game/state.js`, `controller.js`, etc.).
 - No new dependencies (Tailwind plugin additions are allowed only if already available).
+
+**Phase O confirmations (this conversation):**
+- **Neglect CAN kill**: health reaching **0** causes death (with escalating warnings).
+- **Breach destroys the barrier segment**: enclosure becomes physically open (gap) until rebuilt/repaired.
+- **Serious in-pen aggression** triggers **Rapid Response** intervention when a post is in range (separates animals); biomedical staff treat injuries afterward.
+- Same rules in **Sandbox and Management**.
+- Minimal UI additions approved:
+  - Canvas distress marker
+  - Enclosure stress tint + breach-gap markers
+  - EnclosurePanel tension/incompatibility section + breached state
+  - CreaturePanel health bar + INJURED/CRITICAL badge
+  - Ledger DECEASED status
+- **Hybrid/interbreeding sprites**: explicitly **parked as a follow-up backlog item** (not Phase O).
 
 **Working style (user-confirmed):**
 - plan → implement → write Playwright test → run testing agent → auto-continue to next item without stopping.
@@ -225,167 +242,204 @@
 ---
 
 ### Phase J — ART_V2 post-passes (cel ramp, rim light, ground AO/contact shadow, glow halo) behind flag (Ops Deck Step 1) ✅ COMPLETE & VERIFIED
-**Spec source:** `01-sprite-pipeline-v2.md` (artifact)
-
-**Status:** ✅ COMPLETE & VERIFIED (iteration_24 = 100%)
-
-**Flag design:**
-- `frontend/src/game/art/flags.js`
-  - `export const ART_V2` from `localStorage.getItem('aetherion.artV2')` (default `'on'`).
-
-**What landed (high level):**
-- `pixel.js`: deterministic post passes `celRamp`, `rimLight2`, `haloGlow` that **mask recorded eye rects**.
-- `creatures.js`: bake ordering:
-  - cel/rim after `def.paint()` and before outline.
-  - halo after outline, and silhouette `bounds` measured pre-halo so bounds match flag-off.
-  - `sheet.v2 = ART_V2`.
-- `terrain_tex.js`: apply `celRamp(steps=4)` when ART_V2 is on.
-- `rig.js` + `renderer.js`: `groundAO` and `contactShadow` wired into the single shadow draw site.
-
-**Verification:**
-- `tests/art_v2_test.py` passes (9/9).
-- Flag-off outputs match baseline (`tests/art_v2_baseline.json`).
-
-**Commit:**
-- `e138f63 art: ART_V2 post-passes (cel/rim/halo/AO) behind flag`
+(unchanged; complete and verified)
 
 ---
 
 ### Phase K — Ops Deck dock + drawer shell behind OPS_DECK flag (Ops Deck Step 1) ✅ COMPLETE & VERIFIED
-**Spec source:** `02-ops-deck-shell.md` (artifact)
-
-**Status:** ✅ COMPLETE & VERIFIED (iteration_24 = 100%)
-
-**Flag design (user-confirmed):**
-- `OPS_DECK` defaults **ON**.
-- `?legacyHud=1` **forces legacy HUD**.
-- `localStorage.setItem('aetherion.opsDeck','off')` **forces legacy HUD**.
-- Flags read once at module load: set localStorage then reload.
-
-**Implementation notes (landed decisions):**
-- `OpsDock.jsx`: left 56px dock; `data-testid` values are **`dock-` prefixed** to avoid Playwright strict-mode collisions with legacy HudBar.
-- `Drawer.jsx`: 320px drawer with title/close; Esc closes.
-- `useDrawer.js`: single drawer state; same-id toggles closed; `{toggle:false}` to guarantee open.
-- `GameScreen.jsx`:
-  - In deck mode, `HudBar.onOpenModal` routes to `openDrawer`, and `GameModals` is **not mounted**.
-  - Legacy `setModal` writers (alerts + inspect panel open-species) are routed into the deck via an effect.
-  - Left overlays wrapper `ops-left-shift` sits at **left-14** with the drawer closed and **left-[376px]** when open (prevents the build toolbar being covered).
-- `index.css`:
-  - `.ops-drawer-host` neutralises only the **modal chrome** (absolute inset-0 backdrop and fixed-width centered panel) with screen files untouched.
-  - Adds a **generic narrow-host reflow** (grids → 1 column; Species list stacks above detail; header wraps).
-
-**Verification:**
-- `tests/ops_deck_test.py` passes (26/26).
-- Legacy DOM baseline re-recording script: `tests/ops_deck_record_baseline.py`.
-
-**Commit:**
-- `9996f97 hud: Ops Deck dock + drawer shell behind OPS_DECK flag`
+(unchanged; complete and verified)
 
 ---
 
 ### Phase L — Phase G continuation backlog (render/UI only): Juveniles → Seed Picker → Live Portraits → Creature Voices ✅ COMPLETE & VERIFIED
-**Status:** ✅ COMPLETE & VERIFIED (**iteration_25 = 100% (109/109)**)
-
 (unchanged; complete and verified)
 
 ---
 
 ### Phase M — Ops Deck Step 2: Native Drawer Panels (Species DB + Bloodline Ledger focus) ✅ COMPLETE & VERIFIED
-**Status:** ✅ COMPLETE & VERIFIED (iteration_26 = 100%). Commits: `47cbb00` (native panels + tests), `3bfff50` (QA fixes).
-**Landed exactly as designed below**, plus: `catalogued(s, species)` in SpeciesDatabase (a species the park holds/held is documented even before its acquisition tier is researched — fixes scenario Sovereigns showing as locked); ledger subject node 220px wide in the drawer; `ledger-empty` state; `drawer-close` testid retired (the header close IS the screen's `*-close-button`).
-
-**Original plan:**
-**Goal:** Remove the “CSS chrome-neutralising” approach and make Ops Deck drawer panels **native**.
-
-**Scope (user-confirmed):**
-- Refactor **`SpeciesDatabase.jsx`** and **`BloodlineLedger.jsx`** to be native drawer panels.
-- Keep legacy behavior intact:
-  - Legacy HUD mode must remain baseline-identical where tests require it.
-  - Bloodline Ledger must still be reachable from CreaturePanel and behave as a full-screen modal in legacy mode.
-- Maintain shell geometry: dock 56px + drawer 320px.
-
-**Phase M design decisions (to land):**
-- Create `frontend/src/components/game/ScreenFrame.jsx`:
-  - `ScreenHostContext` with `{ host: 'modal' | 'drawer', title }`.
-  - `useScreenHost()`.
-  - `ScreenFrame` abstraction:
-    - Props: `testId`, `closeTestId`, `eyebrow`, `subtitle`, `actions`, `toolbar`, `size`, `bodyClassName`, `scroll`, `layer`, `onClose`.
-    - Modal host renders the existing full-screen chrome (backdrop + centred `.nl-panel` + `.nl-panel-header`) **with identical [data-testid] order**.
-    - Drawer host renders a compact header using the screen’s own close button (`*-close-button`) and optional strips.
-    - Root retains the screen’s `*-modal` testid and adds `data-host` for styling.
-- Tailwind variant `drawer:` = `[data-host="drawer"] &` added in `tailwind.config.js` (plugin code only; no new dependency).
-- `Drawer.jsx` becomes geometry + Esc + context provider:
-  - No header of its own (ScreenFrame provides it).
-  - Add `DRAWER_TITLES.ledger = 'Bloodline Ledger'`.
-- `useDrawer.js` extended:
-  - `openDrawer(id, { toggle, params })`.
-  - Return `{ drawer, drawerParams }`.
-  - Add `ledger` to `DRAWER_IDS`.
-- Convert all five management screens to `ScreenFrame` and drawer-native layouts:
-  - SpeciesDatabase (deep adapt; no horizontal overflow; stack roster above detail).
-  - Research/Finance/Acquisition: drawer-friendly single-column layouts.
-  - Staff: drawer-friendly single-column hire cards + compact roster.
-  - (This ensures consistency and eliminates reliance on global CSS hacks.)
-- Bloodline Ledger refactor:
-  - Use `ScreenFrame`.
-  - Only uses `createPortal` in modal host.
-  - Drawer host uses compact node sizing and pairing outlook rendered as cards (maintain existing testids and `data-safe`).
-- Thread ledger navigation:
-  - Add `onOpenLedger(creatureId)` path from `CreaturePanel/InspectPanel`.
-  - In Ops Deck mode: open the `ledger` drawer with params.
-  - In legacy mode: keep local portal modal behavior.
-- Remove CSS hack:
-  - Delete `.ops-drawer-host` override block from `index.css`.
-
-**Verification plan (Phase M):**
-- Update existing tests where appropriate (keeping semantics):
-  - `ops_deck_test.py`: close buttons should still close drawers; adjust close selector to the new single header close in drawer host.
-  - `live_portraits_test.py`: ensure close selector matches the Species close button that still exists.
-- Add new acceptance test: `tests/ops_deck_native_test.py`:
-  - Confirms: single header per drawer screen, no horizontal overflow/scrollbars in each screen in drawer mode.
-  - Ledger: open in drawer, locate action navigates to creature, close works.
-  - Legacy: ledger portal still opens and closes; no Ops Dock present.
-  - Confirms `.ops-drawer-host` no longer exists.
-- Run full suite + testing agent; produce **iteration_26** report.
+(unchanged; complete and verified)
 
 ---
 
 ### Phase N — Polish / QA Pass ✅ COMPLETE & VERIFIED
-**Status:** ✅ COMPLETE (iteration_26 = 100%). Findings fixed: HUD overflow at 1366–1700px (labels `hidden min-[1720px]:inline`, identity block `flex-auto min-w-0 overflow-hidden`, right cluster `shrink-0`, Menu never clipped); build-toolbar category tabs `px-1 whitespace-nowrap`; Species DB lock for held species (see Phase M). Smoke-tested: menu/seed picker → start, all drawers at 1366/1600/1920, dossier → species deep-link → ledger, photo mode, save → menu list, legacy HUD + legacy modals. New suites: `tests/ops_deck_native_test.py` (17), `tests/hud_responsiveness_test.py` (19, added by the testing agent).
+(unchanged; complete and verified)
 
-**Original plan:**
-**Goal:** A short, practical polish pass after Phase M to catch UI regressions and usability issues, without changing simulation determinism.
+---
 
-**Activities:**
-- Fresh smoke test flows:
-  - Main menu → seed picker → start game
-  - HUD + dock/drawers open/close paths
-  - Inspect panel flows (species open, ledger open)
-  - Photo mode open/close
-  - Save/load
-  - Field Ops buy/claim flows
-- Screenshot review at:
-  - 1600×900
-  - 1366×768
-- Fix any findings:
-  - Overflow, clipping, misaligned headers
-  - Focus/keyboard traps, Esc semantics
-  - Any strict-mode Playwright issues (duplicate testids, element count changes)
-- Run:
-  - `yarn build`
-  - Playwright suites (including new tests)
-  - Testing Agent iteration **26**
-- Update docs:
-  - `memory/PRD.md` with Phase M/N notes
-  - Update this `plan.md` with final status + acceptance.
+### Phase O — CREATURE TENSION PASS — AGGRESSION, NEEDS DEGRADATION & ESCAPE ✅ IMPLEMENTED — verification via iteration_27 (In Progress)
+**Status log:**
+- O1 core sim (tensionProfile.js + creatures.js degradation/health/death) — DONE
+- O2 aggression (tension.js conflictTick, graduated outcomes, knowledge confirmation, response intervention) — DONE
+- O3 breach (breachTick, performBreach → destroyFence + state.gaps, holding, warden rebuild, gap lifecycle) — DONE
+- O4 keeper relevance (keeperMult, passive relief, radioEvent stress/conflict/breach) — DONE
+- O5 feedback — DONE: renderer tint/gap markers/distress chevrons/shake+siren; CreaturePanel health bar + condition badge; EnclosurePanel TENSION section (status, mean stress, counters, INCOMPATIBLE SPECIES / OVERCROWDED / BREACH RISK / NO KEEPER warnings) + BREACHED banner with gap locate + CONTAINMENT LOST view; EmergencyBanner gap chips + gaps-only PERIMETER OPEN variant; BloodlineLedger DECEASED.
+- O6 dev harness (`window.__game.dev`: fenceRect/addCreature/offspring/kill/spawnBuilding/hireStaff/assignStaff/enclosureAt/enclosures/damageFence/grant/flatten/watchAlerts) + `tests/tension_test.py` (48/48 locally) — DONE
+- Fixes found by local regression: `stats.deaths` now initialised in createNewGame (deserialize backfill made continue≠load hashes differ → determinism_test B). `gapsFor` made geometric (region ids renumber after fence edits; stored encId is history only).
+- Local regression so far: phase5 19/19, keeper_priorities, phase8_staff, determinism 8/8, phase20 39/39, phase21 28/28.
+- NEXT: testing agent iteration_27 → PRD/plan final update → commit.
+**Goal:** Make the park feel alive and consequential via a deterministic, explainable danger loop. Must use existing creature stats and systems (stress/health/welfare, fences, security posts, staff), not a parallel system.
+
+**Hard constraints:**
+- **Do not change species data, art, or UI layout** unless a new UI element is strictly required.
+- No nondeterminism; no new dependencies.
+- Save compatibility: additive state only with safe defaults.
+- Maintain unknown-biology gating: do not leak undiscovered needs through new UI text.
+
+**Existing substrate to build on (must not duplicate):**
+- `creatures.js`: `updateNeeds`, `updateWelfare` (stress from welfare), `cohabTick` (hostility stress + knowledge), `fencePressure` (stress damages fences), escape detection + alert.
+- `construction.js`: `damageFence` deletes a segment on hp≤0 and increments `stats.breaches`.
+- `security.js`: rapid response posts/units + capture loop.
+- `staff.js`: keeper/biomedical/warden tasks, repair tick, and batched radio chatter.
+- `rivalry.js`: apex neighbour rivalries.
+- `guests.js`: panic when dangerous escapes exist.
+- `renderer.js`: escaped ring + agitated/lunge animation hooks.
+- `audio.js`: alert stingers keyed by alert type.
+- `EnclosurePanel.jsx`: knownPairs compatibility view (knowledge-gated).
+- `CreaturePanel.jsx`: stress/welfare/needs bars exist (no health bar yet).
+
+#### O1) Core sim: tension module + deterministic hooks (no new parallel state)
+**Approach:** Introduce a single new module `frontend/src/game/tension.js` and call it from the existing sim cadence (preferably folded into the same tick schedule as welfare/pressure/cohab), keeping creature state changes in-place.
+
+**Data additions (additive; defaults safe):**
+- Creature:
+  - `c._healthWarn` (0/1/2) for escalating warnings per episode
+  - `c._breachWarned` (bool) early risk warning throttling
+  - `c._aggrCd`, `c._conflictCd` cooldowns
+  - `c.injuredAt` or `c.injured` (tick timestamp) for UI + medical priority
+- State:
+  - `state.tension` = { incidents: [], encCooldown: {}, lastAlertAt: {} } (optional caches)
+  - `state.gaps` (see O3) — registry of breached fence segments (additive)
+  - `state.stats.deaths`, `state.stats.deathsBySpecies`, `state.stats.conflicts`, `state.stats.breachEvents`, `state.stats.fatalConflicts`
+- Lineage:
+  - Extend statuses to include `deceased` (via existing `markLineageLeft`)
+
+**Degradation model (build on updateWelfare semantics, not parallel):**
+- `tensionProfile(sp)` → `degradeMult = (0.6 + danger*0.16) * (0.85 + (tier-1)*0.1)`
+- Fast channel: hunger/thirst deficits → stress increase per welfare check
+- Slow channel: habitat/social comfort deficits → slower stress increase
+- Keepers assigned to enclosure reduce escalation: `keeperMult = 0.55` + passive stress relief per assigned keeper (cap 2)
+- Health loss:
+  - high stress (>0.8) drains health
+  - starvation (hunger or thirst ≤0.02) drains health
+  - recovery only when stress<0.6
+  - **remove existing health floor**; allow `health → 0`
+- Escalating warnings (throttled per episode):
+  - health < 0.6 → warning alert (`HEALTH DECLINING`)
+  - health < 0.3 → danger alert (`CRITICAL CONDITION`)
+  - stress crossing 0.6 upward triggers a keeper radio callout (if assigned keeper exists)
+- Death:
+  - `killCreature(state, c, cause)` → `removeCreature(state, c.id, 'deceased')`
+  - stats increment; major park rating hit; alert (`ORGANISM LOST`); park event; logCause
+
+#### O2) Aggression: conflict triggers + graduated outcomes
+**Tick cadence:** `conflictTick` every ~90 ticks; cap conflicts to 1 per call; per-enclosure cooldown 300; per-creature aggressor cooldown 600.
+
+**Triggers (existing species biology; deterministic):**
+- Incompatible species: compat prey/hostile + danger differential
+- Overcrowding: sameSpecies > `social.max`
+- High stress eligibility: stress ≥ 0.75
+- Dominance: same species, tier ≥ 3, adults, occasional
+- Juveniles never aggressors
+
+**Outcomes:**
+- Minor: stress spike + brief separation behaviour (flee within enclosure)
+- Serious: injury (health loss + injured flag), stress spike, incident registered
+- Fatal: calls `killCreature` (only when victim weakened OR apex predation)
+
+**Response integration:**
+- Serious conflicts register an incident consumed by rapid response posts:
+  - if a post within radius, dispatch a unit to pen → separates animals (stress reduction + forced separation move)
+  - biomedical staff then naturally prioritises injured due to expanded medical criteria (health<0.8 or injured flag)
+
+#### O3) Breach: stress + degraded containment causes a physical gap
+**Eligibility:**
+- stress ≥ 0.7 AND weakest boundary segment HP ratio < threshold that scales with danger, OR boundary tier under species requirement
+- Nearby security post reduces probability / reduces time-to-response
+- First eligibility triggers early warning alert (`BREACH RISK`) once per episode
+
+**On breach event:**
+- Determine weakest boundary segment and **destroy it** (delete `state.fences[key]` via `damageFence` or direct deletion for breach event)
+- Register the gap: `state.gaps[key] = { tier, tick, encId }`
+- Place creature outside through that gap; mark escaped; guests panic (existing)
+- Fire distinctive alert (`CONTAINMENT BREACH`) and a new stinger `breach` (siren-like) if audio enabled
+
+**Capture outcomes:**
+- `security.resolveCapture`:
+  - if home enclosure remains open/unavailable: creature goes to **HOLDING** at the post (`c.held=postId`, `c.state='held'`, `escaped=false`)
+  - securityTick releases held creatures when pen is closed again
+  - capture alert includes health percent
+
+**Gap lifecycle / repair:**
+- Player placing a fence at the key clears `state.gaps[key]`
+- Wardens gain a rebuild task for gaps (spend fence cost) if allowed; fixing a gap restores full hp
+- Enclosure remains marked breached until gaps repaired
+
+#### O4) Keeper relevance and player feedback wiring
+- Assigned keepers:
+  - slow degradation, reduce stress, call out stress/conflict/breach via radio chatter (new lines, same batched system)
+- Rapid response posts:
+  - already recapture escapes; now also respond to serious in-pen incidents
+
+#### O5) UI / Feedback (minimal, additive)
+**Renderer (canvas):**
+- Distress marker over distressed/injured creatures (pulsing chevron or ring)
+- Subtle stress tint overlay on enclosures with mean stress > 0.6
+- Gap markers (red dashed) for breached fence segments
+
+**CreaturePanel:**
+- Add Health bar (`data-testid="creature-health"`)
+- Add condition badge (`data-testid="creature-condition"`) = INJURED / CRITICAL / STABLE
+
+**EnclosurePanel:**
+- Add `TensionSection`:
+  - mean stress + warnings
+  - incompatible mixes warning (only what the sim knows + safe public heuristics)
+  - overcrowding warning (only if `social` discovered; otherwise generic masked cause)
+  - breach-risk residents
+  - assigned keepers count
+- If breached: show `BREACHED` state and list gaps with locate action
+
+**BloodlineLedger:**
+- Extend STATUS_META to include `deceased` label (DECEASED) and colour
+
+#### O6) Balance targets
+- T1 species forgiving; T3+ predators degrade faster
+- With assigned keepers + good habitat + compatible mixes: stable
+- Neglect death pacing: gradual, warnings first, fatality is late punishment
+- Conflicts rate-limited and fatal only when plausible
+
+#### O7) Deterministic tests + regression safety
+**New tests:**
+- `tests/tension_test.py` (new): deterministic scenarios using `window.__game.stepTicks(n)` and a minimal dev harness `window.__game.dev` for setup:
+  - Degradation: D1 vs D5 rates; keeper slows degradation
+  - Stress → health decline → alerts → death → lineage status `deceased`
+  - Aggression: predation/incompatibility, overcrowding, dominance; outcomes minor/serious/fatal; response separation
+  - Breach: risk warning → breach destroys segment → gap markers/state.gaps → escape → recapture/holding → rebuild clears gap
+  - Radio callouts for stress/conflict/breach (rate-limited)
+  - UI testids: creature-health/condition, enclosure tension section
+  - Determinism: two identical runs yield identical stats and alerts
+
+**Regression requirement:**
+- All existing suites must remain green.
+- Watch existing assumptions that health floors at 0.1 (will change) and fence destruction semantics.
+
+**Phase O execution order:**
+- **O1** core sim + state additions (tension.js + hooks) + initial alerts
+- **O2** aggression + response intervention + injuries/deaths
+- **O3** breach + gap registry + holding + rebuild
+- **O4** player feedback (renderer + panels + ledger)
+- **O5** tests + balance + testing agent run (**iteration_27**)
+- **O6** docs update (PRD.md + plan.md) and commit
 
 ---
 
 ## 3) Next Actions (backlog — pick with the user)
-1. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
-2. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger (now a native drawer — natural home).
-3. **Ambient Mix sliders / Keeper Voices (P2)**.
-4. **Legacy HUD retirement (P2)** — once the deck has soaked, drop the `OPS_DECK` flag + GameModals path (ScreenFrame's modal host + the DOM baseline test become removable).
+1. **Phase O (P1)** — Creature Tension Pass (aggression, degradation, breach, keeper relevance, feedback, tests).
+2. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
+3. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger.
+4. **Ambient Mix sliders / Keeper Voices (P2)**.
+5. **Legacy HUD retirement (P2)** — once the deck has soaked, drop the `OPS_DECK` flag + GameModals path.
+6. **Hybrid / interbreeding sprites (P3)** — new sprite logic/art for interbreeding outcomes (parked; requires a separate spec).
 
 ---
 
@@ -401,29 +455,17 @@
 - Phase E (iteration_18), Phase F (iteration_19), Phase G (iteration_20), Phase H (iteration_21), stabilisation (iteration_22), remediation (iteration_23).
 - **Ops Deck Step 1: Phase J + Phase K (iteration_24 = 100%)**.
 - **Phase L (juveniles/seed picker/live portraits/voices): iteration_25 = 100% (109/109)**.
+- **Phase M+N (native drawer panels + QA): iteration_26 = 100% (289/289)**.
 
-**Phase J (ART_V2) acceptance:**
-- ART_V2 off: creature sheet hashes match baseline; terrain textures match baseline.
-- ART_V2 on: `sheet.v2:true`, hashes differ, `bounds` unchanged; no recolor of eye rects; halo does not affect bounds.
-- Toggling `localStorage['aetherion.artV2']` and reload switches look without console errors.
-
-**Phase K (OPS_DECK Step 1) acceptance:**
-- Default ON: OpsDock opens a single drawer at a time; close/toggle/Esc works; existing screens mount inside.
-- Deck mode: `GameModals` absent; legacy modal writers route into the drawer.
-- Flag off / `?legacyHud=1`: legacy HUD/modals render; DOM matches main baseline.
-- Canvas remains interactive at x=400 while drawer open; dock+drawer cover ≤376px.
-
-**Phase L acceptance:**
-- Juveniles: derived cub/young sheets render; adult sheets unchanged; eye rects remap correctly.
-- Seed Picker: typed seeds replay identical worlds; HUD seed chip copies; save/load preserves.
-- Live Portraits: idle/blink animation with shared ticker; pauses off-screen; reduced-motion supported.
-- Creature Voices: synthesised voices on threat/lunge; distance-attenuated; rate-limited; mute supported; sim untouched.
-
-**Phase M/N acceptance (verified, iteration_26):**
-- Every drawer screen: `data-host=drawer`, one header + one close, no horizontal overflow, no `.ops-drawer-host`; legacy DOM baseline unchanged.
-- Species DB: roster strip + detail; dossier deep-link lands on the species with its row in view; held species catalogued.
-- Ledger: contextual `ledger` drawer (no dock button), cards outlook, locate/Esc/close; legacy portal modal unchanged.
-- HUD fits 1366→1920 with nothing clipped.
+**Phase O acceptance (to verify in iteration_27):**
+- Needs degradation escalates stress and then health loss when neglected; keepers meaningfully slow it.
+- Stress/health crisis escalates with warnings; neglect can kill; lineage marks DECEASED.
+- Aggression triggers are reliable when incompatible/overcrowded/high-stress; outcomes are graduated and rate-limited.
+- Serious aggression triggers rapid response intervention when a post is in range; biomedical staff treat injured.
+- Breach eligibility depends on stress + degraded containment; breach destroys a fence segment and creates a gap until rebuilt.
+- Player feedback exists before disaster: stress visible + enclosure warnings + breach-risk alert.
+- New UI indicators are minimal and do not disturb Ops Deck geometry.
+- All new behaviour has deterministic Playwright coverage; full regression suite remains green.
 
 **Next verification to produce:**
-- **iteration_27**: whichever P1 roadmap item is selected next (plus regressions).
+- **iteration_27**: Phase O (Creature Tension Pass) + regressions.

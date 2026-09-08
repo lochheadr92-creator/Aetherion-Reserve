@@ -14,6 +14,8 @@ export const EVENT_META = {
   feeding: { label: 'FEEDING', color: '#F2C14E', alert: false },
   play: { label: 'JUVENILE PLAY', color: '#4DB6FF', alert: false },
   morph: { label: 'RARE MORPH SIGHTING', color: '#e8f2ff', alert: false },
+  // tension pass: hazards never get the "guests are gathering" headline (their own alerts fire)
+  conflict: { label: 'CONFLICT', color: '#FF4D6D', alert: false, hazard: true },
 };
 
 export function emitParkEvent(state, { type, name, x, y, radius = 10, magnitude = 0.5, duration = 800, subject = null, speciesId = null }) {
@@ -34,8 +36,8 @@ export function emitParkEvent(state, { type, name, x, y, radius = 10, magnitude 
   if (state.events.length > 14) state.events.shift();
   // park buzz: word spreads about dramatic moments — attendance rises
   state.stats.buzz = Math.min(1, (state.stats.buzz || 0) + magnitude * 0.25);
-  // throttled alerts for headline events only
-  if (EVENT_META[type]?.alert || magnitude >= 0.85) {
+  // throttled alerts for headline events only (hazards fire their own, specific alerts)
+  if (!EVENT_META[type]?.hazard && (EVENT_META[type]?.alert || magnitude >= 0.85)) {
     state._evtAlert = state._evtAlert || {};
     if (!state._evtAlert[type] || state.tick - state._evtAlert[type] > 1500) {
       state._evtAlert[type] = state.tick;

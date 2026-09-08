@@ -1,38 +1,34 @@
 [
   {
-    "content": "Add Tailwind `drawer:` variant (tailwind.config.js) + create ScreenFrame.jsx (context, useScreenHost, host-aware chrome)",
+    "content": "O5: EnclosurePanel — TensionSection + BREACHED banner with gap locate (+ EmergencyBanner gap chips / perimeter variant)",
     "status": "completed"
   },
   {
-    "content": "Drawer.jsx -> shell + context provider (no own header); useDrawer params + ledger id",
+    "content": "O5: BloodlineLedger — DECEASED status meta + chip label",
     "status": "completed"
   },
   {
-    "content": "Convert SpeciesDatabase to ScreenFrame with native drawer layout",
+    "content": "Compile check (esbuild) + screenshot verify EnclosurePanel/Ledger in Ops Deck",
     "status": "completed"
   },
   {
-    "content": "Convert Research/Finance/Acquisition(+tabs)/Staff to ScreenFrame + drawer: layouts",
+    "content": "O6: dev harness extended (offspring/kill/flatten/watchAlerts) — verify",
     "status": "completed"
   },
   {
-    "content": "BloodlineLedger -> ScreenFrame drawer panel (portal only legacy); thread onOpenLedger via InspectPanel/CreaturePanel/GameScreen",
+    "content": "O6: Write tests/tension_test.py (48 checks) — 48/48 locally",
     "status": "completed"
   },
   {
-    "content": "Delete .ops-drawer-host CSS block; esbuild/yarn build check; screenshots of each drawer",
-    "status": "completed"
+    "content": "Run key regression suites locally (phase5, keeper_priorities, ops_deck, determinism, comprehensive) to catch breakage early",
+    "status": "in_progress"
   },
   {
-    "content": "Update ops_deck_test + live_portraits_test; write tests/ops_deck_native_test.py; run affected suites",
-    "status": "completed"
+    "content": "O7: testing_agent_v3 iteration_27 (tension + regressions), fix issues",
+    "status": "pending"
   },
   {
-    "content": "Phase N QA pass: smoke flows + screenshot review (1600x900, 1366x768), fix findings",
-    "status": "completed"
-  },
-  {
-    "content": "Testing agent (iteration_26), fix issues, update plan.md + PRD.md, commit",
-    "status": "completed"
+    "content": "O7: Update plan.md / PRD.md, commit",
+    "status": "pending"
   }
 ]

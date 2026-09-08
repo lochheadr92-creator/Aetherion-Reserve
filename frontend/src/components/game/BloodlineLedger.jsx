@@ -17,8 +17,10 @@ const MORPH_BY_ID = Object.fromEntries(MORPHS.map((m) => [m.id, m]));
 const STATUS_META = {
   park: { label: 'IN PARK', color: 'var(--accent-seaglass)' },
   transferred: { label: 'TRANSFERRED', color: 'var(--text-3)' },
+  deceased: { label: 'DECEASED', color: 'var(--danger)' }, // tension pass: neglect or a fatal conflict
   unknown: { label: 'WILD / UNTRACKED', color: 'var(--text-3)' },
 };
+const AWAY_SUFFIX = { transferred: ' · away', deceased: ' · deceased', unknown: ' · away' };
 
 function statusOf(e) {
   return STATUS_META[e?.status] || STATUS_META.unknown;
@@ -59,7 +61,7 @@ function Node({ entry, role, highlight = false, onLocate, testId }) {
       </div>
       <div className="mono text-[9px] text-[var(--text-2)] mt-0.5">{genLabel(entry)}</div>
       <div className="flex items-center gap-1.5 mt-1">
-        <span className="mono text-[8px] tracking-[0.12em] px-1 py-px rounded border" style={{ color: st.color, borderColor: st.color }}>{st.label}</span>
+        <span className="mono text-[8px] tracking-[0.12em] px-1 py-px rounded border" data-testid={testId ? `${testId}-status` : undefined} data-status={entry.status} style={{ color: st.color, borderColor: st.color }}>{st.label}</span>
         {entry.inbreed >= 0.25 && <span className="mono text-[8px] tracking-[0.12em] px-1 py-px rounded border border-[var(--danger)] text-[var(--danger)]">INBRED</span>}
         {alive && <MapPin size={9} className="ml-auto text-[var(--text-3)]" />}
       </div>
@@ -85,8 +87,9 @@ function ChipList({ label, entries, onLocate, testId }) {
       <span className="mono text-[9px] tracking-[0.2em] text-[var(--text-3)]">{label}</span>
       {entries.map((e) => (
         <button key={e.id} type="button" disabled={e.status !== 'park'} onClick={() => onLocate(e.id)}
-          className={`text-[10px] px-2 py-0.5 rounded-full border ${e.status === 'park' ? 'border-[var(--line-2)] text-[var(--text-2)] hover:border-[var(--accent-cyan)]' : 'border-[var(--line)] text-[var(--text-3)]'}`}>
-          {e.name}{e.status !== 'park' ? ' ·' + ' away' : ''}
+          data-status={e.status}
+          className={`text-[10px] px-2 py-0.5 rounded-full border ${e.status === 'park' ? 'border-[var(--line-2)] text-[var(--text-2)] hover:border-[var(--accent-cyan)]' : e.status === 'deceased' ? 'border-[rgba(255,77,109,0.4)] text-[var(--text-3)] line-through decoration-[var(--danger)]' : 'border-[var(--line)] text-[var(--text-3)]'}`}>
+          {e.name}{e.status !== 'park' ? (AWAY_SUFFIX[e.status] || ' · away') : ''}
         </button>
       ))}
     </div>

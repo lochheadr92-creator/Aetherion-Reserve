@@ -11,6 +11,8 @@ import { isStorm, getDayPhase } from './weather';
 import { rollWildGenes, inheritGenes, offspringName } from './genetics';
 import { emitParkEvent } from './events';
 import { registerLineage, markLineageLeft } from './lineage';
+import { tensionProfile, keeperMult, assignedKeepers, NEED_LOW, STRESS, HEALTH } from './tensionProfile';
+import { radioEvent } from './staff';
 
 let nameCounter = {};
 
@@ -39,6 +41,46 @@ export function removeCreature(state, id, reason = 'transferred') {
   const i = state.creatures.findIndex((c) => c.id === id);
   if (i >= 0) state.creatures.splice(i, 1);
   markLineageLeft(state, id, reason); // history survives the departure
+}
+
+// Death is the end of the tension loop: neglect (starvation / chronic stress) or a fatal conflict.
+// The ledger keeps the organism as DECEASED; the park rating takes a lasting hit (stats.deaths).
+export function killCreature(state, c, cause, { by = null } = {}) {
+  if (!state.creatures.some((q) => q.id === c.id)) return false;
+  const sp = speciesById(c.speciesId);
+  const { x, y } = curTile(c);
+  removeCreature(state, c.id, 'deceased');
+  state.stats.deaths = (state.stats.deaths || 0) + 1;
+  if (!state.stats.deathsBySpecies) state.stats.deathsBySpecies = {};
+  state.stats.deathsBySpecies[sp.id] = (state.stats.deathsBySpecies[sp.id] || 0) + 1;
+  // response units chasing it stand down; keepers drop tasks aimed at it
+  if (state.security?.units) for (const u of state.security.units) if (u.targetId === c.id) u.state = 'returning';
+  for (const st of state.staff || []) if (st.task && st.task.targetId === c.id) { st.task = null; st.state = 'idle'; st.path = []; }
+  pushAlert(state, {
+    type: 'danger', title: by ? 'FATALITY' : 'ORGANISM LOST',
+    msg: by
+      ? `${c.name} (${sp.name}) was killed by ${by.name} in Pen #${c.enclosureId ?? '?'}. Separate incompatible or overcrowded residents.`
+      : `${c.name} (${sp.name}) has died of ${cause}. Oversight will note the loss — welfare failures cost reputation.`,
+    target: { kind: 'tile', x, y },
+  });
+  // word of a death spreads too — buzz drops instead of a crowd-drawing park event
+  state.stats.buzz = Math.max(0, (state.stats.buzz || 0) - 0.2);
+  logCause(state, c.name, by ? `killed by ${by.name}` : `died of ${cause}`);
+  c._dead = true;
+  return true;
+}
+
+// Escalating warnings on the way down: one per threshold per episode (reset once health recovers).
+function healthWarnings(state, c, sp, starving) {
+  const level = c.health < HEALTH.critical ? 2 : c.health < HEALTH.warn ? 1 : 0;
+  if (level === 0) { if (c.health > HEALTH.warn + 0.1) c._healthWarn = 0; return; }
+  if ((c._healthWarn || 0) >= level) return;
+  c._healthWarn = level;
+  const why = starving ? 'starving — no reachable food or water' : c.injured ? 'injured and under chronic stress' : 'chronic stress is wearing it down';
+  pushAlert(state, level === 2
+    ? { type: 'danger', title: 'CRITICAL CONDITION', msg: `${c.name} (${sp.name}) will die without intervention: ${why}. Treat, feed and calm it now.`, target: { kind: 'creature', id: c.id } }
+    : { type: 'warning', title: 'HEALTH DECLINING', msg: `${c.name} (${sp.name}) is losing condition: ${why}.`, target: { kind: 'creature', id: c.id } });
+  logCause(state, c.name, level === 2 ? 'is in critical condition' : 'health is declining');
 }
 
 const SPEED = 0.045; // tiles per tick
@@ -93,6 +135,7 @@ function scoreTileForSpecies(state, sp, i) {
 }
 
 export function decideCreature(state, c) {
+  if (c.held) { c.path = []; c.state = 'held'; return; } // in holding at a response post: stays put
   const sp = speciesById(c.speciesId);
   const swims = sp.env.water.aquaticMin > 0;
   const { x, y } = curTile(c);
@@ -319,6 +362,11 @@ export function onArrive(state, c) {
 
 export function updateNeeds(state, c) {
   const sp = speciesById(c.speciesId);
+  if (c.held) { // the response team keeps a held animal fed and watered
+    c.needs.hunger = Math.max(c.needs.hunger, 0.6); c.needs.thirst = Math.max(c.needs.thirst, 0.6);
+    c.needs.energy = Math.min(1, c.needs.energy + 0.05);
+    return;
+  }
   // metabolism gene: voracious lines get hungry faster (0.5 baseline -> x1.0)
   c.needs.hunger = Math.max(0, c.needs.hunger - 0.0085 * (0.8 + (c.genes?.metabolism ?? 0.5) * 0.4));
   if (sp.env.water.drink) c.needs.thirst = Math.max(0, c.needs.thirst - 0.011);
@@ -337,6 +385,15 @@ export function updateNeeds(state, c) {
 
 export function updateWelfare(state, c) {
   const sp = speciesById(c.speciesId);
+  if (c.held) { // holding pen: stable but not a habitat — stress eases, nothing improves
+    const needsAvg = (c.needs.hunger + c.needs.thirst + c.needs.energy) / 3;
+    c.comfort = 0.5; c.welfare = 0.25 + 0.5 * needsAvg;
+    c.factors = [{ key: 'held', label: 'Holding', score: 0.5, cause: 'In holding at a Rapid Response Post — rebuild its pen to release it' }];
+    c.stress = Math.max(0, c.stress - 0.01);
+    if (c.health < 1 && c.stress < STRESS.recover) c.health = Math.min(1, c.health + 0.002);
+    c.distressed = !!c.injured;
+    return;
+  }
   const { x, y } = curTile(c);
   const enc = enclosureAt(state, x, y);
   const habitat = evaluateHabitat(state, c, enc);
@@ -344,10 +401,20 @@ export function updateWelfare(state, c) {
   c.comfort = habitat.overall;
   const needsAvg = (c.needs.hunger + c.needs.thirst + c.needs.energy) / 3;
   c.welfare = 0.5 * c.comfort + 0.5 * needsAvg;
+  // ---- tension loop: neglect → stress (species-scaled, keeper-softened) ----
   // genetic stress tolerance scales all stress accumulation (0.5 baseline -> x1.0)
   const stressMult = (hasResearch(state, 'bio_stress') ? 0.7 : 1) * (1.3 - (c.genes?.stressTol ?? 0.5) * 0.6);
-  if (c.welfare < 0.5) c.stress = Math.min(1, c.stress + (0.5 - c.welfare) * 0.05 * stressMult);
+  const { degradeMult } = tensionProfile(sp);
+  const mult = stressMult * degradeMult * keeperMult(state, c.enclosureId);
+  // fast channel: unmet food / water; slow, persistent channel: habitat, social and cohabitation shortfalls
+  const needDeficit = Math.max(0, NEED_LOW.hunger - c.needs.hunger) + (sp.env.water.drink ? Math.max(0, NEED_LOW.thirst - c.needs.thirst) : 0);
+  const habitatDeficit = Math.max(0, 0.55 - c.comfort);
+  const pressure = needDeficit * 0.04 + habitatDeficit * 0.03;
+  if (pressure > 0) c.stress = Math.min(1, c.stress + pressure * mult);
   else c.stress = Math.max(0, c.stress - 0.02);
+  // assigned keepers actively settle their residents (their feed/treat work does the rest)
+  const keepers = Math.min(2, assignedKeepers(state, c.enclosureId));
+  if (keepers) c.stress = Math.max(0, c.stress - 0.004 * keepers);
   // weather & day-night pressure
   const sheltered = ['sheltering', 'seekShelter'].includes(c.state);
   if (isStorm(state) && !sheltered) c.stress = Math.min(1, c.stress + 0.015 * stressMult);
@@ -359,8 +426,20 @@ export function updateWelfare(state, c) {
     if (phase === 'day' && !covered) c.stress = Math.min(1, c.stress + 0.012 * stressMult);
     else if (phase === 'night') c.stress = Math.max(0, c.stress - 0.012);
   }
-  if (c.stress > 0.85) c.health = Math.max(0.1, c.health - 0.004);
-  else if (c.health < 1) c.health = Math.min(1, c.health + 0.002 * (0.6 + (c.genes?.resilience ?? 0.5) * 0.8));
+  // ---- stress → health: chronic stress and outright starvation drain condition; no floor ----
+  const starving = c.needs.hunger <= 0.02 || (sp.env.water.drink && c.needs.thirst <= 0.02);
+  let loss = 0;
+  if (c.stress > STRESS.healthLoss) loss += c.escaped ? 0.006 : 0.012; // a loose animal is stressed, not caged with the cause
+  if (starving) loss += 0.01;
+  if (loss > 0) c.health = Math.max(0, c.health - loss * degradeMult);
+  else if (c.stress < STRESS.recover && c.health < 1) c.health = Math.min(1, c.health + 0.002 * (0.6 + (c.genes?.resilience ?? 0.5) * 0.8));
+  if (c.injured && c.health >= HEALTH.injuredUntil) c.injured = null;
+  c.distressed = (loss > 0 && c.health < 0.55) || !!c.injured; // renderer marker + panel badge
+  healthWarnings(state, c, sp, starving);
+  if (c.health <= 0) { killCreature(state, c, starving ? 'starvation' : 'chronic stress'); return; }
+  // assigned keepers radio in an agitated resident once per episode
+  if (c.stress >= STRESS.radio && !c._stressRadioed) { c._stressRadioed = true; radioEvent(state, c.enclosureId, 'stress', c); }
+  else if (c.stress < 0.45) c._stressRadioed = false;
   // low welfare alert (throttled via flag)
   if (c.welfare < 0.35 && !c._lowWelfareAlerted) {
     c._lowWelfareAlerted = true;
@@ -413,6 +492,7 @@ export function fencePressure(state, c) {
 
 // cohabitation evidence + hostility stress
 export function cohabTick(state, c) {
+  if (c.enclosureId == null) return; // loose / held organisms have no pen-mates
   const sp = speciesById(c.speciesId);
   const others = state.creatures.filter((o) => o.id !== c.id && o.enclosureId === c.enclosureId && o.speciesId !== c.speciesId);
   const k = state.knowledge[c.speciesId];
@@ -452,7 +532,7 @@ export function recallCreature(state, id) {
   if (!pay.ok) return pay;
   const enc = enclosureAt(state, c.homeTile.x, c.homeTile.y);
   c.x = c.homeTile.x + 0.5; c.y = c.homeTile.y + 0.5;
-  c.path = []; c.state = 'idle'; c.escaped = !enc;
+  c.path = []; c.state = 'idle'; c.escaped = !enc; c.held = null;
   c.stress = Math.min(1, c.stress + 0.1);
   pushAlert(state, { type: 'info', title: 'ASSET RECOVERED', msg: `${c.name} returned to its habitat by the recall team.`, target: { kind: 'creature', id } });
   return { ok: true };

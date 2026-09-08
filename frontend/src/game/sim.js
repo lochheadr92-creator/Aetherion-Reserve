@@ -19,6 +19,7 @@ import { scenarioTick } from './scenarios';
 import { eventsTick } from './events';
 import { rivalryTick } from './rivalry';
 import { transportTick } from './transport';
+import { conflictTick, breachTick } from './tension';
 import { rnd } from './state';
 
 export const OBJECTIVES = [
@@ -128,7 +129,8 @@ function computeRating(state) {
   const guestSat = state.stats.guestSat;
   const discoveries = Math.min(1, state.stats.discoveries / 12);
   const rarity = Math.min(1, state.creatures.reduce((s, c) => s + speciesById(c.speciesId).tier, 0) / 20);
-  const safety = Math.max(0, 1 - state.creatures.filter((c) => c.escaped).length * 0.4 - Math.min(0.4, state.stats.breaches * 0.05));
+  // safety: live escapes weigh most, breaches and deaths leave a lasting mark (tension pass)
+  const safety = Math.max(0, 1 - state.creatures.filter((c) => c.escaped).length * 0.4 - Math.min(0.4, state.stats.breaches * 0.05) - Math.min(0.3, (state.stats.deaths || 0) * 0.06));
   const comp = { diversity, welfare, guestSat, discoveries, rarity, safety };
   const overall = diversity * 0.18 + welfare * 0.22 + guestSat * 0.2 + discoveries * 0.15 + rarity * 0.1 + safety * 0.15;
   state.rating = { overall, comp };
@@ -142,8 +144,9 @@ export function tickOnce(state) {
   // enclosure cache refresh when dirty
   if (state._encDirty && T % 5 === 0) computeEnclosures(state);
 
-  // creatures
-  for (const c of state.creatures) {
+  // creatures (snapshot: a death inside updateWelfare removes the organism mid-loop)
+  for (const c of [...state.creatures]) {
+    if (c._dead) continue;
     tickCreatureMovement(state, c);
     if (!c.path.length && c.actionTicks <= 0 && (c.state.startsWith('seek'))) onArrive(state, c);
     if (c.actionTicks > 0) c.actionTicks--;
@@ -151,13 +154,15 @@ export function tickOnce(state) {
       updateNeeds(state, c);
       if (!c.path.length && c.actionTicks <= 0) decideCreature(state, c);
     }
-    if (T % 40 === c.id % 40) updateWelfare(state, c);
-    if (T % 150 === c.id % 150) fencePressure(state, c);
+    if (T % 40 === c.id % 40) { updateWelfare(state, c); if (c._dead) continue; }
+    if (T % 150 === c.id % 150) { fencePressure(state, c); breachTick(state, c); }
     if (T % 100 === c.id % 100) cohabTick(state, c);
     if (T % 120 === c.id % 120) abilityTick(state, c);
     if (T % 200 === c.id % 200) breedingTick(state, c);
     if (T % 400 === c.id % 400) wasteTick(state, c);
   }
+  // aggression between residents of one enclosure (at most one incident per pass)
+  if (T % 90 === 45) conflictTick(state);
 
   // keeper staff
   staffTick(state);

@@ -1,0 +1,44 @@
+=== phase5_test ===
+TEST 1 rect drag placed: 24 (expected 24) PASS
+TEST 1b second rect: 24 PASS
+TEST 1c rect forms enclosure: enclosure PASS
+TEST 2a security post built:  PASS
+TEST 2b creature placed: 1 PASS
+TEST 2c creature escaped after breach:  PASS
+TEST 2d emergency banner visible:  PASS
+TEST 2e response unit dispatched:  PASS
+TEST 2f creature recaptured + relocated:  PASS
+TEST 2g banner cleared:  PASS
+TEST 2g response expense charged: 250 PASS
+TEST 3a zone cards: 5 (expected 5) PASS
+TEST 3b expedition launched:  PASS
+TEST 3c expedition returned: returned specimens: 1 log entries: 7 PASS
+TEST 3d specimen claimed & released: 1 PASS
+TEST 4a contract offers: 3 PASS
+TEST 4b contract accepted:  PASS
+TEST 4c contract completed + payout: done=True PASS
+TEST 5 save with phase-5 state:  PASS
+19/19 checks passed
+--- phase5_test done (exit 0)
+=== phase8_staff_test ===
+--- phase8_staff_test done (exit 0)
+=== keeper_priorities_test ===
+PAGE ERRORS: none
+--- keeper_priorities_test done (exit 0)
+=== determinism_test ===
+PASS A1 page load 1: seed 4242 reaches tick 900 without errors []
+PASS A2 page load 2: seed 4242 reaches tick 900 without errors []
+PASS A  two fresh page loads with seed 4242 hash identically at tick 900 777071894 vs 777071894 (len 56075/56075)
+PASS B1 save written at tick 300 and reloaded there loadedAt=300 ticks 900/900
+FAIL B  continue-to-900 == load-then-run-to-900 (rngState restored from the save) 938681040 vs 2220000921 rng 1304207936/1304207936
+PASS B2 no page errors []
+PASS C  two new games with seed 4242 in one page hash identically at tick 0 840754905 vs 840754905
+PASS C2 a different seed produces a different world 
+7/8 checks passed
+--- determinism_test done (exit 1)
+=== phase20_features_test ===
+== 39/39 PASS ==
+--- phase20_features_test done (exit 0)
+=== phase21_features_test ===
+== 28/28 PASS ==
+--- phase21_features_test done (exit 0)

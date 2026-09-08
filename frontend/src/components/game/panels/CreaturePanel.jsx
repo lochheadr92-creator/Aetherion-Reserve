@@ -20,6 +20,7 @@ export const ACTIVITY = {
   resting: 'Resting', seekShelter: 'Heading to shelter', sheltering: 'Sheltering', seekTerrain: 'Seeking preferred ground', settling: 'Settling in',
   social: 'Approaching kin', seekSocial: 'Approaching kin', socialising: 'Socialising', hungry: 'HUNGRY — no reachable food source', thirsty: 'THIRSTY — no reachable water', flee: 'Fleeing',
   rivalApproach: 'Stalking a rival at the boundary', rivalDisplay: 'THREAT DISPLAY — rival across the fence', rivalClash: 'CLASHING with a rival!',
+  captured: 'Being recaptured by the response team', held: 'IN HOLDING — awaiting a secure enclosure',
 };
 
 function TraitChips({ view, sp, trait }) {
@@ -203,11 +204,29 @@ function CreatureHeader({ c, sp, view }) {
   );
 }
 
+// condition badge: the tension loop's state of this organism at a glance
+function conditionOf(c) {
+  if (c.held) return { label: 'IN HOLDING', color: 'var(--warning)' };
+  if (c.health < 0.3) return { label: 'CRITICAL', color: 'var(--danger)' };
+  if (c.injured) return { label: 'INJURED', color: 'var(--danger)' };
+  if (c.distressed || c.health < 0.6) return { label: 'DISTRESSED', color: 'var(--warning)' };
+  if (c.stress > 0.75) return { label: 'AGITATED', color: 'var(--warning)' };
+  return { label: 'STABLE', color: 'var(--success)' };
+}
+
 function VitalsBars({ c }) {
+  const cond = conditionOf(c);
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">CONDITION</span>
+        <StatusBadge testId="creature-condition" color={cond.color}>{cond.label}</StatusBadge>
+      </div>
+      <Bar label="Health" value={c.health} testId="creature-health"
+        cause={c.health < 0.6 ? 'Health declines under chronic stress (>80%) or starvation; treat, feed and calm the animal' : `Health: ${(c.health * 100).toFixed(0)}%`} />
       <Bar label="Welfare" value={c.welfare} testId="creature-welfare" />
-      <Bar label="Stress" value={c.stress} color={c.stress > 0.6 ? 'var(--danger)' : 'var(--accent-violet)'} testId="creature-stress" />
+      <Bar label="Stress" value={c.stress} color={c.stress > 0.6 ? 'var(--danger)' : 'var(--accent-violet)'} testId="creature-stress"
+        cause={c.stress > 0.6 ? 'Above 70% this organism may test weak barriers; above 75% it becomes aggressive' : `Stress: ${(c.stress * 100).toFixed(0)}%`} />
       <div className="grid grid-cols-3 gap-2 pt-1">
         <Bar label="Food" value={c.needs.hunger} testId="creature-hunger" />
         <Bar label="Water" value={c.needs.thirst} testId="creature-thirst" />

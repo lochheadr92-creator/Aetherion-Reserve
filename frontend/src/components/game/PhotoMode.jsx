@@ -44,6 +44,13 @@ function composeShot(state) {
   out.width = src.width;
   out.height = src.height;
   const ctx = out.getContext('2d');
+  // cinematic renderer: the WebGL world sits under the overlay canvas. Its drawing buffer is not
+  // preserved between frames, so re-render synchronously right before reading it back.
+  const world = typeof window !== 'undefined' ? window.__world3d : null;
+  const gl = document.querySelector('canvas[data-testid="game-canvas-3d"]');
+  if (world && gl && gl.width) {
+    try { world.renderNow(); ctx.drawImage(gl, 0, 0, out.width, out.height); } catch (e) { /* overlay only */ }
+  }
   ctx.drawImage(src, 0, 0);
   drawVignette(ctx, out.width, out.height);
   drawCaption(ctx, out.width, out.height, state);
@@ -161,6 +168,12 @@ export default function PhotoMode({ onClose }) {
   usePhotoHotkeys(onClose, capture, !shot);
   const togglePause = useCallback(() => game.setPaused(!game.state.paused), []);
   const toggleGrid = useCallback(() => setGrid((g) => !g), [setGrid]);
+  // cinematic renderer: richer grade (exposure / contrast / bloom / vignette) while framing a shot
+  useEffect(() => {
+    const r = typeof window !== 'undefined' ? window.__gameRenderer : null;
+    if (r) r.photoMode = true;
+    return () => { if (r) r.photoMode = false; };
+  }, []);
   const s = game.state;
   if (!s) return null;
 

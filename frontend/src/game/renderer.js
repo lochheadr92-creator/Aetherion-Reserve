@@ -62,6 +62,8 @@ export class GameRenderer {
     this.frame = 0;
     this.fx = new FxManager(this); // render-only game-feel effects
     this._vox = new Map();         // creature id -> { display, lunging } for voice rising edges
+    this.world3d = null;           // World3D when the cinematic renderer is active (see attach3D)
+    this.photoMode = false;        // photo-mode grade variant flag for the 3D pipeline
   }
 
   setState(state) {
@@ -277,14 +279,15 @@ export class GameRenderer {
     const ctx = this.ctx;
     const W = this.canvas.width, H = this.canvas.height;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = PALETTE.void;
-    ctx.fillRect(0, 0, W, H);
+    if (this.world3d) ctx.clearRect(0, 0, W, H); // the WebGL world shows through the overlay canvas
+    else { ctx.fillStyle = PALETTE.void; ctx.fillRect(0, 0, W, H); }
     if (!s) return;
     this.frame++;
     this.fx.update(s); // camera easing / inertia / shake / particles (render-only)
     this._phase = getDayPhase(s.tick).phase;
     this._storm = s.weather?.type === 'storm';
     this._overcast = s.weather?.type === 'overcast';
+    if (this.world3d) { this.render3D(ctx, W, H); return; }
     if (s._terrainDirty) this.redrawTerrain();
     ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x + this.fx.offset.x, this.cam.y + this.fx.offset.y);
     ctx.imageSmoothingEnabled = this.cam.zoom < 1;
@@ -334,6 +337,44 @@ export class GameRenderer {
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawAtmosphere(ctx, W, H);
+  }
+
+  // ---------- cinematic 3D branch: WebGL world underneath, gameplay overlays on this canvas ----------
+  // The 3D camera is fitted from the very same cam/zoom/shake numbers, so every overlay drawn here in
+  // legacy world-px space lands exactly on top of the 3D geometry. Picking is untouched.
+  attach3D(world) { this.world3d = world; if (this.state) this.state._terrainDirty = true; }
+  detach3D() { this.world3d = null; if (this.state) this.state._terrainDirty = true; }
+
+  render3D(ctx, W, H) {
+    const s = this.state;
+    this.world3d.sync({ state: s, cam: this.cam, offX: this.fx.offset.x, offY: this.fx.offset.y, W, H, photo: this.photoMode });
+    ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x + this.fx.offset.x, this.cam.y + this.fx.offset.y);
+    this.drawOverlays(ctx);        // habitat / power / view analysis tints
+    this.drawToolPreview(ctx);     // brushes, fence lines, building footprints
+    this.drawKeeperMarkers(ctx);
+    this.drawEventBeacons(ctx);
+    this.fx.drawParticles(ctx);
+    this.drawTensionMarkers(ctx);
+    this.drawSelection(ctx);
+    this.drawHover(ctx);
+    this.drawRain(ctx, W, H);
+  }
+
+  // storm rain streaks only (lighting, fog and grading live in the 3D pipeline)
+  drawRain(ctx, W, H) {
+    if (!this._storm) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const f = this.frame * 11;
+    ctx.strokeStyle = 'rgba(160, 200, 235, 0.32)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i < 70; i++) {
+      const rx = ((i * 379 + f * 4) % (W + 80)) - 40;
+      const ry = ((i * 173 + f * 9) % (H + 60)) - 30;
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx - 5, ry + 16);
+    }
+    ctx.stroke();
   }
 
   // ---------- tension pass feedback (render-only) ----------

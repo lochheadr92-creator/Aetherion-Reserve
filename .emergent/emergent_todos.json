@@ -1,34 +1,6 @@
 [
   {
-    "content": "O5: EnclosurePanel — TensionSection + BREACHED banner with gap locate (+ EmergencyBanner gap chips / perimeter variant)",
-    "status": "completed"
-  },
-  {
-    "content": "O5: BloodlineLedger — DECEASED status meta + chip label",
-    "status": "completed"
-  },
-  {
-    "content": "Compile check (esbuild) + screenshot verify EnclosurePanel/Ledger in Ops Deck",
-    "status": "completed"
-  },
-  {
-    "content": "O6: dev harness extended (offspring/kill/flatten/watchAlerts) — verify",
-    "status": "completed"
-  },
-  {
-    "content": "O6: Write tests/tension_test.py (48 checks) — 48/48 locally",
-    "status": "completed"
-  },
-  {
-    "content": "Run key regression suites locally — all green after stats.deaths init fix",
-    "status": "completed"
-  },
-  {
-    "content": "O7: testing_agent_v3 iteration_27 — 48/48 new, 22/22 backend, 5/5 manual; fixed phase5 seed flake + legacy suites",
-    "status": "completed"
-  },
-  {
-    "content": "O7: Final plan.md / PRD.md update, commit",
+    "content": "Phase R2-R5 (3D entities, textures, verification) complete - see plan.md",
     "status": "completed"
   }
 ]

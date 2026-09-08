@@ -26,5 +26,21 @@ function legacyHudRequested() {
   }
 }
 
+function classicRenderRequested() {
+  try {
+    return typeof window !== 'undefined' && /[?&]classic=1(&|$)/.test(window.location.search || '');
+  } catch (e) {
+    return false;
+  }
+}
+
 export const ART_V2 = readFlag('aetherion.artV2');
 export const OPS_DECK = !legacyHudRequested() && readFlag('aetherion.opsDeck');
+// Cinematic 3D world (three.js). `?classic=1` or localStorage 'aetherion.render3d'='off' keeps the
+// legacy Canvas2D pixel-art renderer; it is also the automatic fallback when WebGL2 is unavailable.
+export const RENDER_3D = !classicRenderRequested() && readFlag('aetherion.render3d');
+// `?render3d=1` insists on the 3D renderer even on software GL (SwiftShader / llvmpipe), where it is
+// otherwise skipped because shader compilation alone stalls the page for many seconds.
+export const RENDER_3D_FORCED = (() => {
+  try { return typeof window !== 'undefined' && /[?&]render3d=1(&|$)/.test(window.location.search || ''); } catch (e) { return false; }
+})();

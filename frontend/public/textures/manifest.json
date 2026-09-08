@@ -1,0 +1,184 @@
+{
+ "grass": {
+  "albedo": "grass_albedo.jpg",
+  "normal": "grass_normal.jpg",
+  "rough": "grass_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "denseGrass": {
+  "albedo": "denseGrass_albedo.jpg",
+  "normal": "denseGrass_normal.jpg",
+  "rough": "denseGrass_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "soil": {
+  "albedo": "soil_albedo.jpg",
+  "normal": "soil_normal.jpg",
+  "rough": "soil_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "sand": {
+  "albedo": "sand_albedo.jpg",
+  "normal": "sand_normal.jpg",
+  "rough": "sand_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "rock": {
+  "albedo": "rock_albedo.jpg",
+  "normal": "rock_normal.jpg",
+  "rough": "rock_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "gravel": {
+  "albedo": "gravel_albedo.jpg",
+  "normal": "gravel_normal.jpg",
+  "rough": "gravel_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "mud": {
+  "albedo": "mud_albedo.jpg",
+  "normal": "mud_normal.jpg",
+  "rough": "mud_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "wetland": {
+  "albedo": "wetland_albedo.jpg",
+  "normal": "wetland_normal.jpg",
+  "rough": "wetland_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "moss": {
+  "albedo": "moss_albedo.jpg",
+  "normal": "moss_normal.jpg",
+  "rough": "moss_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "fungal": {
+  "albedo": "fungal_albedo.jpg",
+  "normal": "fungal_normal.jpg",
+  "rough": "fungal_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "alien": {
+  "albedo": "alien_albedo.jpg",
+  "normal": "alien_normal.jpg",
+  "rough": "alien_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "path": {
+  "albedo": "path_albedo.jpg",
+  "normal": "path_normal.jpg",
+  "rough": "path_rough.jpg",
+  "size": 1024,
+  "kind": "ground"
+ },
+ "cliff": {
+  "albedo": "cliff_albedo.jpg",
+  "normal": "cliff_normal.jpg",
+  "rough": "cliff_rough.jpg",
+  "size": 1024,
+  "kind": "wall"
+ },
+ "bark": {
+  "albedo": "bark_albedo.jpg",
+  "normal": "bark_normal.jpg",
+  "rough": "bark_rough.jpg",
+  "size": 512,
+  "kind": "wall"
+ },
+ "leaves": {
+  "albedo": "leaves_albedo.jpg",
+  "normal": "leaves_normal.jpg",
+  "rough": "leaves_rough.jpg",
+  "size": 512,
+  "kind": "ground"
+ },
+ "steel": {
+  "albedo": "steel_albedo.jpg",
+  "normal": "steel_normal.jpg",
+  "rough": "steel_rough.jpg",
+  "size": 512,
+  "kind": "wall"
+ },
+ "darksteel": {
+  "albedo": "darksteel_albedo.jpg",
+  "normal": "darksteel_normal.jpg",
+  "rough": "darksteel_rough.jpg",
+  "size": 512,
+  "kind": "wall"
+ },
+ "concrete": {
+  "albedo": "concrete_albedo.jpg",
+  "normal": "concrete_normal.jpg",
+  "rough": "concrete_rough.jpg",
+  "size": 512,
+  "kind": "wall"
+ },
+ "roofing": {
+  "albedo": "roofing_albedo.jpg",
+  "normal": "roofing_normal.jpg",
+  "rough": "roofing_rough.jpg",
+  "size": 512,
+  "kind": "wall"
+ },
+ "skin_scales": {
+  "albedo": "skin_scales_albedo.jpg",
+  "normal": "skin_scales_normal.jpg",
+  "rough": "skin_scales_rough.jpg",
+  "size": 512,
+  "kind": "skin"
+ },
+ "skin_leather": {
+  "albedo": "skin_leather_albedo.jpg",
+  "normal": "skin_leather_normal.jpg",
+  "rough": "skin_leather_rough.jpg",
+  "size": 512,
+  "kind": "skin"
+ },
+ "skin_chitin": {
+  "albedo": "skin_chitin_albedo.jpg",
+  "normal": "skin_chitin_normal.jpg",
+  "rough": "skin_chitin_rough.jpg",
+  "size": 512,
+  "kind": "skin"
+ },
+ "skin_crystal": {
+  "albedo": "skin_crystal_albedo.jpg",
+  "normal": "skin_crystal_normal.jpg",
+  "rough": "skin_crystal_rough.jpg",
+  "size": 512,
+  "kind": "skin"
+ },
+ "skin_gel": {
+  "albedo": "skin_gel_albedo.jpg",
+  "normal": "skin_gel_normal.jpg",
+  "rough": "skin_gel_rough.jpg",
+  "size": 512,
+  "kind": "skin"
+ },
+ "skin_membrane": {
+  "albedo": "skin_membrane_albedo.jpg",
+  "normal": "skin_membrane_normal.jpg",
+  "rough": "skin_membrane_rough.jpg",
+  "size": 512,
+  "kind": "skin"
+ },
+ "skin_fur": {
+  "albedo": "skin_fur_albedo.jpg",
+  "normal": "skin_fur_normal.jpg",
+  "rough": "skin_fur_rough.jpg",
+  "size": 512,
+  "kind": "skin"
+ }
+}

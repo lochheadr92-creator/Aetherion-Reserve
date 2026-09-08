@@ -24,11 +24,11 @@
     "status": "completed"
   },
   {
-    "content": "O7: testing_agent_v3 iteration_27 (tension + regressions), fix issues",
-    "status": "in_progress"
+    "content": "O7: testing_agent_v3 iteration_27 — 48/48 new, 22/22 backend, 5/5 manual; fixed phase5 seed flake + legacy suites",
+    "status": "completed"
   },
   {
     "content": "O7: Final plan.md / PRD.md update, commit",
-    "status": "pending"
+    "status": "completed"
   }
 ]

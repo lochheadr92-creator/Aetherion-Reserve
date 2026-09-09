@@ -142,7 +142,6 @@ export default function FinanceScreen({ onClose }) {
       onClose={onClose}
       eyebrow="FISCAL OPERATIONS"
       subtitle={`Cycle ${s.day} · Park value ${fmtMoney(parkValue(s))} · Guest satisfaction ${(s.stats.guestSat * 100).toFixed(0)}%`}
-      size="w-[980px] h-[78vh]"
       bodyClassName="p-4 grid grid-cols-3 gap-4 content-start drawer:grid-cols-1 drawer:p-3 drawer:gap-5"
     >
       <div className="space-y-2 min-w-0">

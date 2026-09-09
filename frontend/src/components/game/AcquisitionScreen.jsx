@@ -138,7 +138,6 @@ export default function AcquisitionScreen({ onClose, onBuy, onClaimSpecimen }) {
       eyebrow="FIELD OPERATIONS"
       subtitle={compact ? funds : <>Asset recovery, survey expeditions and Oversight directives. {funds}</>}
       toolbar={<FieldOpsTabs tab={tab} attention={attention} onSelect={setTab} />}
-      size="w-[1100px] h-[80vh]"
       bodyClassName="p-4 drawer:p-3"
     >
       {tab === 'acquire' && (

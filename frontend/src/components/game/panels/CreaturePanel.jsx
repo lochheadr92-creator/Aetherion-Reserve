@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { MapPin, Trash2, BookOpen, AlertTriangle, GitBranch } from 'lucide-react';
 import { toast } from 'sonner';
 import { game } from '@/game/controller';
@@ -12,7 +11,6 @@ import { earn } from '@/game/economy';
 import Portrait from '@/components/game/Portrait';
 import { juvenileStage } from '@/game/art/juvenile';
 import Bar from '@/components/game/panels/Bar';
-import BloodlineLedger from '@/components/game/BloodlineLedger';
 
 export const ACTIVITY = {
   idle: 'Idling', wander: 'Roaming', seekWater: 'Heading to water', drinking: 'Drinking', seekSwim: 'Heading to water', swimming: 'Swimming',
@@ -254,7 +252,6 @@ function ActionRow({ c, sp, onNavigate, onOpenSpecies, onTransfer }) {
 }
 
 export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onOpenLedger, onClose }) {
-  const [ledgerOpen, setLedgerOpen] = useState(false);
   const s = game.state;
   const c = s.creatures.find((q) => q.id === id);
   const view = c ? getSpeciesView(s, c.speciesId) : null;
@@ -264,8 +261,8 @@ export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onOpenLed
   const sp = speciesById(c.speciesId);
   const enc = computeEnclosures(s).enclosures.find((e) => e.id === c.enclosureId);
   const habitat = evaluateHabitat(s, c, enc);
-  // Ops Deck routes the ledger into a contextual drawer; the legacy HUD keeps the local portal modal
-  const openLedger = onOpenLedger ? () => onOpenLedger(c.id) : () => setLedgerOpen(true);
+  // the ledger opens as a contextual Ops Deck drawer
+  const openLedger = () => onOpenLedger && onOpenLedger(c.id);
 
   return (
     <div className="flex flex-col gap-3 p-4" data-testid="creature-panel">
@@ -278,7 +275,6 @@ export default function CreaturePanel({ id, onNavigate, onOpenSpecies, onOpenLed
       <BiologySection view={view} knownEntries={knownEntries} />
       <ActionRow c={c} sp={sp} onNavigate={onNavigate} onOpenSpecies={onOpenSpecies}
         onTransfer={() => transferCreature(s, c, sp, onClose)} />
-      {ledgerOpen && !onOpenLedger && <BloodlineLedger creatureId={c.id} onClose={() => setLedgerOpen(false)} onNavigate={onNavigate} />}
     </div>
   );
 }

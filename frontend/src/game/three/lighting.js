@@ -21,7 +21,7 @@ const PHASES = {
 const WEATHER = {
   clear:    { key: 1.0, shadow: 1.0, fog: 1.0, sky: null, wind: 1.0 },
   overcast: { key: 0.75, shadow: 0.55, fog: 1.25, sky: '#B9C7D3', wind: 1.2 },
-  storm:    { key: 0.55, shadow: 0.45, fog: 1.35, sky: '#6E7F8F', wind: 1.8 },
+  storm:    { key: 0.55, shadow: 0.45, fog: 1.35, sky: '#6E7F8F', wind: 2.1 },
 };
 const SUN_AZ = THREE.MathUtils.degToRad(290);  // light from the camera's upper-left: shadows fall down-right on screen
 const MOON_AZ = THREE.MathUtils.degToRad(110);
@@ -75,6 +75,8 @@ export class LightRig {
     this.exposure = 1;
     this.shadowOpacity = 0.6;
     this.wind = 1;
+    this.storm = 0;   // 0..1 smoothed storm factor (weather flips are instant in the sim; visuals ease over ~2s)
+    this.gust = 0;    // extra high-frequency sway during storms
     this.flash = 0;
     this._nextFlash = 4;
     this._t = 0;
@@ -128,8 +130,13 @@ export class LightRig {
     const density = mixNum(entries, (p) => p.fogD) * w.fog;
     this.fog.near = CAM_DIST + 10;
     this.fog.far = CAM_DIST + 40 + 150 * (0.008 / density);
-    this.exposure = mixNum(entries, (p) => p.exposure) * (weatherType === 'storm' ? 0.92 : 1);
-    this.wind = w.wind;
+    // storm front eases in and out; wind carries slow gusts on top of the weather baseline
+    const stormTarget = weatherType === 'storm' ? 1 : weatherType === 'overcast' ? 0.25 : 0;
+    this.storm += (stormTarget - this.storm) * Math.min(1, dt * 0.6);
+    this.exposure = mixNum(entries, (p) => p.exposure) * (1 - 0.1 * this.storm);
+    const gustWave = 0.5 + 0.5 * Math.sin(this._t * 0.9) * Math.sin(this._t * 0.37 + 1.3);
+    this.wind = w.wind * (1 + this.storm * (0.6 + 0.9 * gustWave));
+    this.gust = this.storm * (0.4 + 0.6 * gustWave);
     this.background.copy(this.fog.color).multiplyScalar(0.05 + 0.03 * (1 - night)); // dark void beyond the diorama edge
   }
 

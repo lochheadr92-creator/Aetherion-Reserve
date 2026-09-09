@@ -45,10 +45,13 @@
 - Keep old saves compatible.
 - Preserve the existing “unknown biology” readability: silhouettes must remain legible on dark terrain.
 
-**Ops Deck constraints (hard):**
-- ART_V2 and OPS_DECK are **behind flags** and must be removable.
-- **OPS_DECK defaults ON**; `?legacyHud=1` and `localStorage['aetherion.opsDeck']='off'` force legacy.
-- **Legacy mode DOM baseline must stay identical** (as applicable); re-record `tests/ops_deck_dom_baseline.json` only if intentionally changing permanent legacy DOM.
+**HUD / Ops Deck constraints (updated, hard):**
+- **Ops Deck is now the only HUD**.
+- Retired:
+  - `OPS_DECK` flag
+  - `?legacyHud=1`
+  - `localStorage['aetherion.opsDeck']='off'`
+  - legacy full-screen management modals (`GameModals.jsx`, ScreenFrame modal host)
 - Keep **Ops Deck geometry unchanged**: **56px dock + 320px drawer** (≤376px total coverage).
 - **Strict determinism**: do not introduce `Math.random()` or non-deterministic operations into sim logic (`src/game/state.js`, `controller.js`, etc.).
 - No new dependencies (Tailwind plugin additions are allowed only if already available).
@@ -96,59 +99,90 @@
 - **Phase N (Polish/QA pass): ✅ COMPLETE & VERIFIED (iteration_26 = 100%)**.
 - **Phase O (Creature Tension Pass): ✅ COMPLETE & VERIFIED (iteration_27 = green)**.
 
-**Phase R progress:**
-- **R1 Foundation: ✅ IMPLEMENTED (rendering and debugged)**
+**Phase R progress (updated):**
+- **R1 Foundation: ✅ IMPLEMENTED**
   - Three.js WebGL pipeline in place (`/app/frontend/src/game/three/*`).
   - Camera lock math implemented (`iso.js`) and integrated.
-  - Terrain heightfield + splat PBR shader implemented (`terrain.js`).
-  - Water merged mesh + shader implemented (`water.js`).
-  - Lighting rig + day/night + storm implemented (`lighting.js`).
-  - Post stack implemented (`post.js`).
-  - Hybrid stacked canvases implemented (`GameCanvas.jsx`): WebGL behind, 2D overlay above.
+  - Terrain heightfield + splat PBR shader (`terrain.js`).
+  - Water merged mesh + shader (`water.js`).
+  - Lighting rig + day/night + storm (`lighting.js`).
+  - Post stack (`post.js`) + quality tiers.
+  - Hybrid stacked canvases (`GameCanvas.jsx`): WebGL behind, 2D overlay above.
   - WebGL software-renderer (SwiftShader/llvmpipe) fallback retained to keep Playwright stable.
-  - AI texture generation pipeline implemented (`backend/tools/gen_textures.py`) and base texture pack exists under `frontend/public/textures/`.
+  - AI texture generation pipeline (`backend/tools/gen_textures.py`) + PBR texture pack under `frontend/public/textures/`.
 
-- **R2 World completeness (flora/fences/paths/buildings/entrance/skirt): ✅ IMPLEMENTED & VISUALLY VERIFIED**
-  - `materials.js`: PBR kit (material presets + tinting + emissive hooks), procedural alpha textures, wind uniforms + onBeforeCompile hooks, `Instances` helper.
-  - `flora3d.js`: instanced trees (smooth jittered lobes + camera-facing foliage cards), shrubs, grass cards, reeds, spore pillars, aether fronds; vertex wind.
-  - `fences3d.js`: T1 rails / T2 mesh / T3 plinth+mesh / T4 energy-field shader, gate hazard strip, damage tint + lean.
-  - `buildings3d.js`: procedural kit per building type merged into material buckets; vertex-coloured emissive windows/signage that ramp at night; station pylons.
-  - `props3d.js`: waste + entrance gate + transport guideway tubes and hanging cars.
-  - Terrain skirt implemented in `terrain.js`; world background darkened for diorama void.
+- **R2 World completeness (flora/fences/paths/buildings/entrance/skirt): ✅ IMPLEMENTED & VERIFIED**
+  - `materials.js`: PBR kit, procedural alpha textures, wind uniforms, instancing helper.
+  - `flora3d.js`: instanced trees + foliage cards, shrubs, grass, reeds, spores, aether fronds.
+  - `fences3d.js`: T1–T4 fence variants, gates, damage tint/lean.
+  - `buildings3d.js`: procedural kit, merged buckets, emissive windows/signage, station pylons.
+  - `props3d.js`: waste + entrance gate + guideways + hanging cars.
+  - Terrain skirt + diorama void.
 
-- **R3 Creatures: ✅ IMPLEMENTED & VISUALLY VERIFIED**
+- **R3 Creatures: ✅ IMPLEMENTED & VERIFIED**
   - `creatures3d.js`: rigs for `quad/tall/winged/insect/amphib/crystal/blob/float/serpent`.
-  - AI PBR skin materials; genes/morph tint; distress/injury desat; render-side velocity → gait; render-side heading; swimming/flight/rest/feed poses.
+  - PBR skins + genes/morph tint; distress/injury desat; gait/idle/state pose.
 
 - **R4 People + transport + waste: ✅ IMPLEMENTED & VERIFIED**
-  - `people3d.js`: 7 instanced humanoid parts for guests/staff/security + walk cycle.
-  - Transport 3D: guideway + cars driven by `state.transport.cars`.
-  - 2D `drawTransport` removed from the 3D render path (kept implicitly classic-only).
+  - `people3d.js`: instanced humanoids with walk cycle.
+  - Transport in 3D driven by `state.transport.cars`.
 
-- **R5 Verification: ✅ COMPLETE (tests) + ⏳ CONTINUING (visual polish + perf confidence)**
-  - Added `tests/render3d_test.py` (SwiftShader forced 3D) and it passes **22/22**.
-  - Testing agent iteration_28: regression suites green after two fixes:
-    - WebGL canvas now **unmounted in classic mode** to preserve legacy DOM baseline (ops deck tests).
-    - render3d staging now steps **60 ticks** so transport pairing (every 50 ticks) is deterministic.
+- **R5 Verification: ✅ COMPLETE (tests)**
+  - `tests/render3d_test.py` now **25/25** (shoreline + storm checks added).
+  - Regression suites still green.
 
-**Key fixes / technical notes (Phase R):**
-- **TextureRegistry stand-in bug fixed:** `DataTexture` placeholders could not be swapped to `<img>`; replaced with canvas-backed `THREE.Texture` stand-ins → resolved “black materials”.
-- **Environment reflections:** added `RoomEnvironment` PMREM env map for metals/glass.
-- **Terrain border:** skirt mesh + darker void background.
-- **Grass texture update:** regenerated to be lusher and then desaturated.
-- **Water foam:** toned down to reduce “white ring” artifacts; shallow/deep colours retuned.
+**Phase S (post-3D follow-ups picked by the user): ✅ IMPLEMENTED & TESTED**
+- **S1 Shoreline softening:**
+  - Terrain basin now uses a **BFS distance-field beach profile** (0.9 steps first ring, +0.65/ring), capped by per-corner mean basin targets (1.3 shallow / 2.6 deep).
+  - Underwater bed becomes **sand/mud** in the terrain splat shader.
+  - Half-tile **wet-sand band** darkens/glosses ground around water.
+  - Water shader now reads per-vertex **bed height (aBed)** to compute true column depth for colour/alpha/foam: transparent at the waterline, opaque in deeps.
 
-**Testing baselines:**
-- iteration_5–19: all green milestones as recorded.
-- iteration_20: Phase G verified.
-- iteration_21: Phase H verified.
-- iteration_22: stabilisation pass verified.
-- iteration_23: remediation pass verified.
-- **iteration_24: Ops Deck Step 1 verified (Phase J + K) — 100%**.
-- **iteration_25: Phase L verified (L1–L4) + regressions — 100% (109/109)**.
-- **iteration_26: Phase M (native drawer panels) + Phase N (QA pass) + 21 regression suites — 100% (289/289)**.
-- **iteration_27: Phase O + full regressions — green**.
-- **iteration_28: Phase R regression sweep — green**.
+- **S2 Legacy HUD retirement:**
+  - Removed OPS_DECK flag and all legacy modal routing.
+  - `ScreenFrame` is drawer-only.
+  - `GameModals.jsx` removed.
+  - `BloodlineLedger` no longer portals; `CreaturePanel` always routes ledger to the drawer.
+  - Tests rewritten to assert legacy switch is ignored; baseline/record script removed.
+
+- **S3 Living weather:**
+  - `Lights.storm` smoothed factor (visual easing), gusty wind (`Lights.gust`).
+  - Wind shader supports gust flutter + lean.
+  - Water: slate storm tint + chop + rain rings.
+  - Terrain: storm **wet soak** (`uWet`).
+  - New `weather3d.js` **RainSplashes** instanced additive rings on rooftops/slabs/paths.
+  - `BuildingLayer.roofAt()` provides hard-surface height for splash placement.
+
+- **S4 Species roster filters:**
+  - Species database drawer now has: search box + family-class chips (**Grazers/Predators/Colossi/Anomalous**) + tier chips + counts + CLEAR + empty state.
+  - Locked species never leak identity: search/class only match catalogued entries.
+
+**Key fixes / technical notes (Phase R/S):**
+- TextureRegistry stand-in fix (canvas-backed `THREE.Texture`) retained.
+- Environment reflections via `RoomEnvironment` PMREM.
+- Water now uses aBed-derived depth (shoreline gradient is geometry + shader, not just alpha tricks).
+
+**Testing baselines (updated):**
+- iteration_5–19: green
+- iteration_20: Phase G green
+- iteration_21: Phase H green
+- iteration_22: stabilisation green
+- iteration_23: remediation green
+- iteration_24: Ops Deck Step 1 green
+- iteration_25: Phase L green
+- iteration_26: Phase M+N green
+- iteration_27: Phase O green
+- iteration_28: Phase R regression sweep green
+
+**New/updated tests (post S):**
+- `tests/render3d_test.py`: **25/25**
+- `tests/species_filters_test.py`: **8/8**
+- `tests/ops_deck_test.py`: **29/29**
+- `tests/ops_deck_native_test.py`: **17/17**
+- Jest unit tests: **40/40**
+
+**Tooling note (Playwright):**
+- Playwright is now 1.62; required installing `chromium-headless-shell v1234` into `/pw-browsers/`.
 
 > Constraint (hard): changes must remain robust and regression-safe. Save schema can be extended **only additively** with backward-compatible defaults; existing tests must remain green.
 
@@ -282,7 +316,7 @@
 ---
 
 ### Phase G (Phase 22) — Creature Art Rework ✅ COMPLETE
-(unchanged; complete and verified; Phase G continuation moved to Phase L)
+(unchanged; complete and verified)
 
 ---
 
@@ -292,26 +326,26 @@
 ---
 
 ### Phase I — Remediation Pass ✅ COMPLETE
-(unchanged; complete and verified; iteration_23 = 100%)
-
----
-
-### Phase J — ART_V2 post-passes (cel ramp, rim light, ground AO/contact shadow, glow halo) behind flag (Ops Deck Step 1) ✅ COMPLETE & VERIFIED
 (unchanged; complete and verified)
 
 ---
 
-### Phase K — Ops Deck dock + drawer shell behind OPS_DECK flag (Ops Deck Step 1) ✅ COMPLETE & VERIFIED
+### Phase J — ART_V2 post-passes ✅ COMPLETE & VERIFIED
 (unchanged; complete and verified)
 
 ---
 
-### Phase L — Phase G continuation backlog (render/UI only): Juveniles → Seed Picker → Live Portraits → Creature Voices ✅ COMPLETE & VERIFIED
+### Phase K — Ops Deck Step 1 shell ✅ COMPLETE & VERIFIED
 (unchanged; complete and verified)
 
 ---
 
-### Phase M — Ops Deck Step 2: Native Drawer Panels (Species DB + Bloodline Ledger focus) ✅ COMPLETE & VERIFIED
+### Phase L — Phase G continuation backlog ✅ COMPLETE & VERIFIED
+(unchanged; complete and verified)
+
+---
+
+### Phase M — Ops Deck Step 2: Native Drawer Panels ✅ COMPLETE & VERIFIED
 (unchanged; complete and verified)
 
 ---
@@ -321,12 +355,12 @@
 
 ---
 
-### Phase O — CREATURE TENSION PASS — AGGRESSION, NEEDS DEGRADATION & ESCAPE ✅ COMPLETED & VERIFIED (iteration_27)
+### Phase O — CREATURE TENSION PASS ✅ COMPLETED & VERIFIED
 (unchanged; complete and verified)
 
 ---
 
-### Phase R — CINEMATIC 3D WORLD (three.js/WebGL) ✅ IMPLEMENTED + ✅ TEST-VERIFIED + ⏳ POLISH/PERF
+### Phase R — CINEMATIC 3D WORLD (three.js/WebGL) ✅ IMPLEMENTED + ✅ TEST-VERIFIED
 **Goal:** Replace the pixel-art Canvas2D world with a realistic/cinematic **true 3D** world renderer, while keeping gameplay/sim/save/input/picking math unchanged.
 
 #### R0) Hard constraints (non-negotiable)
@@ -335,79 +369,57 @@
 - **Picking math unchanged**: the existing 2D picking stays authoritative.
 - **Fallback-safe**: if WebGL is unavailable, or `?classic=1`, game uses the legacy 2D renderer unchanged.
 - **Stability**: preserve `window.__gameRenderer` API used by tests and HUD.
-- **Determinism**: no `Math.random()` in sim; render-side variation may use hash-seeded jitter from tile/entity ids.
-- UI guidelines remain: `/app/design_guidelines.md` unchanged.
+- **Determinism**: no `Math.random()` in sim; render-only effects may use nondeterminism.
 
-#### R1) Foundation — renderer architecture + camera lock + core terrain/water/lighting/post ✅ COMPLETE
-**Delivered:**
-1) Hybrid stacked canvas architecture (`GameCanvas.jsx`) with WebGL behind and 2D overlay kept authoritative for input/picking and all HUD markers.
-2) Camera-lock orthographic iso (`iso.js`), wired into world sync.
-3) Terrain heightfield + PBR splat blending (`terrain.js`).
-4) Water merged plane + shader (`water.js`).
-5) Lighting rig with day/night/storm (`lighting.js`).
-6) Post stack AO/Bloom/grade/AA (`post.js`) with quality tiers.
-7) Offline texture pipeline (`backend/tools/gen_textures.py`) and initial texture set under `frontend/public/textures/`.
-8) Headless/VM software renderer detection with classic fallback preserved.
+#### R1–R5)
+✅ Complete (see **Phase R progress** above).
 
-#### R2) World completeness — flora/fences/paths/buildings/entrance + terrain edge skirt ✅ COMPLETE
-**Delivered:**
-- `materials.js`, `flora3d.js`, `fences3d.js`, `buildings3d.js`, `props3d.js` + terrain skirt.
-- Dark void background for diorama edge.
-- Environment PMREM (`RoomEnvironment`) for reflections.
+---
 
-#### R3) Creatures — procedural rigs, skins, animation, genes ✅ COMPLETE
-**Delivered:**
-- Procedural rigs by `species.bodyType`.
-- PBR skins + genes/morph tint.
-- State-driven animation and render-derived heading.
+### Phase S — Post-3D Follow-ups (S1–S4) ✅ IMPLEMENTED + ✅ TESTED
+**Goal:** Ship the first “cinematic complete” experience after the renderer transition.
 
-#### R4) People + transport + remaining props ✅ COMPLETE
-**Delivered:**
-- Guests/staff/security instancing.
-- 3D transport guideways + hanging cars.
-- Waste + entrance props.
+#### S1) Shoreline softening ✅ COMPLETE
+- BFS distance-field basin profile in terrain geometry.
+- Sand/mud underwater splat + wet-sand shoreline band.
+- Water depth derived from `aBed` for colour/alpha/foam.
 
-#### R5) Verification — automated 3D checks + regressions ✅ COMPLETE
-**Delivered:**
-- `tests/render3d_test.py` = **22/22**.
-- Legacy DOM baseline preserved by unmounting the 3D canvas in classic mode.
-- Ops Deck DOM baseline test is green again.
+#### S2) Legacy HUD retirement ✅ COMPLETE
+- Deck-only management UI; legacy full-screen modals removed.
+- Flags and tests updated accordingly.
 
-#### R6) Polish / performance confidence (P0.5) ⏳ NEXT
-**Goal:** Move from “working + verified” to “cinematic, consistent, and shippable”.
+#### S3) Living weather ✅ COMPLETE
+- Smoothed storm factor + gusts.
+- Water/terrain wetness and rain rings.
+- 3D rain splashes on hard surfaces.
+
+#### S4) Species roster filters ✅ COMPLETE
+- Search + family-class chips + tier chips.
+- Locked species never leak identity.
+- Added test `tests/species_filters_test.py`.
+
+---
+
+### Phase T — Verification Sweep (post S) ✅ COMPLETE (iteration_29: 177/178 automated + manual 3D/storm/shoreline checks; the two LOW findings — roster strip 43.8% > 40% and Esc-in-search closing the drawer — were fixed and re-verified: species_filters_test 9/9, ops_deck_native_test 17/17)
+**Goal:** Prove everything stays green after the HUD retirement + living weather + shoreline changes.
 
 **Planned deliverables:**
-1) **High-tier visual smoke**
-   - Run `_dbg_quality.py` and `_dbg_3d.py` for `low/medium/high` at day/night/storm and capture reference frames.
-   - Ensure post stack (AO/bloom/grade) behaves as intended across tiers.
-2) **Water + shoreline refinement**
-   - Reduce remaining shoreline artifacts (foam banding / depth tile edge visibility) without changing sim.
-3) **Creature rig polish**
-   - Address remaining seam/pose artifacts (e.g. tall neck join) and improve silhouette readability at zoomed-out levels.
-4) **Ground micro-detail**
-   - Optional: improve grass card texture + density heuristics at medium/high quality.
-   - Optional: add subtle path-edge curb/trim instancing if readability is insufficient.
-5) **Performance sanity pass**
-   - Confirm draw-call budgets for typical parks.
-   - Ensure merged building meshes and instanced layers stay stable.
-
-#### Phase R risks / notes
-- Headless Chromium uses SwiftShader: WebGL slow and visually variant; tests must avoid fragile pixel hashes.
-- Existing pixel-art tests must remain green as long as classic renderer exists.
-- Never introduce sim nondeterminism; render variation must be deterministic via hashes or local visuals only.
-- Camera lock must remain exact enough that overlay picking/markers align.
+1) Run a **full testing-agent sweep** (frontend + backend).
+2) Confirm **all suites** still pass:
+   - `tests/render3d_test.py`, `tests/species_filters_test.py`
+   - core interaction suites (gamefeel, input UX, placement, fence drag, tension, photo)
+   - ops deck suites (`ops_deck_test.py`, `ops_deck_native_test.py`, phase_mn manual)
+   - backend suites (API + regression)
+3) Fix any regressions and re-run the sweep.
 
 ---
 
 ## 3) Next Actions (backlog — pick with the user)
-1. **Phase R (P0)** — Cinematic 3D World (true 3D renderer, realistic/cinematic, whole world scope, visuals-only constraint).
-2. **Phase R (P0.5)** — 3D polish + performance confidence (R6).
-3. **Species Roster Filters (P1)** — search box + family/tier filter chips in Species Database.
-4. **Retire Legacy HUD (P1)** — turn off old full-screen modal paths completely.
-5. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
-6. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger.
-7. **Ambient Mix sliders / Keeper Voices (P2)**.
-8. **Hybrid / interbreeding sprites (P3)** — new sprite logic/art for interbreeding outcomes (parked; requires a separate spec).
+2. **Phase R polish (P0.5)** — performance confidence + high-tier reference shots across day/night/storm.
+3. **Photo Album (P1)** — persist captured photos + in-game gallery with re-download.
+4. **Pairing Planner (P1)** — projected inbreeding for two picked creatures; recommended pairings in the ledger.
+5. **Ambient Mix sliders / Keeper Voices (P2)**.
+6. **Hybrid / interbreeding sprites (P3)** — parked.
 
 ---
 
@@ -417,15 +429,13 @@
 - **Unknown biology enforced:** UI cannot infer undiscovered traits.
 - **No fake systems:** every UI metric corresponds to actual sim causes.
 - **Explainability:** welfare/satisfaction/finances/containment risk have breakdowns.
-- **Code quality restored:** no known Code Quality Analysis findings outstanding; tests reflect correct semantics; art API is maintainable.
+- **Code quality restored:** no known Code Quality Analysis findings outstanding.
 
 **Delivered milestones (verified):**
 - Phase E (iteration_18), Phase F (iteration_19), Phase G (iteration_20), Phase H (iteration_21), stabilisation (iteration_22), remediation (iteration_23).
-- **Ops Deck Step 1: Phase J + Phase K (iteration_24 = 100%)**.
-- **Phase L (juveniles/seed picker/live portraits/voices): iteration_25 = 100% (109/109)**.
-- **Phase M+N (native drawer panels + QA): iteration_26 = 100% (289/289)**.
-- **Phase O (Creature Tension Pass): iteration_27 = green**.
-- **Phase R regression sweep: iteration_28 = green**.
+- Ops Deck Step 1 (iteration_24), Phase L (iteration_25), Phase M+N (iteration_26), Phase O (iteration_27).
+- Phase R regression sweep (iteration_28).
+- Phase S (S1–S4) implemented + locally verified by test runs listed above.
 
 **Phase R acceptance (updated):**
 - World viewport is fully 3D with realistic/cinematic PBR look, meeting `/app/design_guidelines_3d.md`.

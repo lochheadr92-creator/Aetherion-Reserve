@@ -179,6 +179,29 @@ async def part_b(pw, results):
         r.selection = { kind: 'creature', id: c.id }; r.hover = { x: Math.floor(c.x), y: Math.floor(c.y) };
         return { hasSel: !!r.selection, tension: Array.isArray(r.tensionSummary()), pick: typeof r.screenToTile === 'function' }; })()""")
     results.append(("B15 2D overlay hooks (selection / hover / tension / picking) intact", sel["hasSel"] and sel["tension"] and sel["pick"], sel))
+    # shoreline: the water surface carries a bed attribute and the softened basin gives a depth GRADIENT (no single step)
+    shore = await asyncio.wait_for(page.evaluate("""(() => { const w = window.__world3d; const g = w.water.mesh.geometry; const bed = g.attributes.aBed, pos = g.attributes.position;
+        if (!bed) return { ok: false };
+        const depths = new Set(); let maxD = 0;
+        for (let i = 0; i < bed.count; i++) { const d = Math.max(0, pos.getY(i) - bed.getX(i)); depths.add(Math.round(d * 40) / 40); maxD = Math.max(maxD, d); }
+        return { ok: true, levels: depths.size, maxD, shader: w.water.material.fragmentShader.includes('vBed') && w.terrain.material.fragmentShader === undefined ? true : true }; })()"""), 60)
+    results.append(("B19 shoreline: bed depth attribute with a multi-level gradient into the deeps", shore.get("ok") and shore["levels"] >= 3 and 0.2 < shore["maxD"] < 1.0, shore))
+    # living weather: a storm eases the storm factor in; water / ground / wind / rain splashes follow it
+    await page.evaluate("(() => { const s = window.__game.state; s.weather = { type: 'storm', ticksLeft: 900 }; })()")
+    await await_frames(page, 6)
+    storm = await asyncio.wait_for(page.evaluate("""(() => { const w = window.__world3d; const ent = w.entities;
+        return { storm: w.lights.storm, water: w.water.uniforms.uStorm.value, wet: w.terrain.uniforms.uWet.value, wind: w.lights.wind, gust: w.lights.gust, splashes: ent.rain.pool.length, quality: w.quality }; })()"""), 60)
+    results.append(("B20 storm: smoothed storm factor drives water slate tint, ground wetness and gusty wind", storm["storm"] > 0.15 and storm["water"] > 0.15 and storm["wet"] > 0.15 and storm["wind"] > 1.5 and storm["gust"] > 0, storm))
+    splashes = storm["splashes"]
+    for _ in range(8):  # software GL renders a frame every few seconds; the pool fills as the front builds
+        if splashes > 0:
+            break
+        await await_frames(page, 2)
+        try:
+            splashes = await asyncio.wait_for(page.evaluate("window.__world3d.entities.rain.pool.length"), 60)
+        except Exception:
+            pass
+    results.append(("B21 storm: rain splash pool spawns on hard surfaces (medium quality)", splashes > 0, splashes))
     results.append(("B17 no page errors under 3D", not errors, errors[:2]))
     try:
         await page.screenshot(path="/tmp/render3d_smoke.png", timeout=120000)

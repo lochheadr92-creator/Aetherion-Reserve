@@ -515,147 +515,47 @@ async def test_bloodline_ledger():
         await browser.close()
 
 async def test_legacy_hud():
-    """Test Legacy HUD mode with ?legacyHud=1"""
-    print("\n=== TESTING LEGACY HUD MODE ===\n")
-    
+    """The legacy HUD is retired: ?legacyHud=1 must be ignored (deck still renders, screens are drawer panels)."""
+    print("\n=== TESTING LEGACY HUD SWITCH IS RETIRED ===\n")
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(viewport={'width': 1600, 'height': 900})
         page = await context.new_page()
-        
+
         await page.goto(URL + "?legacyHud=1")
         await page.wait_for_load_state("networkidle")
         await page.evaluate("localStorage.setItem('aetherion_tutorial_done', '1')")
         await page.reload()
         await page.wait_for_load_state("networkidle")
-        
-        # Start sandbox
+
         await page.click('[data-testid="mode-sandbox"]')
         await page.wait_for_timeout(500)
         await page.click('[data-testid="start-game-button"]')
         await page.wait_for_timeout(3000)
-        
-        # Check no dock/drawer
+
         dock = await page.query_selector('[data-testid="ops-dock"]')
-        drawer = await page.query_selector('[data-testid="ops-drawer"]')
-        
-        if not dock and not drawer:
-            print("  ✅ PASS: No ops-dock or ops-drawer in legacy mode")
+        if dock:
+            print("  ✅ PASS: ops-dock renders even with ?legacyHud=1 (switch retired)")
         else:
-            print("  ❌ FAIL: Found dock or drawer in legacy mode")
-        
-        # Open Species Database
+            print("  ❌ FAIL: ops-dock missing with ?legacyHud=1")
+
         await page.click('[data-testid="species-database-open-button"]')
         await page.wait_for_timeout(500)
-        
-        # Check full-screen modal
         modal = await page.query_selector('[data-testid="species-database-modal"]')
         if modal:
             host_attr = await modal.get_attribute('data-host')
             modal_box = await modal.bounding_box()
-            
-            if host_attr == 'modal':
-                print("  ✅ PASS: Species modal has data-host='modal'")
+            if host_attr == 'drawer' and modal_box and modal_box['width'] <= 320:
+                print("  ✅ PASS: Species screen is a drawer panel (data-host='drawer', <= 320px)")
             else:
-                print(f"  ❌ FAIL: Species modal has data-host='{host_attr}'")
-            
-            if modal_box['x'] == 0 and modal_box['width'] >= 1500:
-                print(f"  ✅ PASS: Modal is full-screen (x=0, width={modal_box['width']})")
-            else:
-                print(f"  ❌ FAIL: Modal not full-screen (x={modal_box['x']}, width={modal_box['width']})")
+                print(f"  ❌ FAIL: Species screen host={host_attr} width={modal_box and modal_box['width']}")
         else:
-            print("  ❌ FAIL: Species modal not found")
-        
-        # Close modal
-        close_btn = await page.query_selector('[data-testid="species-database-close-button"]')
-        if close_btn:
-            await close_btn.click()
-            await page.wait_for_timeout(500)
-        
-        # Test ledger in legacy mode (need scenario with creatures)
-        await page.click('[data-testid="hud-exit-button"]')
-        await page.wait_for_timeout(1000)
-        
-        await page.evaluate("localStorage.removeItem('aetherion_scenarios_done')")
-        await page.reload()
-        await page.wait_for_load_state("networkidle")
-        
-        await page.click('[data-testid="mode-scenario"]')
-        await page.wait_for_timeout(500)
-        await page.click('[data-testid="scenario-card-sovereign_bloodline"]')
-        await page.wait_for_timeout(500)
-        await page.click('[data-testid="start-game-button"]')
-        await page.wait_for_timeout(3000)
-        
-        # Select creature and open ledger
-        creature_selected = await page.evaluate("""() => {
-            const creatures = window.__gameRenderer?.state?.creatures || [];
-            if (creatures.length === 0) return false;
-            window.__gameRenderer.selection = {kind: 'creature', id: creatures[0].id};
-            return true;
-        }""")
-        
-        if creature_selected:
-            await page.wait_for_timeout(500)
-            
-            ledger_btn = await page.query_selector('[data-testid="creature-ledger-button"]')
-            if ledger_btn:
-                await ledger_btn.click()
-                await page.wait_for_timeout(500)
-                
-                # Check ledger is portal modal
-                ledger_check = await page.evaluate("""() => {
-                    const ledger = document.querySelector('[data-testid="bloodline-ledger"]');
-                    if (!ledger) return {found: false};
-                    
-                    const modal = ledger.closest('[data-testid*="modal"]');
-                    if (!modal) return {found: true, isModal: false};
-                    
-                    const box = modal.getBoundingClientRect();
-                    const isFixed = window.getComputedStyle(modal).position === 'fixed';
-                    const hasTable = ledger.querySelector('table') !== null;
-                    
-                    return {
-                        found: true,
-                        isModal: true,
-                        isFixed,
-                        x: box.x,
-                        width: box.width,
-                        hasTable,
-                        parentIsBody: modal.parentElement === document.body
-                    };
-                }""")
-                
-                if ledger_check['found'] and ledger_check['isModal']:
-                    print("  ✅ PASS: Ledger is a portal modal")
-                    
-                    if ledger_check['parentIsBody']:
-                        print("  ✅ PASS: Modal parent is document.body")
-                    
-                    if ledger_check['isFixed'] and ledger_check['x'] == 0 and ledger_check['width'] >= 1500:
-                        print("  ✅ PASS: Modal is fixed, full width")
-                    
-                    if ledger_check['hasTable']:
-                        print("  ✅ PASS: Ledger contains <table>")
-                    else:
-                        print("  ❌ FAIL: Ledger does not contain <table>")
-                else:
-                    print("  ❌ FAIL: Ledger is not a portal modal")
-                
-                # Test close button
-                close_btn = await page.query_selector('[data-testid="ledger-close-button"]')
-                if close_btn:
-                    await close_btn.click()
-                    await page.wait_for_timeout(500)
-                    
-                    ledger_after = await page.query_selector('[data-testid="bloodline-ledger"]')
-                    if not ledger_after:
-                        print("  ✅ PASS: ledger-close-button closes the ledger")
-                    else:
-                        print("  ❌ FAIL: Ledger still visible after close")
-        
+            print("  ❌ FAIL: Species screen did not open")
+
         await context.close()
         await browser.close()
+
 
 async def test_hud_responsiveness():
     """Test HUD responsiveness at different viewports"""

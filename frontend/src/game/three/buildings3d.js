@@ -16,20 +16,26 @@ function trimTint(def) {
 
 /** Collects coloured geometries per material bucket. */
 class Kit {
-  constructor() { this.buckets = { concrete: [], steel: [], roof: [], glass: [], glow: [] }; }
+  constructor() { this.buckets = { concrete: [], steel: [], roof: [], glass: [], glow: [] }; this.roofs = []; this.footArea = 1; this.top = 0; }
+  /** Start collecting the roof height of one building (largest-area tops win; masts / lamps are ignored). */
+  beginBuilding(area) { this.footArea = area; this.top = 0; }
+  noteTop(area, y) { if (area >= this.footArea * 0.22 && y > this.top) this.top = y; }
   add(bucket, geom, color = '#ffffff') { this.buckets[bucket].push(withColor(geom, color)); return geom; }
   box(bucket, cx, y0, cz, sx, sy, sz, { ry = 0, color = '#ffffff', uv = 1 } = {}) {
     const g = new THREE.BoxGeometry(sx, sy, sz);
     scaleUV(g, uv * Math.max(sx, sz), uv * sy);
+    if (bucket !== 'glow') this.noteTop(sx * sz, y0 + sy);
     return this.add(bucket, place(g, cx, y0 + sy / 2, cz, { ry }), color);
   }
   cyl(bucket, cx, y0, cz, rt, rb, h, { seg = 14, color = '#ffffff' } = {}) {
     const g = new THREE.CylinderGeometry(rt, rb, h, seg);
     scaleUV(g, 3, h);
+    this.noteTop(Math.PI * rt * rt, y0 + h);
     return this.add(bucket, place(g, cx, y0 + h / 2, cz), color);
   }
   dome(bucket, cx, y0, cz, r, { color = '#ffffff', sy = 1 } = {}) {
     const g = new THREE.SphereGeometry(r, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+    this.noteTop(Math.PI * r * r, y0 + r * sy * 0.7);
     return this.add(bucket, place(g, cx, y0, cz, { sy }), color);
   }
   /** Gabled roof spanning sx (across) by sz (along the ridge). */
@@ -40,6 +46,7 @@ class Kit {
     g.translate(0, 0, -sz / 2);
     g.computeVertexNormals();
     scaleUV(g, 1.4, 1.4);
+    this.noteTop(sx * sz, y0 + h * 0.5);
     return this.add(bucket, place(g, cx, y0, cz, { ry }), color);
   }
   /** Emissive window strips on the two camera-facing walls (+X and +Z). */
@@ -270,10 +277,13 @@ export function composeBuilding(k, b, y) {
   const w = b.w || def.w, h = b.h || def.h;
   const cx = b.x + w / 2, cz = b.y + h / 2;
   const trim = trimTint(def), light = def.light || '#7FE7FF';
+  k.beginBuilding(w * h);
   // slab under everything hides slope steps
   k.box('concrete', cx, y - 0.06, cz, w - 0.04, 0.1, h - 0.04, { color: '#b4b8bc' });
   const fn = COMPOSERS[b.type] || (KIOSKS.has(b.type) ? kiosk : hall);
   fn(k, b, def, y + 0.04, cx, cz, w, h, trim, light);
+  // hard surfaces rain can splash on: the slab and the highest broad top
+  k.roofs.push({ x0: b.x, z0: b.y, x1: b.x + w, z1: b.y + h, slab: y + 0.04, top: k.top });
 }
 
 export class BuildingLayer {
@@ -288,6 +298,19 @@ export class BuildingLayer {
     };
     this.meshes = {};
     this.signature = null;
+    this.roofs = [];
+  }
+
+  /** Highest hard surface under (x, z) if a building stands there (rain splash / prop grounding), else null. */
+  roofAt(x, z) {
+    for (const r of this.roofs) {
+      if (x >= r.x0 && x < r.x1 && z >= r.z0 && z < r.z1) {
+        // inset: the main mass is smaller than the footprint; edges get the slab
+        const inset = 0.16;
+        return (x > r.x0 + inset && x < r.x1 - inset && z > r.z0 + inset && z < r.z1 - inset) ? r.top : r.slab;
+      }
+    }
+    return null;
   }
 
   signatureOf(state) {
@@ -308,6 +331,7 @@ export class BuildingLayer {
       const def = BUILDINGS[b.type]; if (!def) continue;
       composeBuilding(k, b, buildingBaseY(b, heightAt));
     }
+    this.roofs = k.roofs;
     for (const bucket of Object.keys(k.buckets)) {
       const geom = merge(k.buckets[bucket]);
       if (!geom) continue;

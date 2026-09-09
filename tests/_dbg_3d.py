@@ -61,7 +61,9 @@ async def main():
     q = sys.argv[1] if len(sys.argv) > 1 else "medium"
     out = sys.argv[2] if len(sys.argv) > 2 else "/tmp/dbg_3d.png"
     zoom = float(sys.argv[3]) if len(sys.argv) > 3 else 1.6
-    night = (sys.argv[4] == '1') if len(sys.argv) > 4 else False
+    mode = sys.argv[4] if len(sys.argv) > 4 else '0'
+    night = mode == '1'
+    storm = mode == 'storm'
     focus = [float(v) for v in sys.argv[5].split(',')] if len(sys.argv) > 5 else [0, -12]
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
@@ -79,6 +81,8 @@ async def main():
         await page.evaluate("window.__game.stepTicks(40)")
         if night:
             await page.evaluate("(() => { const s = window.__game.state; s.tick = Math.floor(1800 * 0.8); })()")
+        if storm:
+            await page.evaluate("(() => { const s = window.__game.state; s.weather = { type: 'storm', ticksLeft: 900 }; const w = window.__world3d; if (w) w.lights.storm = 1; })()")
         await page.evaluate("window.__game.setPaused(true)")
         # zoom in around the plaza using the renderer camera (same math as worldPx)
         await page.evaluate("""([z, ox, oy]) => { const r = window.__gameRenderer; if (!r) return; const s = r.state; const e = s.entrance;

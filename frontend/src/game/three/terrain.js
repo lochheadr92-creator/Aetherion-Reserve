@@ -10,9 +10,11 @@ import { idx, inMap } from '../state';
 import { H_UNIT } from './iso';
 import { GROUND_LAYERS, LAYER_PATH, LAYER_CLIFF, LAYER_REPEAT, materialLayer } from './textures';
 
+const LAYER_SAND = GROUND_LAYERS.indexOf('sand'), LAYER_MUD = GROUND_LAYERS.indexOf('mud');
+
 const N = MAP_SIZE;
 const V = N + 1;
-const BASIN = { 1: 0.9, 2: 1.8 }; // extra depth (in height steps) under shallow / deep water
+const BASIN = { 1: 1.3, 2: 2.6 }; // basin depth targets (height steps) under shallow / deep water
 export const WATER_DROP = 0.14;   // water surface sits this many height steps under the tile top
 
 export class Terrain {
@@ -102,6 +104,7 @@ export class Terrain {
       uGlowViolet: { value: new THREE.Color('#B58CFF') },
       uGlowSea: { value: new THREE.Color('#7FFFE1') },
       uNight: { value: 0 },
+      uWet: { value: 0 },
     };
     this.uniforms = u;
     mat.onBeforeCompile = (shader) => {
@@ -120,7 +123,7 @@ export class Terrain {
           precision highp sampler2DArray;
           uniform sampler2DArray uAtlas; uniform sampler2DArray uAtlasN; uniform sampler2DArray uAtlasR;
           uniform sampler2D uIdMap; uniform float uRepeat[16]; uniform float uMapSize; uniform float uTime;
-          uniform float uNormalStrength; uniform vec3 uGlowViolet; uniform vec3 uGlowSea; uniform float uNight;
+          uniform float uNormalStrength; uniform vec3 uGlowViolet; uniform vec3 uGlowSea; uniform float uNight; uniform float uWet;
           varying vec3 vWPos; varying vec3 vTanV; varying vec3 vBitV; varying vec3 vWNormal;
           float hash21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
           float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -128,7 +131,12 @@ export class Terrain {
           float layerAt(vec2 tile) {
             vec2 t = clamp(tile, vec2(0.0), vec2(uMapSize - 1.0));
             vec4 id = texture2D(uIdMap, (t + 0.5) / uMapSize);
+            if (id.b > 0.2) return id.b > 0.6 ? ${LAYER_MUD}.0 : ${LAYER_SAND}.0; // pond bed: sand shelf, silty deeps
             return id.g > 0.5 ? ${LAYER_PATH}.0 : floor(id.r * 255.0 + 0.5);
+          }
+          float waterAt(vec2 tile) {
+            vec2 t = clamp(tile, vec2(0.0), vec2(uMapSize - 1.0));
+            return texture2D(uIdMap, (t + 0.5) / uMapSize).b > 0.2 ? 1.0 : 0.0;
           }
           vec3 splatA, splatN; float splatR, splatLayer;
           void sampleLayer(float layer, vec2 p, float w, inout vec3 a, inout vec3 n, inout float r) {
@@ -152,6 +160,16 @@ export class Terrain {
             float cliff = smoothstep(0.10, 0.30, slope);
             if (cliff > 0.001) { vec3 ca = vec3(0.0), cn = vec3(0.0); float cr = 0.0; sampleLayer(${LAYER_CLIFF}.0, p, 1.0, ca, cn, cr);
               a = mix(a, ca, cliff); n = mix(n, cn, cliff); r = mix(r, cr, cliff); }
+            // shoreline: a wide bilinear water weight gives a half-tile wet beach that darkens and glosses the ground
+            float wet = mix(mix(waterAt(b), waterAt(b + vec2(1, 0)), f.x), mix(waterAt(b + vec2(0, 1)), waterAt(b + vec2(1, 1)), f.x), f.y);
+            wet = smoothstep(0.0, 0.6, wet);
+            float beach = smoothstep(0.12, 0.9, wet);
+            if (beach > 0.001) { vec3 sa = vec3(0.0), sn = vec3(0.0); float sr = 0.0; sampleLayer(${LAYER_SAND}.0, p, 1.0, sa, sn, sr);
+              a = mix(a, sa, beach * (1.0 - cliff)); n = mix(n, sn, beach); r = mix(r, sr, beach); }
+            a *= mix(1.0, 0.58, wet); r *= mix(1.0, 0.5, wet);
+            // storm: the whole ground darkens and glosses as it soaks (paths puddle first)
+            float soak = uWet * (0.6 + 0.4 * step(0.5, texture2D(uIdMap, (clamp(floor(p), vec2(0.0), vec2(uMapSize - 1.0)) + 0.5) / uMapSize).g));
+            a *= mix(1.0, 0.72, soak); r *= mix(1.0, 0.45, soak);
             // large-scale tonal variation breaks tiling
             float vary = 0.90 + 0.20 * vnoise(p * 0.11 + 3.7) ;
             splatA = a * vary; splatN = n; splatR = clamp(r, 0.05, 1.0);
@@ -173,7 +191,7 @@ export class Terrain {
             else if (splatLayer == 10.0) totalEmissiveRadiance += uGlowSea * speck * 0.5;
           }`);
     };
-    mat.customProgramCacheKey = () => 'terrain-splat-v1';
+    mat.customProgramCacheKey = () => 'terrain-splat-v3';
     return mat;
   }
 
@@ -190,25 +208,50 @@ export class Terrain {
   rebuild(state) {
     const heights = state.heights, water = state.water, mats = state.materials, paths = state.paths || [];
     const c = this.corner;
+    // pass 1: corner classification + mean heights + basin target (mean of the adjacent water depths)
+    const target = this._target || (this._target = new Float32Array(V * V));
+    const dist = this._dist || (this._dist = new Int16Array(V * V));
+    const base = this._base || (this._base = new Float32Array(V * V));
+    const queue = [];
     for (let vz = 0; vz < V; vz++) {
       for (let vx = 0; vx < V; vx++) {
-        let landSum = 0, landN = 0, allSum = 0, allN = 0, basin = 0;
+        let landSum = 0, landN = 0, allSum = 0, allN = 0, basinSum = 0, basinN = 0;
         for (let dz = -1; dz <= 0; dz++) for (let dx = -1; dx <= 0; dx++) {
           const tx = vx + dx, tz = vz + dz;
           if (!inMap(tx, tz)) continue;
           const i = idx(tx, tz);
           const h = heights[i];
           allSum += h; allN++;
-          if (water[i]) basin = Math.max(basin, BASIN[water[i]] || 0.9);
+          if (water[i]) { basinSum += BASIN[water[i]] || 0.9; basinN++; }
           else { landSum += h; landN++; }
         }
-        let h;
-        if (landN > 0) h = landSum / landN;
-        else if (allN > 0) h = allSum / allN - basin;
-        else h = 0;
-        c[vz * V + vx] = h * H_UNIT;
+        const k = vz * V + vx;
+        if (landN > 0 || allN === 0) {
+          // land / shore corners keep the land height (the shore rim sits just above the waterline)
+          base[k] = landN > 0 ? landSum / landN : 0;
+          target[k] = 0; dist[k] = 0; queue.push(k);
+        } else {
+          base[k] = allSum / allN;
+          target[k] = basinSum / basinN;
+          dist[k] = -1;
+        }
       }
     }
+    // pass 2: BFS distance (in corner steps) from the shore into the water body
+    for (let qi = 0; qi < queue.length; qi++) {
+      const k = queue[qi], kx = k % V, kz = (k - kx) / V, d = dist[k] + 1;
+      if (kx > 0 && dist[k - 1] < 0) { dist[k - 1] = d; queue.push(k - 1); }
+      if (kx < V - 1 && dist[k + 1] < 0) { dist[k + 1] = d; queue.push(k + 1); }
+      if (kz > 0 && dist[k - V] < 0) { dist[k - V] = d; queue.push(k - V); }
+      if (kz < V - 1 && dist[k + V] < 0) { dist[k + V] = d; queue.push(k + V); }
+    }
+    // pass 3: gentle beach profile — the bed falls 0.9 steps at the first ring, +0.65 per ring, capped by the basin target
+    for (let k = 0; k < V * V; k++) {
+      const d = dist[k];
+      const depth = d <= 0 ? 0 : Math.min(target[k], 0.9 + 0.65 * (d - 1));
+      c[k] = (base[k] - depth) * H_UNIT;
+    }
+    queue.length = 0;
     const pos = this.geometry.attributes.position;
     for (let vz = 0; vz < V; vz++) for (let vx = 0; vx < V; vx++) pos.setY(vz * V + vx, c[vz * V + vx]);
     pos.needsUpdate = true;
@@ -227,10 +270,11 @@ export class Terrain {
     this.idMap.needsUpdate = true;
   }
 
-  update(dt, night) {
+  update(dt, night, storm = 0) {
     this.time += dt;
     this.uniforms.uTime.value = this.time;
     this.uniforms.uNight.value = night;
+    this.uniforms.uWet.value = storm;
   }
 
   dispose() {

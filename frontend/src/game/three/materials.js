@@ -95,16 +95,17 @@ export function radialTexture(inner = 0.0, outer = 1.0) {
 // ---------- wind (vertex displacement) ----------
 // Installed through onBeforeCompile on flora materials: sway grows with local height, phase comes from
 // the instance's world position so neighbouring plants never move in lockstep.
-export const windUniforms = { uTime: { value: 0 }, uWind: { value: 1 }, uWindAmp: { value: 1 } };
+export const windUniforms = { uTime: { value: 0 }, uWind: { value: 1 }, uWindAmp: { value: 1 }, uGust: { value: 0 } };
 
 export function installWind(material, { amp = 0.04, freq = 0.9, maxY = 1.0 } = {}) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = windUniforms.uTime;
     shader.uniforms.uWind = windUniforms.uWind;
     shader.uniforms.uWindAmp = windUniforms.uWindAmp;
+    shader.uniforms.uGust = windUniforms.uGust;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
-        uniform float uTime; uniform float uWind; uniform float uWindAmp;`)
+        uniform float uTime; uniform float uWind; uniform float uWindAmp; uniform float uGust;`)
       .replace('#include <begin_vertex>', `
         vec3 transformed = vec3(position);
         {
@@ -116,11 +117,13 @@ export function installWind(material, { amp = 0.04, freq = 0.9, maxY = 1.0 } = {
           float ph = iw.x * 1.7 + iw.z * 1.3;
           float hgt = clamp(position.y / ${maxY.toFixed(3)}, 0.0, 1.0);
           float g = sin(uTime * ${freq.toFixed(3)} + ph) + 0.35 * sin(uTime * ${(freq * 2.3).toFixed(3)} + ph * 1.7);
+          // storm gusts: a fast flutter plus a steady lean downwind (+X-Z) that bends the whole plant
+          g += uGust * (0.8 * sin(uTime * ${(freq * 4.1).toFixed(3)} + ph * 2.3) + 1.4);
           float sway = g * ${amp.toFixed(4)} * uWind * uWindAmp * hgt * hgt;
-          transformed.x += sway; transformed.z += sway * 0.6 * cos(ph);
+          transformed.x += sway; transformed.z += sway * 0.6 * cos(ph) - uGust * sway * 0.5;
         }`);
   };
-  material.customProgramCacheKey = () => `wind-${amp}-${freq}-${maxY}`;
+  material.customProgramCacheKey = () => `wind2-${amp}-${freq}-${maxY}`;
   return material;
 }
 

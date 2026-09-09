@@ -6,7 +6,6 @@ import InspectPanel from '@/components/game/InspectPanel';
 import ObjectivesPanel from '@/components/game/ObjectivesPanel';
 import OverlayToggles from '@/components/game/OverlayToggles';
 import TutorialOverlay from '@/components/game/TutorialOverlay';
-import GameModals from '@/components/game/GameModals';
 import EmergencyBanner from '@/components/game/EmergencyBanner';
 import ScenarioTracker from '@/components/game/ScenarioTracker';
 import PhotoMode from '@/components/game/PhotoMode';
@@ -21,13 +20,12 @@ import BloodlineLedger from '@/components/game/BloodlineLedger';
 import { useDrawer } from '@/components/game/hooks/useDrawer';
 import { useGameTick } from '@/components/game/useGame';
 import { useGameScreenActions } from '@/components/game/hooks/useGameScreenActions';
-import { OPS_DECK } from '@/game/art/flags';
 
 const firstRun = () => !localStorage.getItem('aetherion_tutorial_done');
 
-// Deck mode hosts the management screens as native drawer panels (ScreenFrame reads the drawer
-// host from context); GameModals itself is only mounted when the flag is off. The Bloodline
-// Ledger is a contextual drawer (no dock button) opened from an organism dossier.
+// The Ops Deck hosts every management screen as a native drawer panel (ScreenFrame reads the drawer
+// host from context). The Bloodline Ledger is a contextual drawer (no dock button) opened from an
+// organism dossier. The legacy full-screen modal HUD was retired.
 function DeckScreen({ id, params, dbSpecies, onClose, onBuy, onClaimSpecimen, onNavigate }) {
   switch (id) {
     case 'db': return <SpeciesDatabase initialSpecies={dbSpecies} onClose={onClose} />;
@@ -53,19 +51,19 @@ export default function GameScreen({ onExit }) {
   const openPhoto = useCallback(() => setPhotoMode(true), [setPhotoMode]);
   const closePhoto = useCallback(() => setPhotoMode(false), [setPhotoMode]);
 
-  // ---- Ops Deck (flag on): the shell is presentational; every action still goes through ui.* ----
-  // legacy modal writers (inspect panel "open species", alert navigation) route into the deck
+  // ---- Ops Deck: the shell is presentational; every action still goes through ui.* ----
+  // screen requests (inspect panel "open species", alert navigation) arrive via ui.modal and route into the drawer
   const { modal: legacyModal, setModal: setLegacyModal, closeModal: closeLegacyModal } = ui;
   useEffect(() => {
-    if (!OPS_DECK || !legacyModal) return;
+    if (!legacyModal) return;
     openDrawer(legacyModal, { toggle: false });
-    setLegacyModal(null); // GameModals is not mounted in deck mode; dbSpecies focus is kept
+    setLegacyModal(null); // the request is consumed; dbSpecies focus is kept
   }, [legacyModal, setLegacyModal, openDrawer]);
   const closeDeck = useCallback(() => { closeDrawer(); closeLegacyModal(); }, [closeDrawer, closeLegacyModal]);
   const { buyCreature, claimSpecimen } = ui;
   const deckBuy = useCallback((speciesId) => { closeDrawer(); buyCreature(speciesId); }, [closeDrawer, buyCreature]);
   const deckClaim = useCallback((expeditionId, specimen) => { closeDrawer(); claimSpecimen(expeditionId, specimen); }, [closeDrawer, claimSpecimen]);
-  // organism dossier → Bloodline Ledger as a contextual drawer (legacy HUD keeps its portal modal)
+  // organism dossier → Bloodline Ledger as a contextual drawer
   const openLedger = useCallback((creatureId) => openDrawer('ledger', { toggle: false, params: { creatureId } }), [openDrawer]);
 
   return (
@@ -76,23 +74,15 @@ export default function GameScreen({ onExit }) {
 
       {!photoMode && (
         <>
-          <HudBar onOpenModal={OPS_DECK ? openDrawer : ui.setModal} onExit={onExit} onNavigate={ui.navigateTo} onHelp={openHelp} onPhoto={openPhoto} />
+          <HudBar onOpenModal={openDrawer} onExit={onExit} onNavigate={ui.navigateTo} onHelp={openHelp} onPhoto={openPhoto} />
           <EmergencyBanner onNavigate={ui.navigateTo} />
           <ScenarioTracker onExit={onExit} />
-          {OPS_DECK ? (
-            // left-anchored overlays sit right of the dock (56px), or right of dock + drawer (376px) while one is open
-            <div className={`ops-left-shift absolute inset-y-0 right-0 ${drawer ? 'left-[376px]' : 'left-14'}`} data-testid="ops-left-shift">
-              <ObjectivesPanel />
-              <BuildToolbar activeTool={ui.activeTool} setTool={ui.setTool} />
-            </div>
-          ) : (
-            <>
-              <ObjectivesPanel />
-              <OverlayToggles rendererRef={ui.rendererRef} />
-              <BuildToolbar activeTool={ui.activeTool} setTool={ui.setTool} />
-            </>
-          )}
-          {OPS_DECK && <OverlayToggles rendererRef={ui.rendererRef} />}
+          {/* left-anchored overlays sit right of the dock (56px), or right of dock + drawer (376px) while one is open */}
+          <div className={`ops-left-shift absolute inset-y-0 right-0 ${drawer ? 'left-[376px]' : 'left-14'}`} data-testid="ops-left-shift">
+            <ObjectivesPanel />
+            <BuildToolbar activeTool={ui.activeTool} setTool={ui.setTool} />
+          </div>
+          <OverlayToggles rendererRef={ui.rendererRef} />
         </>
       )}
 
@@ -104,21 +94,17 @@ export default function GameScreen({ onExit }) {
           onClose={ui.clearSelection}
           onNavigate={ui.navigateTo}
           onOpenSpecies={ui.openSpecies}
-          onOpenLedger={OPS_DECK ? openLedger : undefined}
+          onOpenLedger={openLedger}
         />
       )}
 
-      {OPS_DECK ? (
-        !photoMode && (
-          <>
-            <OpsDock active={drawer} onOpen={openDrawer} />
-            <Drawer id={drawer} onClose={closeDeck}>
-              <DeckScreen id={drawer} params={drawerParams} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} onNavigate={ui.navigateTo} />
-            </Drawer>
-          </>
-        )
-      ) : (
-        <GameModals modal={ui.modal} dbSpecies={ui.dbSpecies} onClose={ui.closeModal} onBuy={ui.buyCreature} onClaimSpecimen={ui.claimSpecimen} />
+      {!photoMode && (
+        <>
+          <OpsDock active={drawer} onOpen={openDrawer} />
+          <Drawer id={drawer} onClose={closeDeck}>
+            <DeckScreen id={drawer} params={drawerParams} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} onNavigate={ui.navigateTo} />
+          </Drawer>
+        </>
       )}
 
       {tutorialOpen && <TutorialOverlay firstTime={tutorialFirstTime} onClose={closeHelp} />}

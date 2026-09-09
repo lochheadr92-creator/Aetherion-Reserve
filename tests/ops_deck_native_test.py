@@ -12,8 +12,8 @@
          left overlays shift to 376px); one header / one close; the pairing outlook renders as
          cards (no <table>); clicking a candidate closes the drawer and selects that organism; Esc
          and ledger-close-button both close it.
-  LEGACY `?legacyHud=1`: screens are full-screen modals with data-host="modal"; the ledger is a
-         portal modal on document.body (fixed, full width).
+  RETIRED `?legacyHud=1` is ignored: screens stay drawer panels with data-host="drawer"; the ledger is a
+         contextual drawer (never a body portal modal).
   shots  artifacts/ops_deck_native_species.png, artifacts/ops_deck_native_ledger.png
 
 Usage: AETHERION_URL=... python tests/ops_deck_native_test.py   (preview URL by default)
@@ -205,14 +205,15 @@ async def panels(page):
 
 
 async def legacy(page):
+    # the legacy HUD is retired: `?legacyHud=1` is ignored and every screen is a drawer panel
     await boot(page, URL + "/?legacyHud=1", scenario="sovereign_bloodline")
     await page.click('[data-testid="species-database-open-button"]')
     await page.wait_for_timeout(300)
     root = page.locator('[data-testid="species-database-modal"]')
     box = await root.bounding_box()
-    check("LEGACY 1 species screen is a full-screen modal with data-host=modal (two-column layout intact)",
-          await root.get_attribute("data-host") == "modal" and box and box["x"] == 0 and box["width"] >= 1500
-          and await page.locator('[data-testid="species-database-modal"] .nl-panel').count() == 1, str(box))
+    check("RETIRED 1 ?legacyHud=1 still hosts the species screen in the drawer (data-host=drawer, <= 320px)",
+          await root.get_attribute("data-host") == "drawer" and box and box["width"] <= 320
+          and await page.locator('[data-testid="ops-drawer"] [data-testid="species-database-modal"]').count() == 1, str(box))
     await page.click('[data-testid="species-db-close-button"]')
     cid = await page.evaluate("window.__game.state.creatures[0].id")
     sel = await select_creature(page, cid)
@@ -224,13 +225,13 @@ async def legacy(page):
     await page.click('[data-testid="creature-ledger-button"]')
     await page.wait_for_timeout(400)
     led = page.locator('[data-testid="bloodline-ledger"]')
-    lbox = await led.bounding_box()
-    on_body = await page.evaluate("(() => { const e = document.querySelector('[data-testid=\"bloodline-ledger\"]'); return !!e && e.parentElement === document.body && getComputedStyle(e).position === 'fixed'; })()")
-    check("LEGACY 2 ledger is still a portal modal on document.body (fixed, full width) with a table outlook",
-          await led.count() == 1 and on_body and lbox and lbox["x"] == 0 and lbox["width"] >= 1500 and await page.locator('[data-testid="bloodline-ledger"] table').count() == 1, str(lbox))
+    in_drawer = await page.locator('[data-testid="ops-drawer"] [data-testid="bloodline-ledger"]').count() == 1
+    on_body = await page.evaluate("(() => { const e = document.querySelector('[data-testid=\"bloodline-ledger\"]'); return !!e && e.parentElement === document.body; })()")
+    check("RETIRED 2 the ledger is a contextual drawer (never a body portal modal) and keeps its outlook",
+          await led.count() == 1 and in_drawer and not on_body and await page.locator('[data-testid="bloodline-ledger"] table').count() == 0)
     await page.click('[data-testid="ledger-close-button"]')
     await page.wait_for_timeout(200)
-    check("LEGACY 3 ledger-close-button closes the legacy ledger", await led.count() == 0)
+    check("RETIRED 3 ledger-close-button closes the ledger drawer", await led.count() == 0)
 
 
 async def main():

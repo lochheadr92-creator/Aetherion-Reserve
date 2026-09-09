@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { MapPin, GitBranch, Dna, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { game } from '@/game/controller';
 import { speciesById } from '@/game/data/species';
@@ -10,7 +8,7 @@ import { ScreenFrame, useScreenHost } from '@/components/game/ScreenFrame';
 
 // ---- Bloodline Ledger: family tree + pairing outlook for one organism ----
 // Read-only view over state.lineage (permanent registry) and living creatures.
-// Hosted natively in the Ops Deck drawer (id 'ledger'); in the legacy HUD it is a portal modal.
+// Hosted natively in the Ops Deck drawer (id 'ledger').
 
 const MORPH_BY_ID = Object.fromEntries(MORPHS.map((m) => [m.id, m]));
 
@@ -250,27 +248,23 @@ function LedgerEmpty() {
 
 export default function BloodlineLedger({ creatureId, onClose, onNavigate }) {
   useGameTick();
-  const host = useScreenHost();
   const s = game.state;
   const c = s?.creatures.find((q) => q.id === creatureId);
-  const tree = useMemo(() => (s && creatureId != null ? familyTree(s, creatureId) : null), [s, creatureId, s?.tick]);
-  const rows = useMemo(() => (s && c ? pairingOutlook(s, c) : []), [s, c, s?.tick]);
+  // registry-derived views are cheap; recomputed on every tick re-render so the ledger stays live
+  const tree = s && creatureId != null ? familyTree(s, creatureId) : null;
+  const rows = s && c ? pairingOutlook(s, c) : [];
   if (!s) return null;
-  const inDrawer = host === 'drawer';
-  if (!tree && !inDrawer) return null; // legacy modal has nothing to show without a registry entry
   const sp = tree ? speciesById(tree.me.speciesId) : null;
   const locate = (id) => {
     onClose();
     onNavigate({ kind: 'creature', id });
   };
 
-  const frame = (
+  return (
     <ScreenFrame
       testId="bloodline-ledger"
       closeTestId="ledger-close-button"
       onClose={onClose}
-      layer="fixed inset-0 z-50"
-      size="w-[840px] max-h-[86vh]"
       eyebrow={<><GitBranch size={11} /> BLOODLINE LEDGER</>}
       subtitle={tree ? (
         <span className="text-[var(--text-1)]" data-testid="ledger-title">
@@ -293,5 +287,4 @@ export default function BloodlineLedger({ creatureId, onClose, onNavigate }) {
       ) : <LedgerEmpty />}
     </ScreenFrame>
   );
-  return inDrawer ? frame : createPortal(frame, document.body);
 }

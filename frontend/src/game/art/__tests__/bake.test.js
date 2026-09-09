@@ -27,7 +27,7 @@ const allFramesHash = (sh) => {
 function loadArt(flag) {
   let mods;
   jest.isolateModules(() => {
-    jest.doMock('../flags', () => ({ ART_V2: flag, OPS_DECK: true }));
+    jest.doMock('../flags', () => ({ ART_V2: flag }));
     mods = { creatures: require('../creatures'), terrain: require('../terrain_tex') };
   });
   return mods;

@@ -140,7 +140,7 @@ export class World3D {
     if (state !== this.state || state._terrainDirty || state._terrain3dDirty) {
       this.state = state;
       this.terrain.rebuild(state);
-      this.water.rebuild(state);
+      this.water.rebuild(state, this.terrain);
       this.entities.onTerrainRebuilt();
       state._terrainDirty = false;
       state._terrain3dDirty = false;
@@ -150,9 +150,9 @@ export class World3D {
     const { t } = getDayPhase(state.tick);
     this.lights.update(t, state.weather?.type || 'clear', target, halfW, halfH, dt);
     this.renderer.toneMappingExposure = this.lights.exposure * (view.photo ? 1.05 : 1);
-    this.terrain.update(dt, this.lights.night);
+    this.terrain.update(dt, this.lights.night, this.lights.storm);
     this.water.update(dt, this.lights);
-    this.entities.sync(state, dt, this.lights);
+    this.entities.sync(state, dt, this.lights, { target, halfW, halfH });
     this.post.update(this.lights.night, !!view.photo);
     this.post.render();
     const ms = performance.now() - now;

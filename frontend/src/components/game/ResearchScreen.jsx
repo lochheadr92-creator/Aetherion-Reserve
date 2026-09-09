@@ -130,7 +130,6 @@ export default function ResearchScreen({ onClose }) {
       eyebrow="RESEARCH DIVISION"
       subtitle={hasLab ? 'One active project at a time. Field studies emerge from real observations.' : 'NO LABORATORY — build a Research Laboratory to begin.'}
       actions={active && activeDef ? <ActiveProjectChip active={active} activeDef={activeDef} /> : null}
-      size="w-[1100px] h-[80vh]"
       bodyClassName="p-4 grid grid-cols-3 gap-4 content-start drawer:grid-cols-1 drawer:p-3 drawer:gap-4"
     >
       {Object.entries(cats).map(([cat, list]) => (

@@ -200,7 +200,6 @@ export default function StaffScreen({ onClose }) {
             onCheckedChange={(v) => setPolicy(game.state, 'keeperRadio', v)} />
         </label>
       )}
-      size="w-[880px] h-[74vh]"
       bodyClassName="p-4 space-y-4 drawer:p-3 drawer:space-y-3"
     >
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">RECRUITMENT</div>

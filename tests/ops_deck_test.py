@@ -9,20 +9,18 @@
        open); dock + drawer cover <= 376px; the canvas is hit-testable and usable at x=400 with a
        drawer open; the left overlays (directives, build toolbar) sit right of the shell; the sim
        keeps ticking with a drawer open.
-  off  `?legacyHud=1` and localStorage['aetherion.opsDeck']='off' both render the legacy HUD:
-       no dock / drawer, and the [data-testid] DOM (closed + Species modal open) equals
-       tests/ops_deck_dom_baseline.json recorded on main.
-  shots artifacts/ops_deck_on_species.png, artifacts/ops_deck_off_species.png
+  retired  the legacy HUD is gone: `?legacyHud=1` and localStorage['aetherion.opsDeck']='off' are
+       ignored — the dock still renders, the Species screen is a drawer panel (data-host="drawer",
+       <= 320px wide) and no full-screen modal / backdrop exists.
+  shots artifacts/ops_deck_on_species.png, artifacts/ops_deck_retired_species.png
 
 Usage: AETHERION_URL=... python tests/ops_deck_test.py   (preview URL by default)
 """
-import asyncio, json, os, sys
+import asyncio, os, sys
 from playwright.async_api import async_playwright
 
 from config import URL
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-BASE = json.load(open(os.path.join(HERE, "ops_deck_dom_baseline.json")))
 results = []
 
 DOCK = {
@@ -183,23 +181,26 @@ async def deck_on(page):
     await page.screenshot(path="/app/artifacts/ops_deck_on_species.png")
 
 
-async def deck_off(page, label, url, ops_deck=None):
+async def deck_retired(page, label, url, ops_deck=None):
     await boot(page, url, ops_deck)
-    check(f"OFF {label} 1 no dock / drawer in legacy mode",
-          await page.locator('[data-testid="ops-dock"]').count() == 0 and await page.locator('[data-testid="ops-drawer"]').count() == 0)
-    closed = await page.evaluate(DOM_IDS)
-    check(f"OFF {label} 2 [data-testid] DOM equals main baseline (closed)", closed == BASE["closed"],
-          str([x for x in closed if x not in BASE["closed"]] + [x for x in BASE["closed"] if x not in closed])[:300])
+    check(f"RETIRED {label} 1 dock still renders (legacy switch ignored)",
+          await page.locator('[data-testid="ops-dock"]').count() == 1 and await page.locator('[data-testid="ops-drawer"]').count() == 0)
+    check(f"RETIRED {label} 2 no full-screen management modal exists while closed",
+          await page.evaluate("document.querySelectorAll('[data-host=\"modal\"]').length") == 0 and await modal_count(page) == 0)
     await page.click('[data-testid="species-database-open-button"]')
     await page.wait_for_timeout(300)
-    opened = await page.evaluate(DOM_IDS)
-    check(f"OFF {label} 3 [data-testid] DOM equals main baseline (Species modal open)", opened == BASE["species_open"],
-          str([x for x in opened if x not in BASE["species_open"]] + [x for x in BASE["species_open"] if x not in opened])[:300])
-    box = await page.locator('[data-testid="species-database-modal"]').bounding_box()
-    check(f"OFF {label} 4 Species screen is the full-screen modal", box and box["x"] == 0 and box["width"] >= 1500, str(box))
+    root = page.locator('[data-testid="species-database-modal"]')
+    box = await root.bounding_box()
+    check(f"RETIRED {label} 3 Species screen opens as a drawer panel (data-host=drawer, <= 320px, inside ops-drawer)",
+          await root.get_attribute("data-host") == "drawer" and box and box["width"] <= 320
+          and await page.locator('[data-testid="ops-drawer"] [data-testid="species-database-modal"]').count() == 1, str(box))
+    check(f"RETIRED {label} 4 canvas stays hit-testable right of the shell",
+          await page.evaluate("(() => { const e = document.elementFromPoint(400, 450); return !!e && e.tagName === 'CANVAS'; })()"))
     if label == "url":
-        await page.screenshot(path="/app/artifacts/ops_deck_off_species.png")
+        await page.screenshot(path="/app/artifacts/ops_deck_retired_species.png")
     await page.click('[data-testid="species-db-close-button"]')
+    await page.wait_for_timeout(200)
+    check(f"RETIRED {label} 5 close button closes the drawer", await page.locator('[data-testid="ops-drawer"]').count() == 0)
 
 
 async def main():
@@ -211,9 +212,9 @@ async def main():
         page.on("console", lambda m: errors.append(m.text[:160]) if m.type == "error" else None)
 
         await deck_on(page)
-        await deck_off(page, "url", URL + "/?legacyHud=1")
-        await deck_off(page, "storage", URL, ops_deck="off")
-        check("TOGGLE no console errors across on / off loads", not errors, str(errors)[:300])
+        await deck_retired(page, "url", URL + "/?legacyHud=1")
+        await deck_retired(page, "storage", URL, ops_deck="off")
+        check("TOGGLE no console errors across default / legacy-switch loads", not errors, str(errors)[:300])
         await browser.close()
 
     print(f"\n{sum(results)}/{len(results)} checks passed")

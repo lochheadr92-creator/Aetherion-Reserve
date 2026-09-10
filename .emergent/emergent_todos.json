@@ -1,6 +1,10 @@
 [
   {
-    "content": "Phase R2-R5 (3D entities, textures, verification) complete - see plan.md",
+    "content": "Run testing agent on Album + Pairing Planner + Vocals + Lighting",
+    "status": "completed"
+  },
+  {
+    "content": "Fix any issues from testing agent, re-verify",
     "status": "completed"
   }
 ]

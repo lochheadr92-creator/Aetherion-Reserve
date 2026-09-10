@@ -5,6 +5,7 @@ import { familyTree, pairingOutlook } from '@/game/lineage';
 import { MORPHS } from '@/game/genetics';
 import { useGameTick } from '@/components/game/useGame';
 import { ScreenFrame, useScreenHost } from '@/components/game/ScreenFrame';
+import { PairingPlanner } from '@/components/game/PairingPlanner';
 
 // ---- Bloodline Ledger: family tree + pairing outlook for one organism ----
 // Read-only view over state.lineage (permanent registry) and living creatures.
@@ -238,10 +239,10 @@ function PairingOutlook({ rows, onLocate }) {
 
 function LedgerEmpty() {
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-2 text-center px-4" data-testid="ledger-empty">
+    <div className="flex flex-col items-center justify-center gap-2 text-center px-4 py-8" data-testid="ledger-empty">
       <GitBranch size={28} className="text-[var(--text-3)]" />
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">NO REGISTRY ENTRY</div>
-      <div className="text-[11px] text-[var(--text-2)]">Select an organism and open its dossier to trace the bloodline.</div>
+      <div className="text-[11px] text-[var(--text-2)]">Select an organism and open its dossier to trace the bloodline — or plan a pairing below.</div>
     </div>
   );
 }
@@ -282,9 +283,17 @@ export default function BloodlineLedger({ creatureId, onClose, onNavigate }) {
         <>
           <FamilyTreeView tree={tree} onLocate={locate} />
           <div className="border-t border-[var(--line)]" />
+          <PairingPlanner state={s} subjectId={c ? c.id : null} />
+          <div className="border-t border-[var(--line)]" />
           <PairingOutlook rows={rows} onLocate={locate} />
         </>
-      ) : <LedgerEmpty />}
+      ) : (
+        <>
+          <LedgerEmpty />
+          <div className="border-t border-[var(--line)]" />
+          <PairingPlanner state={s} subjectId={null} />
+        </>
+      )}
     </ScreenFrame>
   );
 }

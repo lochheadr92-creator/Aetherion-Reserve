@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Camera, X, Grid3x3, Pause, Play, Download, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Camera, X, Grid3x3, Pause, Play, Download, RotateCcw, Images, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { game } from '@/game/controller';
 import { clockLabel } from '@/game/weather';
+import { albumAssets, savePhoto } from '@/game/album';
 import { useGameTick } from '@/components/game/useGame';
 import { Button } from '@/components/ui/button';
 
 // ---- Photo Mode: frame a shot with the live camera, capture the canvas to a
-// framed PNG (vignette + park caption) and download it. Render/UI-only — the
-// simulation is untouched (the pause toggle reuses the existing time control).
+// framed PNG (vignette + park caption), download it and keep a JPEG copy in the
+// player's album. Render/UI-only — the simulation is untouched (the pause toggle
+// reuses the existing time control).
 
 const BAR_STYLE = { background: 'rgba(5,7,11,0.82)', backdropFilter: 'blur(14px)' };
 const BACKDROP_STYLE = { background: 'rgba(5,7,11,0.85)' };
@@ -54,22 +56,51 @@ function composeShot(state) {
   ctx.drawImage(src, 0, 0);
   drawVignette(ctx, out.width, out.height);
   drawCaption(ctx, out.width, out.height, state);
-  return out.toDataURL('image/png');
+  return out;
 }
 
-// capture flow: shot data URL + shutter flash animation state
+// capture flow: shot data URL + shutter flash + best-effort album save ('saving' | 'saved' | 'failed')
 function usePhotoCapture() {
   const [shot, setShot] = useState(null);
   const [flash, setFlash] = useState(false);
+  const [album, setAlbum] = useState(null);
+  const assetsRef = useRef(null);
+  const persist = useCallback(() => {
+    const a = assetsRef.current;
+    if (!a) return;
+    setAlbum({ status: 'saving' });
+    savePhoto(a.meta, a.assets)
+      .then((p) => setAlbum({ status: 'saved', id: p.id }))
+      .catch(() => setAlbum({ status: 'failed' }));
+  }, []);
   const capture = useCallback(() => {
-    const url = composeShot(game.state);
-    if (!url) return;
+    const canvas = composeShot(game.state);
+    if (!canvas) return;
+    const st = game.state;
+    assetsRef.current = {
+      meta: { park_name: st.parkName || 'Aetherion Reserve', mode: st.mode || 'management', day: st.day, clock: clockLabel(st.tick) },
+      assets: albumAssets(canvas),
+    };
+    const url = canvas.toDataURL('image/png');
     setFlash(true);
     setTimeout(() => setFlash(false), 220);
     setTimeout(() => setShot(url), 160);
-  }, [setShot, setFlash]);
-  const retake = useCallback(() => setShot(null), [setShot]);
-  return { shot, flash, capture, retake };
+    persist();
+  }, [persist]);
+  const retake = useCallback(() => { setShot(null); setAlbum(null); assetsRef.current = null; }, []);
+  return { shot, flash, album, capture, retake, retrySave: persist };
+}
+
+function AlbumStatus({ album, onRetry }) {
+  if (!album) return null;
+  if (album.status === 'saving') return <span className="mono text-[10px] text-[var(--text-3)] flex items-center gap-1.5" data-testid="photo-album-status" data-status="saving"><Loader2 size={11} className="animate-spin" /> SAVING TO ALBUM…</span>;
+  if (album.status === 'saved') return <span className="mono text-[10px] text-[var(--accent-seaglass)] flex items-center gap-1.5" data-testid="photo-album-status" data-status="saved"><Check size={11} /> SAVED TO ALBUM</span>;
+  return (
+    <span className="mono text-[10px] text-[var(--warning)] flex items-center gap-1.5" data-testid="photo-album-status" data-status="failed">
+      <AlertTriangle size={11} /> ALBUM SAVE FAILED
+      <button type="button" data-testid="photo-album-retry" onClick={onRetry} className="underline hover:text-[var(--text-1)]">retry</button>
+    </span>
+  );
 }
 
 // keyboard shortcuts: ESC exits, SPACE/ENTER captures while framing
@@ -87,12 +118,15 @@ function usePhotoHotkeys(onClose, capture, framing) {
   }, [onClose, capture, framing]);
 }
 
-function PreviewDialog({ shot, day, onRetake, onClose }) {
+function PreviewDialog({ shot, day, album, onRetake, onClose, onRetrySave, onOpenAlbum }) {
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center" style={BACKDROP_STYLE} data-testid="photo-preview-dialog">
       <div className="nl-panel max-w-[80vw] p-4 space-y-3">
-        <div className="mono text-[10px] tracking-[0.3em] text-[var(--accent-cyan)] flex items-center gap-2">
-          <Camera size={12} /> FIELD PHOTOGRAPH · CYCLE {day}
+        <div className="flex items-center justify-between gap-4">
+          <div className="mono text-[10px] tracking-[0.3em] text-[var(--accent-cyan)] flex items-center gap-2">
+            <Camera size={12} /> FIELD PHOTOGRAPH · CYCLE {day}
+          </div>
+          <AlbumStatus album={album} onRetry={onRetrySave} />
         </div>
         <img src={shot} alt="Captured park photograph" data-testid="photo-preview-image"
           className="max-h-[62vh] max-w-full rounded border border-[var(--line-2)]" />
@@ -100,6 +134,10 @@ function PreviewDialog({ shot, day, onRetake, onClose }) {
           <Button data-testid="photo-retake-button" onClick={onRetake} variant="outline"
             className="h-9 px-4 text-xs border-[var(--line-2)] text-[var(--text-2)] bg-transparent hover:bg-[var(--panel-2)]">
             <RotateCcw size={13} className="mr-1.5" /> Retake
+          </Button>
+          <Button data-testid="photo-open-album-button" onClick={onOpenAlbum} variant="outline"
+            className="h-9 px-4 text-xs border-[var(--line-2)] text-[var(--text-2)] bg-transparent hover:bg-[var(--panel-2)]">
+            <Images size={13} className="mr-1.5" /> Open album
           </Button>
           <a data-testid="photo-download-button" href={shot} download={`aetherion-cycle${day}-${Date.now()}.png`}
             className="nl-tool h-9 px-4 text-xs flex items-center gap-1.5 !text-[var(--accent-cyan)]">
@@ -161,10 +199,10 @@ function ControlBar({ paused, grid, onPause, onGrid, onCapture, onExit }) {
   );
 }
 
-export default function PhotoMode({ onClose }) {
+export default function PhotoMode({ onClose, onOpenAlbum }) {
   useGameTick();
   const [grid, setGrid] = useState(true);
-  const { shot, flash, capture, retake } = usePhotoCapture();
+  const { shot, flash, album, capture, retake, retrySave } = usePhotoCapture();
   usePhotoHotkeys(onClose, capture, !shot);
   const togglePause = useCallback(() => game.setPaused(!game.state.paused), []);
   const toggleGrid = useCallback(() => setGrid((g) => !g), [setGrid]);
@@ -192,7 +230,7 @@ export default function PhotoMode({ onClose }) {
         onPause={togglePause} onGrid={toggleGrid} onCapture={capture} onExit={onClose} />
       {shot && (
         <div className="pointer-events-auto">
-          <PreviewDialog shot={shot} day={s.day} onRetake={retake} onClose={onClose} />
+          <PreviewDialog shot={shot} day={s.day} album={album} onRetake={retake} onClose={onClose} onRetrySave={retrySave} onOpenAlbum={onOpenAlbum || onClose} />
         </div>
       )}
     </div>

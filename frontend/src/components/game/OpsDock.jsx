@@ -1,4 +1,4 @@
-import { Rocket, UserCog, Database, FlaskConical, Coins } from 'lucide-react';
+import { Rocket, UserCog, Database, FlaskConical, Coins, Images } from 'lucide-react';
 
 // Persistent left dock (56px): one button per management screen. Same lucide icons as the
 // HudBar entries; testids are `dock-` prefixed so the HudBar's original five stay unique.
@@ -8,6 +8,7 @@ export const DOCK_ITEMS = [
   { id: 'db', label: 'Species', short: 'SPEC', icon: Database, testId: 'dock-species-database-open-button' },
   { id: 'research', label: 'Research', short: 'RSRCH', icon: FlaskConical, testId: 'dock-open-research-button' },
   { id: 'finances', label: 'Finances', short: 'FIN', icon: Coins, testId: 'dock-open-finances-button' },
+  { id: 'album', label: 'Photo Album', short: 'ALBUM', icon: Images, testId: 'dock-open-album-button' },
 ];
 
 export const OpsDock = ({ active, onOpen }) => (

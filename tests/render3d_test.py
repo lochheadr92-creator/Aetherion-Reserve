@@ -120,7 +120,8 @@ async def part_b(pw, results):
     await page.click('[data-testid="mode-sandbox"]', force=True)
     await page.click('[data-testid="start-game-button"]', force=True)
     await page.wait_for_timeout(1500)
-    staged = await asyncio.wait_for(page.evaluate(STAGE), 60)
+    # software GL compiles the whole material set on the first frames (can block the main thread for 60-90 s)
+    staged = await asyncio.wait_for(page.evaluate(STAGE), 180)
     await page.evaluate("window.__game.setPaused(true)")
     # let the (slow, software) pipeline compile + draw a few frames
     for _ in range(3):
@@ -146,11 +147,24 @@ async def part_b(pw, results):
     results.append(("B10 props: waste, entrance, transport guideway + car", p["waste"] >= 1 and p["entrance"] and p["guideways"] >= 1 and p["cars"] >= 1, (p["waste"], p["entrance"], p["guideways"], p["cars"])))
     results.append(("B11 water surface + border skirt built", p["water"] and p["skirt"] > 100, (p["water"], p["skirt"])))
     results.append(("B12 daytime lighting state", p["night"] < 0.2 and 0.9 <= p["exposure"] <= 1.1, (round(p["night"], 2), round(p["exposure"], 2))))
+    # night lighting pass: lamps exist along the staged paths + floods on buildings, but they are OFF by day
+    lampsDay = await asyncio.wait_for(page.evaluate("(() => { const L = window.__world3d.entities.lamps; return { count: L.count, floods: L.floods.length, on: L.on, bulb: L.bulbMat.emissiveIntensity, pool: L.poolMat.opacity, lights: L.lights.length, visibleLights: L.lights.filter(l => l.visible).length }; })()"), 60)
+    results.append(("B22 night pass: path lamps placed along walkway edges + floodlights on building roofs", lampsDay["count"] >= 3 and lampsDay["floods"] >= 6, (lampsDay["count"], lampsDay["floods"])))
+    results.append(("B23 night pass: lamps are dark by day (switch curve 0, no real lights lit)", lampsDay["on"] < 0.02 and lampsDay["bulb"] < 0.05 and lampsDay["pool"] < 0.02 and lampsDay["visibleLights"] == 0, lampsDay))
     # night: exposure drops, night factor rises, building glow ramps up
     await page.evaluate("(() => { window.__game.state.tick = Math.floor(1800 * 0.8); })()")
     await await_frames(page, 2)
-    q = await asyncio.wait_for(page.evaluate("(() => { const w = window.__world3d; return { night: w.lights.night, exposure: w.renderer.toneMappingExposure, glow: w.entities.buildings.materials.glow.emissiveIntensity }; })()"), 60)
+    q = await asyncio.wait_for(page.evaluate("(() => { const w = window.__world3d; const L = w.entities.lamps; return { night: w.lights.night, exposure: w.renderer.toneMappingExposure, glow: w.entities.buildings.materials.glow.emissiveIntensity, lampsOn: L.on, bulb: L.bulbMat.emissiveIntensity, lens: L.lensMat.emissiveIntensity, pool: L.poolMat.opacity, floodPool: L.floodPoolMat.opacity, lights: L.lights.length, visibleLights: L.lights.filter(l => l.visible).length, quality: w.quality }; })()"), 60)
     results.append(("B13 night phase: dark exposure + emissive ramp", q and q["night"] > 0.9 and q["exposure"] < 0.7 and q["glow"] > 1.2, q))
+    results.append(("B24 night pass: lamps switch on at night (warm bulbs, cool lenses, ground pools)", q and q["lampsOn"] > 0.95 and q["bulb"] > 1.8 and q["lens"] > 2.5 and q["pool"] > 0.3 and q["floodPool"] > 0.2, q))
+    results.append(("B25 night pass: real light pool sized by quality tier (low = 0, medium = 4, high = 8)", q and q["lights"] == {"low": 0, "medium": 4, "high": 8}[q["quality"]] and q["visibleLights"] == q["lights"], (q["quality"], q["lights"], q["visibleLights"])))
+    # dusk: a partial switch (the curve ramps through dusk rather than snapping)
+    await page.evaluate("(() => { window.__game.state.tick = Math.floor(1800 * 0.68); })()")
+    await await_frames(page, 2)
+    dusk = await asyncio.wait_for(page.evaluate("(() => { const w = window.__world3d; return { night: w.lights.night, on: w.entities.lamps.on }; })()"), 60)
+    results.append(("B26 night pass: dusk ramps the lamps part-way on (0 < on < 1)", dusk and 0.2 < dusk["night"] < 0.95 and 0.05 < dusk["on"] < 0.98, dusk))
+    await page.evaluate("(() => { window.__game.state.tick = Math.floor(1800 * 0.8); })()")
+    await await_frames(page, 2)
     # removing a fence run / creature shrinks the 3D layers (state-driven sync); wait for real frames
     shrink = await asyncio.wait_for(page.evaluate("""(() => { const s = window.__game.state; const w = window.__world3d; const ent = w.entities;
         const before = { frame: window.__gameRenderer.frame, posts: ent.fences.post.mesh.count, rigs: ent.creatures.rigs.size };
@@ -188,7 +202,7 @@ async def part_b(pw, results):
     results.append(("B19 shoreline: bed depth attribute with a multi-level gradient into the deeps", shore.get("ok") and shore["levels"] >= 3 and 0.2 < shore["maxD"] < 1.0, shore))
     # living weather: a storm eases the storm factor in; water / ground / wind / rain splashes follow it
     await page.evaluate("(() => { const s = window.__game.state; s.weather = { type: 'storm', ticksLeft: 900 }; })()")
-    await await_frames(page, 6)
+    await await_frames(page, 6, tries=40)  # software GL: a frame can take several seconds; the ease-in needs real frames
     storm = await asyncio.wait_for(page.evaluate("""(() => { const w = window.__world3d; const ent = w.entities;
         return { storm: w.lights.storm, water: w.water.uniforms.uStorm.value, wet: w.terrain.uniforms.uWet.value, wind: w.lights.wind, gust: w.lights.gust, splashes: ent.rain.pool.length, quality: w.quality }; })()"""), 60)
     results.append(("B20 storm: smoothed storm factor drives water slate tint, ground wetness and gusty wind", storm["storm"] > 0.15 and storm["water"] > 0.15 and storm["wet"] > 0.15 and storm["wind"] > 1.5 and storm["gust"] > 0, storm))

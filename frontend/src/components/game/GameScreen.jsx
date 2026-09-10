@@ -9,6 +9,7 @@ import TutorialOverlay from '@/components/game/TutorialOverlay';
 import EmergencyBanner from '@/components/game/EmergencyBanner';
 import ScenarioTracker from '@/components/game/ScenarioTracker';
 import PhotoMode from '@/components/game/PhotoMode';
+import AlbumScreen from '@/components/game/AlbumScreen';
 import { OpsDock } from '@/components/game/OpsDock';
 import { Drawer } from '@/components/game/Drawer';
 import SpeciesDatabase from '@/components/game/SpeciesDatabase';
@@ -26,8 +27,9 @@ const firstRun = () => !localStorage.getItem('aetherion_tutorial_done');
 // The Ops Deck hosts every management screen as a native drawer panel (ScreenFrame reads the drawer
 // host from context). The Bloodline Ledger is a contextual drawer (no dock button) opened from an
 // organism dossier. The legacy full-screen modal HUD was retired.
-function DeckScreen({ id, params, dbSpecies, onClose, onBuy, onClaimSpecimen, onNavigate }) {
+function DeckScreen({ id, params, dbSpecies, onClose, onBuy, onClaimSpecimen, onNavigate, onOpenPhoto }) {
   switch (id) {
+    case 'album': return <AlbumScreen onClose={onClose} onOpenPhoto={onOpenPhoto} initialPhotoId={params?.photoId} />;
     case 'db': return <SpeciesDatabase initialSpecies={dbSpecies} onClose={onClose} />;
     case 'research': return <ResearchScreen onClose={onClose} />;
     case 'finances': return <FinanceScreen onClose={onClose} />;
@@ -45,6 +47,8 @@ export default function GameScreen({ onExit }) {
   const [photoMode, setPhotoMode] = useState(false);
   const ui = useGameScreenActions();
   const { drawer, drawerParams, openDrawer, closeDrawer } = useDrawer();
+  // photo mode -> album: leave the viewfinder and open the gallery drawer on the new capture
+  const openAlbumFromPhoto = useCallback(() => { setPhotoMode(false); openDrawer('album', { toggle: false }); }, [openDrawer]);
 
   const openHelp = useCallback(() => setTutorialOpen(true), [setTutorialOpen]);
   const closeHelp = useCallback(() => setTutorialOpen(false), [setTutorialOpen]);
@@ -86,7 +90,7 @@ export default function GameScreen({ onExit }) {
         </>
       )}
 
-      {photoMode && <PhotoMode onClose={closePhoto} />}
+      {photoMode && <PhotoMode onClose={closePhoto} onOpenAlbum={openAlbumFromPhoto} />}
 
       {!photoMode && ui.selection && (
         <InspectPanel
@@ -102,7 +106,7 @@ export default function GameScreen({ onExit }) {
         <>
           <OpsDock active={drawer} onOpen={openDrawer} />
           <Drawer id={drawer} onClose={closeDeck}>
-            <DeckScreen id={drawer} params={drawerParams} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} onNavigate={ui.navigateTo} />
+            <DeckScreen id={drawer} params={drawerParams} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} onNavigate={ui.navigateTo} onOpenPhoto={openPhoto} />
           </Drawer>
         </>
       )}

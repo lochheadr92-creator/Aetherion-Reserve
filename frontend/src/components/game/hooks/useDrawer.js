@@ -5,7 +5,7 @@ import { useState, useCallback } from 'react';
 // pass `{ toggle: false }` to guarantee the drawer ends up open (used when the legacy
 // modal writers — inspect panel, alert navigation — route into the deck).
 // `params` carries contextual payloads (e.g. the Bloodline Ledger's creatureId).
-export const DRAWER_IDS = ['fieldops', 'staff', 'db', 'research', 'finances', 'ledger'];
+export const DRAWER_IDS = ['fieldops', 'staff', 'db', 'research', 'finances', 'ledger', 'album'];
 
 export function useDrawer() {
   const [drawer, setDrawer] = useState(null); // { id, params } | null

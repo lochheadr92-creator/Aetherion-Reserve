@@ -15,6 +15,7 @@ const UPDATE_EVERY = 20;        // frames between ambience re-targeting
 const LOG_MAX = 24;             // one-shot history kept for debugging/tests
 // creature voices (render-layer cues): per-animal spacing, global spacing and a rolling cap
 const VOICE_GAP_MS = 2600;
+const VOICE_ALARM_CUT_MS = 400;  // an alarm may cut through this animal's recent idle/feed call
 const VOICE_GLOBAL_GAP_MS = 320;
 const VOICE_WINDOW_MS = 2000;
 const VOICE_WINDOW_MAX = 3;
@@ -40,15 +41,25 @@ function makeNoiseBuffer(ctx, seconds = 2) {
 
 // Species voice profile derived from its baked sheet (no species-data edits): predators snarl,
 // heavy slow bodies bellow, floaters/hoverers keen, everything else chirps. Pitch follows the
-// silhouette height (bigger animal, lower voice) so the 19 species never sound identical.
-export function voiceProfile(sheet) {
-  if (!sheet) return { kind: 'chirp', pitch: 1 };
+// silhouette height (bigger animal, lower voice) so the 19 species never sound identical. The
+// optional species id adds a stable per-species signature on top of the body-plan family: a small
+// detune, the number of syllables in an ambient call and how raspy the voice is.
+function speciesHash(id, salt) {
+  let h = 2166136261 ^ salt;
+  const s = String(id || '');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+export function voiceProfile(sheet, speciesId = null) {
+  if (!sheet) return { kind: 'chirp', pitch: 1, detune: 1, syllables: 1, rasp: 0 };
   const h = sheet.bounds ? sheet.bounds.h : sheet.h;
   const pitch = Math.max(0.55, Math.min(1.8, 44 / Math.max(12, h)));
-  if (sheet.menace) return { kind: 'snarl', pitch };
-  if (sheet.bob || sheet.hover) return { kind: 'keen', pitch };
-  if ((sheet.pace || 1) >= 1.25 || h >= 50) return { kind: 'bellow', pitch }; // pace > 1 = slow, heavy cadence
-  return { kind: 'chirp', pitch };
+  const sig = speciesId ? { detune: 0.9 + 0.2 * speciesHash(speciesId, 1), syllables: 1 + Math.floor(speciesHash(speciesId, 2) * 3), rasp: speciesHash(speciesId, 3) } : { detune: 1, syllables: 1, rasp: 0.5 };
+  if (sheet.menace) return { kind: 'snarl', pitch, ...sig };
+  if (sheet.bob || sheet.hover) return { kind: 'keen', pitch, ...sig };
+  if ((sheet.pace || 1) >= 1.25 || h >= 50) return { kind: 'bellow', pitch, ...sig }; // pace > 1 = slow, heavy cadence
+  return { kind: 'chirp', pitch, ...sig };
 }
 
 export class AudioManager {
@@ -58,8 +69,8 @@ export class AudioManager {
     this.enabled = readLS(LS_ENABLED, 'true') !== 'false';
     this.volume = Math.max(0, Math.min(1, parseFloat(readLS(LS_VOLUME, '0.6')) || 0));
     this.log = [];                 // recent one-shots: { kind, t }
-    this.voices = { attempted: 0, played: 0, limited: 0, muted: 0 }; // creature-voice counters (tests/debug)
-    this._voiceAt = new Map();     // creature id -> last voice time
+    this.voices = { attempted: 0, played: 0, limited: 0, muted: 0, byEvent: {} }; // creature-voice counters (tests/debug)
+    this._voiceAt = new Map();     // creature id -> { t: last voice time, event }
     this._voiceTimes = [];         // recent voice times (rolling cap)
     this._lastVoiceAt = 0;
     this.lastStingerAt = 0;
@@ -218,8 +229,8 @@ export class AudioManager {
 
   _can() { return this.enabled && this.ctx && this.ctx.state === 'running'; }
 
-  // generic enveloped oscillator voice
-  _tone({ type = 'sine', freq = 440, to = null, dur = 0.12, gain = 0.2, attack = 0.004, when = 0, lp = null }) {
+  // generic enveloped oscillator voice (`out`: destination bus, defaults to the master)
+  _tone({ type = 'sine', freq = 440, to = null, dur = 0.12, gain = 0.2, attack = 0.004, when = 0, lp = null, out = null }) {
     const ctx = this.ctx;
     const t0 = ctx.currentTime + when;
     const o = ctx.createOscillator();
@@ -232,11 +243,11 @@ export class AudioManager {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     let node = o;
     if (lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); node = f; }
-    node.connect(g).connect(this.master);
+    node.connect(g).connect(out || this.master);
     o.start(t0); o.stop(t0 + dur + 0.02);
   }
 
-  _noiseBurst({ dur = 0.08, gain = 0.12, hp = 800, when = 0 }) {
+  _noiseBurst({ dur = 0.08, gain = 0.12, hp = 800, when = 0, out = null }) {
     const ctx = this.ctx;
     const t0 = ctx.currentTime + when;
     const src = ctx.createBufferSource();
@@ -245,7 +256,7 @@ export class AudioManager {
     const g = ctx.createGain();
     g.gain.setValueAtTime(gain, t0);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    src.connect(f).connect(g).connect(this.master);
+    src.connect(f).connect(g).connect(out || this.master);
     src.start(t0); src.stop(t0 + dur + 0.02);
   }
 
@@ -284,56 +295,141 @@ export class AudioManager {
   }
 
   // ---------- creature voices ----------
-  voiceProfileFor(sheet) { return voiceProfile(sheet); } // test/debug hook
+  voiceProfileFor(sheet, speciesId = null) { return voiceProfile(sheet, speciesId); } // test/debug hook
 
-  // Called from the renderer on the rising edge of a threat display or a lunge burst.
-  // `proximity` 1 = viewport centre .. 0 = far edge (distance attenuation); juveniles pipe up an
-  // octave-ish. Rate limited per animal and globally so a stressed herd never becomes a wall of
-  // noise. Returns 'played' | 'muted' | 'silent' (no context) | 'limited-self' (this animal spoke
-  // recently: drop the cue) | 'limited-global' (spacing / rolling cap: the caller may retry next
-  // frame so a chorus staggers instead of vanishing). Never touches the sim.
-  creatureVoice(c, event, { sheet = null, proximity = 1, juvenile = false } = {}) {
+  // Positional bus for one call: source -> distance low-pass -> 3D panner -> master. The listener
+  // sits at the viewport centre looking into the screen; `pan` (-1 left .. 1 right) and `elevation`
+  // (-1 bottom .. 1 top) are the animal's normalised screen offset, `proximity` 1 = centre .. 0 = edge
+  // pushes the source away along -z so the panner's own distance model attenuates it, and far calls
+  // lose their highs. Falls back to a plain stereo panner / the master when the API is missing.
+  _spatialBus({ pan = 0, elevation = 0, proximity = 1 } = {}) {
+    const ctx = this.ctx;
+    const prox = Math.max(0, Math.min(1, proximity));
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 900 + 7000 * prox; lp.Q.value = 0.4;
+    let tail = lp;
+    if (typeof ctx.createPanner === 'function') {
+      const p = ctx.createPanner();
+      p.panningModel = 'equalpower';
+      p.distanceModel = 'linear';
+      p.refDistance = 0.6; p.maxDistance = 4; p.rolloffFactor = 1;
+      const x = pan * 1.1, y = elevation * 0.35, z = -(0.6 + (1 - prox) * 2.4);
+      if (p.positionX) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } else p.setPosition(x, y, z);
+      lp.connect(p); tail = p;
+    } else if (typeof ctx.createStereoPanner === 'function') {
+      const p = ctx.createStereoPanner(); p.pan.value = pan;
+      lp.connect(p); tail = p;
+    }
+    tail.connect(this.master);
+    this.lastSpatial = { pan, elevation, proximity: prox, lp: lp.frequency.value }; // tests/debug
+    return lp;
+  }
+
+  // Render-layer cue for one organism. `event` is 'threat' | 'lunge' (alarmed), 'feed' (a feeding
+  // bout starts) or 'idle' (ambient call). Rate limited per animal and globally so a stressed herd
+  // never becomes a wall of noise; an alarm may cut through a recent idle/feed call from the same
+  // animal. Returns 'played' | 'muted' | 'silent' (no context) | 'limited-self' | 'limited-global'
+  // (the caller may retry next frame so a chorus staggers instead of vanishing). Never touches the sim.
+  creatureVoice(c, event, { sheet = null, speciesId = null, proximity = 1, pan = 0, elevation = 0, juvenile = false } = {}) {
     const now = Date.now();
     this.voices.attempted++;
-    const last = this._voiceAt.get(c.id) || 0;
-    if (now - last < VOICE_GAP_MS) { this.voices.limited++; return 'limited-self'; }
+    const alarm = event === 'threat' || event === 'lunge';
+    const last = this._voiceAt.get(c.id) || { t: 0, event: null };
+    const gap = alarm && last.event && !(last.event === 'threat' || last.event === 'lunge') ? VOICE_ALARM_CUT_MS : VOICE_GAP_MS;
+    if (now - last.t < gap) {
+      this.voices.limited++;
+      // inside the short alarm-cut window the caller should keep the edge pending and retry
+      return gap === VOICE_ALARM_CUT_MS ? 'limited-self-retry' : 'limited-self';
+    }
     this._voiceTimes = this._voiceTimes.filter((t) => now - t < VOICE_WINDOW_MS);
     if (now - this._lastVoiceAt < VOICE_GLOBAL_GAP_MS || this._voiceTimes.length >= VOICE_WINDOW_MAX) {
       this.voices.limited++;
       return 'limited-global';
     }
-    this._voiceAt.set(c.id, now);
+    this._voiceAt.set(c.id, { t: now, event });
     this._lastVoiceAt = now;
     this._voiceTimes.push(now);
-    const prof = voiceProfile(sheet);
+    const prof = voiceProfile(sheet, speciesId || c.speciesId);
     this._note(`voice:${prof.kind}:${event}`);
+    this.voices.byEvent[event] = (this.voices.byEvent[event] || 0) + 1;
     if (!this._can()) { if (!this.enabled) { this.voices.muted++; return 'muted'; } return 'silent'; }
     this.voices.played++;
-    const g = 0.3 + 0.7 * Math.max(0, Math.min(1, proximity));
-    const k = prof.pitch * (juvenile ? 1.6 : 1);
+    const out = this._spatialBus({ pan, elevation, proximity });
+    const g = 0.6 + 0.4 * Math.max(0, Math.min(1, proximity));
+    const k = prof.pitch * prof.detune * (juvenile ? 1.6 : 1);
     const d = juvenile ? 0.7 : 1;
-    const hard = event === 'lunge';
+    if (event === 'idle') this._idleCall(prof, k, d, g, out);
+    else if (event === 'feed') this._feedCall(prof, k, d, g, out);
+    else this._alarmCall(prof, k, d, g, event === 'lunge', out);
+    return 'played';
+  }
+
+  // alarmed: the threat display / lunge voice of the body-plan family
+  _alarmCall(prof, k, d, g, hard, out) {
     switch (prof.kind) {
       case 'snarl':
-        this._tone({ type: 'sawtooth', freq: 170 * k, to: 92 * k, dur: (hard ? 0.3 : 0.4) * d, gain: 0.13 * g, attack: 0.012, lp: 1300 });
-        this._tone({ type: 'square', freq: 96 * k, to: 70 * k, dur: 0.34 * d, gain: 0.05 * g, attack: 0.02, lp: 700, when: 0.03 });
-        this._noiseBurst({ dur: (hard ? 0.28 : 0.2) * d, gain: 0.07 * g, hp: 900, when: hard ? 0 : 0.05 });
+        this._tone({ type: 'sawtooth', freq: 170 * k, to: 92 * k, dur: (hard ? 0.3 : 0.4) * d, gain: 0.13 * g, attack: 0.012, lp: 1300, out });
+        this._tone({ type: 'square', freq: 96 * k, to: 70 * k, dur: 0.34 * d, gain: 0.05 * g, attack: 0.02, lp: 700, when: 0.03, out });
+        this._noiseBurst({ dur: (hard ? 0.28 : 0.2) * d, gain: (0.05 + 0.04 * prof.rasp) * g, hp: 900, when: hard ? 0 : 0.05, out });
         break;
       case 'bellow':
-        this._tone({ type: 'triangle', freq: 120 * k, to: 72 * k, dur: 0.75 * d, gain: 0.2 * g, attack: 0.05, lp: 650 });
-        this._tone({ type: 'sine', freq: 58 * k, to: 46 * k, dur: 0.7 * d, gain: 0.12 * g, attack: 0.06, when: 0.02 });
-        if (hard) this._noiseBurst({ dur: 0.18, gain: 0.05 * g, hp: 500 });
+        this._tone({ type: 'triangle', freq: 120 * k, to: 72 * k, dur: 0.75 * d, gain: 0.2 * g, attack: 0.05, lp: 650, out });
+        this._tone({ type: 'sine', freq: 58 * k, to: 46 * k, dur: 0.7 * d, gain: 0.12 * g, attack: 0.06, when: 0.02, out });
+        if (hard) this._noiseBurst({ dur: 0.18, gain: 0.05 * g, hp: 500, out });
         break;
       case 'keen':
-        this._tone({ type: 'sawtooth', freq: 620 * k, to: 1150 * k, dur: 0.16 * d, gain: 0.045 * g, attack: 0.01, lp: 3200 });
-        this._tone({ type: 'sawtooth', freq: 1150 * k, to: 420 * k, dur: 0.26 * d, gain: 0.045 * g, attack: 0.01, lp: 3200, when: 0.15 * d });
+        this._tone({ type: 'sawtooth', freq: 620 * k, to: 1150 * k, dur: 0.16 * d, gain: 0.045 * g, attack: 0.01, lp: 3200, out });
+        this._tone({ type: 'sawtooth', freq: 1150 * k, to: 420 * k, dur: 0.26 * d, gain: 0.045 * g, attack: 0.01, lp: 3200, when: 0.15 * d, out });
         break;
       default: // chirp / grunt
-        this._tone({ type: 'square', freq: 520 * k, to: 760 * k, dur: 0.07 * d, gain: 0.06 * g, lp: 2600 });
-        this._tone({ type: 'square', freq: 640 * k, to: 430 * k, dur: 0.11 * d, gain: 0.06 * g, lp: 2600, when: 0.09 * d });
-        if (hard) this._noiseBurst({ dur: 0.08, gain: 0.03 * g, hp: 1500, when: 0.02 });
+        this._tone({ type: 'square', freq: 520 * k, to: 760 * k, dur: 0.07 * d, gain: 0.06 * g, lp: 2600, out });
+        this._tone({ type: 'square', freq: 640 * k, to: 430 * k, dur: 0.11 * d, gain: 0.06 * g, lp: 2600, when: 0.09 * d, out });
+        if (hard) this._noiseBurst({ dur: 0.08, gain: 0.03 * g, hp: 1500, when: 0.02, out });
     }
-    return 'played';
+  }
+
+  // idle: a softer, shorter ambient call — `syllables` repeats give each species its own cadence
+  _idleCall(prof, k, d, g, out) {
+    const n = prof.syllables, soft = 0.55 * g;
+    for (let i = 0; i < n; i++) {
+      const w = i * (prof.kind === 'bellow' ? 0.5 : prof.kind === 'snarl' ? 0.26 : 0.14) * d;
+      switch (prof.kind) {
+        case 'snarl': // low huff / growl
+          this._tone({ type: 'sawtooth', freq: 140 * k, to: 98 * k, dur: 0.22 * d, gain: 0.07 * soft, attack: 0.02, lp: 900, when: w, out });
+          this._noiseBurst({ dur: 0.1 * d, gain: (0.02 + 0.03 * prof.rasp) * soft, hp: 700, when: w + 0.02, out });
+          break;
+        case 'bellow': // long contented moan
+          this._tone({ type: 'triangle', freq: 104 * k, to: 82 * k, dur: 0.6 * d, gain: 0.14 * soft, attack: 0.08, lp: 600, when: w, out });
+          this._tone({ type: 'sine', freq: 52 * k, dur: 0.55 * d, gain: 0.08 * soft, attack: 0.08, when: w + 0.02, out });
+          break;
+        case 'keen': // rising whistle
+          this._tone({ type: 'sine', freq: 700 * k, to: 1050 * k, dur: 0.2 * d, gain: 0.05 * soft, attack: 0.02, lp: 3000, when: w, out });
+          break;
+        default: // quick double chirp
+          this._tone({ type: 'square', freq: 560 * k, to: 720 * k, dur: 0.05 * d, gain: 0.05 * soft, lp: 2600, when: w, out });
+          this._tone({ type: 'square', freq: 700 * k, to: 500 * k, dur: 0.07 * d, gain: 0.05 * soft, lp: 2600, when: w + 0.06 * d, out });
+      }
+    }
+  }
+
+  // feeding: wet tearing for predators, a slow rumble for heavy bodies, trills / pecks for the rest
+  _feedCall(prof, k, d, g, out) {
+    const soft = 0.7 * g;
+    switch (prof.kind) {
+      case 'snarl':
+        for (let i = 0; i < 3; i++) this._noiseBurst({ dur: 0.09 * d, gain: (0.05 + 0.04 * prof.rasp) * soft, hp: 500, when: i * 0.13 * d, out });
+        this._tone({ type: 'sawtooth', freq: 120 * k, to: 90 * k, dur: 0.36 * d, gain: 0.06 * soft, attack: 0.03, lp: 800, out });
+        break;
+      case 'bellow':
+        this._tone({ type: 'triangle', freq: 90 * k, to: 78 * k, dur: 0.8 * d, gain: 0.12 * soft, attack: 0.1, lp: 500, out });
+        this._noiseBurst({ dur: 0.25 * d, gain: 0.02 * soft, hp: 300, when: 0.1, out });
+        break;
+      case 'keen':
+        for (let i = 0; i < 3; i++) this._tone({ type: 'sine', freq: 900 * k, to: 1100 * k, dur: 0.06 * d, gain: 0.04 * soft, lp: 3200, when: i * 0.08 * d, out });
+        break;
+      default:
+        for (let i = 0; i < 4; i++) this._tone({ type: 'square', freq: 480 * k, to: 420 * k, dur: 0.035 * d, gain: 0.045 * soft, lp: 2400, when: i * 0.07 * d, out });
+    }
   }
 
   // alert stingers keyed by alert type; throttled so bursts do not stack

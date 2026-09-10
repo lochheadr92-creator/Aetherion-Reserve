@@ -8,6 +8,7 @@ import { refreshContracts } from './contracts';
 import { applyScenario } from './scenarios';
 import { ensureGenes, inheritGenes } from './genetics';
 import { ensureLineage } from './lineage';
+import { projectPairing, recommendPartners, bestPairs } from './pairing';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
 import { placeFenceRect, damageFence } from './construction';
@@ -52,7 +53,13 @@ class GameController {
     if (typeof window !== 'undefined') {
       window.__game = this; // debug/testing access
       // pure helpers exposed for the local test suites (no gameplay side effects)
-      window.__gameDebug = { adjacentOpenTile, serialize, deserialize, getRngCursor, getRngState, playerToken };
+      window.__gameDebug = {
+        adjacentOpenTile, serialize, deserialize, getRngCursor, getRngState, playerToken,
+        // pairing planner projections (read-only over this.state)
+        projectPairing: (aId, bId) => { const cs = this.state?.creatures || []; return projectPairing(this.state, cs.find((c) => c.id === aId), cs.find((c) => c.id === bId)); },
+        recommendPartners: (id, limit) => recommendPartners(this.state, (this.state?.creatures || []).find((c) => c.id === id), limit),
+        bestPairs: (speciesId, limit) => bestPairs(this.state, speciesId, limit),
+      };
     }
     // Deterministic setup harness for tests / debug tooling: scripted world building through the
     // same mutators the UI uses (fences, organisms, staff) plus a direct building spawn that skips

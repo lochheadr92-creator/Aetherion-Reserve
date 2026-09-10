@@ -8,6 +8,7 @@ export const DRAWER_TITLES = {
   research: 'Research',
   finances: 'Finances',
   ledger: 'Bloodline Ledger',
+  album: 'Photo Album',
 };
 
 // 320px drawer docked right of the OpsDock, full height under the HudBar. The Drawer is only the

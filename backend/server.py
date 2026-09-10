@@ -74,6 +74,11 @@ async def ensure_indexes() -> None:
         await db.saves.create_index([("owner", 1), ("updated_at", -1)])
     except Exception as exc:
         log.warning("index creation skipped (owner, updated_at): %s", exc)
+    try:
+        await db.photos.create_index("id", unique=True)
+        await db.photos.create_index([("owner", 1), ("created_at", -1)])
+    except Exception as exc:
+        log.warning("index creation skipped (photos): %s", exc)
 
 
 # ---------- Models ----------
@@ -194,6 +199,114 @@ async def delete_save(save_id: str, x_player_token: Optional[str] = Header(None,
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Save not found")
     return {"deleted": save_id}
+
+
+# ---------- Photo album ----------
+# Photo-mode captures are kept per player (same X-Player-Token scoping as saves). The full frame is a
+# JPEG data URL, the thumbnail a small JPEG data URL; listing never returns the full image. Bodies
+# are size-guarded and never logged.
+PHOTO_IMAGE_MAX = 6 * 1024 * 1024   # 6 MB data URL
+PHOTO_THUMB_MAX = 400 * 1024
+PHOTO_LIST_MAX = 200
+DATA_URL_RE = re.compile(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")
+
+
+class PhotoMeta(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    park_name: str = "Unnamed Facility"
+    mode: str = "management"
+    day: int = 1
+    clock: str = ""
+    caption: str = ""
+    width: int = 0
+    height: int = 0
+    thumb: str = ""
+    created_at: str
+
+
+class PhotoCreate(BaseModel):
+    park_name: str = "Unnamed Facility"
+    mode: str = "management"
+    day: int = 1
+    clock: str = ""
+    caption: str = ""
+    width: int = 0
+    height: int = 0
+    image: str
+    thumb: str
+
+
+class PhotoFull(PhotoMeta):
+    image: str
+
+
+def _photo_filter(token: Optional[str]) -> Dict[str, Any]:
+    # photos are always written with an owner; legacy (unscoped) callers see only ownerless photos
+    return {"owner": token} if token else {"$or": [{"owner": None}, {"owner": {"$exists": False}}]}
+
+
+def _check_data_url(value: str, limit: int, what: str) -> None:
+    if len(value) > limit:
+        raise HTTPException(status_code=413, detail=f"{what} too large")
+    if not DATA_URL_RE.match(value):
+        raise HTTPException(status_code=400, detail=f"{what} must be an image data URL")
+
+
+@api_router.get("/photos", response_model=List[PhotoMeta])
+async def list_photos(
+    limit: int = Query(60, ge=1, le=PHOTO_LIST_MAX),
+    skip: int = Query(0, ge=0, le=SKIP_MAX),
+    x_player_token: Optional[str] = Header(None, alias=PLAYER_HEADER),
+) -> List[Dict[str, Any]]:
+    x_player_token = _check_token(x_player_token)
+    cursor = db.photos.find(_photo_filter(x_player_token), {"_id": 0, "image": 0}).sort("created_at", -1).skip(skip)
+    return await cursor.to_list(limit)
+
+
+@api_router.get("/photos/{photo_id}", response_model=PhotoFull)
+async def get_photo(photo_id: str, x_player_token: Optional[str] = Header(None, alias=PLAYER_HEADER)) -> Dict[str, Any]:
+    x_player_token = _check_token(x_player_token)
+    doc = await db.photos.find_one({"id": photo_id}, {"_id": 0})
+    if not doc or not _can_touch(doc, x_player_token):
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return doc
+
+
+@api_router.post("/photos", response_model=PhotoMeta)
+async def create_photo(payload: PhotoCreate, x_player_token: Optional[str] = Header(None, alias=PLAYER_HEADER)) -> Dict[str, Any]:
+    x_player_token = _check_token(x_player_token)
+    _check_data_url(payload.image, PHOTO_IMAGE_MAX, "image")
+    _check_data_url(payload.thumb, PHOTO_THUMB_MAX, "thumb")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "park_name": payload.park_name[:80],
+        "mode": payload.mode[:32],
+        "day": payload.day,
+        "clock": payload.clock[:16],
+        "caption": payload.caption[:140],
+        "width": payload.width,
+        "height": payload.height,
+        "image": payload.image,
+        "thumb": payload.thumb,
+        "created_at": now,
+        "owner": x_player_token or None,
+    }
+    await db.photos.insert_one(dict(doc))
+    doc.pop("image")
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.delete("/photos/{photo_id}")
+async def delete_photo(photo_id: str, x_player_token: Optional[str] = Header(None, alias=PLAYER_HEADER)) -> Dict[str, str]:
+    x_player_token = _check_token(x_player_token)
+    existing = await db.photos.find_one({"id": photo_id}, {"_id": 0, "owner": 1})
+    if existing is None or not _can_touch(existing, x_player_token):
+        raise HTTPException(status_code=404, detail="Photo not found")
+    await db.photos.delete_one({"id": photo_id})
+    return {"deleted": photo_id}
 
 
 app.include_router(api_router)

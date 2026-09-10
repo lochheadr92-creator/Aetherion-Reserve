@@ -8,7 +8,7 @@ import { getDayPhase } from './weather';
 import { SPRITE_SCALE, hexRgb } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
 import { juvenileStage } from './art/juvenile';
-import { audio } from './audio';
+import { vocals } from './vocals';
 import { contactShadow, groundAO } from './art/rig';
 import { ART_V2 } from './art/flags';
 import { getBuildingSprite } from './art/buildings';
@@ -61,7 +61,6 @@ export class GameRenderer {
     this.brushSize = 1;
     this.frame = 0;
     this.fx = new FxManager(this); // render-only game-feel effects
-    this._vox = new Map();         // creature id -> { display, lunging } for voice rising edges
     this.world3d = null;           // World3D when the cinematic renderer is active (see attach3D)
     this.photoMode = false;        // photo-mode grade variant flag for the 3D pipeline
   }
@@ -70,7 +69,7 @@ export class GameRenderer {
     this.state = state;
     state._terrainDirty = true;
     this.fx.cancelMotion();
-    this._vox.clear();
+    vocals.reset();
     // center camera on map middle
     const c = worldPx(MAP_SIZE / 2, MAP_SIZE / 2, 0);
     this.cam.x = this.canvas.width / 2 - c.x * this.cam.zoom;
@@ -287,6 +286,8 @@ export class GameRenderer {
     this._phase = getDayPhase(s.tick).phase;
     this._storm = s.weather?.type === 'storm';
     this._overcast = s.weather?.type === 'overcast';
+    // creature vocals: alarmed / feeding / idle calls, positioned from the same camera (both renderers)
+    vocals.update({ state: s, cam: this.cam, W, H, frame: this.frame, offX: this.fx.offset.x, offY: this.fx.offset.y, sheetFor: getCreatureSheet, stageFor: juvenileStage });
     if (this.world3d) { this.render3D(ctx, W, H); return; }
     if (s._terrainDirty) this.redrawTerrain();
     ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x + this.fx.offset.x, this.cam.y + this.fx.offset.y);
@@ -983,25 +984,6 @@ export class GameRenderer {
     return out;
   }
 
-  // Creature voices (render-layer only): a snarl/bellow/keen/chirp on the rising edge of a
-  // threat display or a lunge burst, attenuated by distance from the viewport centre. The audio
-  // manager rate-limits per animal and globally; nothing here reads back into the sim.
-  voiceCue(c, sheet, display, lunging, p) {
-    let v = this._vox.get(c.id);
-    if (!v) { v = { display: false, lunging: false }; this._vox.set(c.id, v); }
-    const event = lunging && !v.lunging ? 'lunge' : (display && !v.display ? 'threat' : null);
-    const prev = { display: v.display, lunging: v.lunging };
-    v.display = display; v.lunging = lunging;
-    if (!event) return;
-    const W = this.canvas.width, H = this.canvas.height;
-    const sx = p.x * this.cam.zoom + this.cam.x, sy = p.y * this.cam.zoom + this.cam.y;
-    const dist = Math.hypot((sx - W / 2) / (W / 2), (sy - H / 2) / (H / 2));
-    if (dist > 1.25) return; // off-screen animals stay quiet
-    const res = audio.creatureVoice(c, event, { sheet, proximity: Math.max(0, 1 - dist), juvenile: !!c.juvenile });
-    // global spacing / cap: keep the edge pending so a chorus staggers over the next frames
-    if (res === 'limited-global') { v.display = prev.display; v.lunging = prev.lunging; }
-  }
-
   drawCreature(ctx, c) {
     const sp = speciesById(c.speciesId);
     const s = this.state;
@@ -1030,7 +1012,6 @@ export class GameRenderer {
     const cyc = (this.frame + c.id * 17) % LUNGE_CYCLE;
     const lunging = lungeReady && cyc < sheet.lunge.length * lungeCad;
     const display = threat || lungeReady;
-    this.voiceCue(c, sheet, display, lunging, p);
     const life = this.idleLife(c, moving || display, sheet);
     let frames, fi, modeKey;
     if (moving && sheet.walk) {

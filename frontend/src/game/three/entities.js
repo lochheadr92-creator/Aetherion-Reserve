@@ -13,6 +13,7 @@ import { CreatureLayer } from './creatures3d';
 import { PeopleLayer } from './people3d';
 import { PropLayer } from './props3d';
 import { RainSplashes } from './weather3d';
+import { LampLayer } from './lamps3d';
 
 const _p = new THREE.Vector3(), _s = new THREE.Vector3();
 
@@ -31,6 +32,7 @@ export class EntityLayers {
     this.people = new PeopleLayer(this.group, this.kit);
     this.props = new PropLayer(this.group, this.kit, terrain);
     this.rain = new RainSplashes(this.group, terrain, this.buildings, quality);
+    this.lamps = new LampLayer(this.group, this.kit, terrain, this.buildings, quality); // night lighting pass (path lamps + floodlights)
     // soft contact blobs ground living things under the flat iso light (bible 7)
     const blobGeom = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     this.blobs = new Instances(blobGeom, new THREE.MeshBasicMaterial({ map: this.kit.radialTex, color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }), 256, { shadow: false, receive: false, renderOrder: 2 });
@@ -41,7 +43,7 @@ export class EntityLayers {
   }
 
   /** Called after the terrain mesh was rebuilt: everything planted on it must re-fit. */
-  onTerrainRebuilt() { this.vegSig = null; this.buildingsDirty = true; this.props.invalidate(); }
+  onTerrainRebuilt() { this.vegSig = null; this.buildingsDirty = true; this.props.invalidate(); this.lamps.invalidate(); }
 
   vegSignature(veg) {
     let a = 0, b = 0;
@@ -49,7 +51,7 @@ export class EntityLayers {
     return a * 3 + b;
   }
 
-  setQuality(q) { this.quality = q; this.rain.setQuality(q); }
+  setQuality(q) { this.quality = q; this.rain.setQuality(q); this.lamps.setQuality(q); }
 
   sync(state, dt, light, view = null) {
     const s = state;
@@ -71,6 +73,7 @@ export class EntityLayers {
     this.people.sync(s, dt, this.heightAt);
     this.props.sync(s, dt, light);
     this.rain.sync(s, dt, light, view);
+    this.lamps.sync(s, dt, light, view);
     // contact blobs
     this.blobs.begin();
     for (const rig of this.creatures.rigs.values()) {
@@ -83,7 +86,7 @@ export class EntityLayers {
   }
 
   dispose() {
-    this.flora.dispose(); this.fences.dispose(); this.buildings.dispose(); this.creatures.dispose(); this.people.dispose(); this.props.dispose(); this.rain.dispose();
+    this.flora.dispose(); this.fences.dispose(); this.buildings.dispose(); this.creatures.dispose(); this.people.dispose(); this.props.dispose(); this.rain.dispose(); this.lamps.dispose();
     this.blobs.dispose();
     this.kit.dispose();
     this.scene.remove(this.group);

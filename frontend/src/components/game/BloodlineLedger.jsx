@@ -6,6 +6,7 @@ import { MORPHS } from '@/game/genetics';
 import { useGameTick } from '@/components/game/useGame';
 import { ScreenFrame, useScreenHost } from '@/components/game/ScreenFrame';
 import { PairingPlanner } from '@/components/game/PairingPlanner';
+import { plannerRoster } from '@/game/pairing';
 
 // ---- Bloodline Ledger: family tree + pairing outlook for one organism ----
 // Read-only view over state.lineage (permanent registry) and living creatures.
@@ -247,7 +248,7 @@ function LedgerEmpty() {
   );
 }
 
-export default function BloodlineLedger({ creatureId, onClose, onNavigate }) {
+export default function BloodlineLedger({ creatureId, speciesId, onClose, onNavigate }) {
   useGameTick();
   const s = game.state;
   const c = s?.creatures.find((q) => q.id === creatureId);
@@ -255,7 +256,10 @@ export default function BloodlineLedger({ creatureId, onClose, onNavigate }) {
   const tree = s && creatureId != null ? familyTree(s, creatureId) : null;
   const rows = s && c ? pairingOutlook(s, c) : [];
   if (!s) return null;
-  const sp = tree ? speciesById(tree.me.speciesId) : null;
+  const sp = tree ? speciesById(tree.me.speciesId) : (speciesId ? speciesById(speciesId) : null);
+  // species focus (opened from the Species Database "Plan pairing" shortcut): slot A = first resident
+  const focusSpecies = !tree && speciesId ? speciesId : null;
+  const focusResident = focusSpecies ? plannerRoster(s, focusSpecies)[0] : null;
   const locate = (id) => {
     onClose();
     onNavigate({ kind: 'creature', id });
@@ -271,10 +275,18 @@ export default function BloodlineLedger({ creatureId, onClose, onNavigate }) {
         <span className="text-[var(--text-1)]" data-testid="ledger-title">
           {tree.me.name} <span className="text-[var(--text-3)]">· {sp?.name} · {genLabel(tree.me)}</span>
         </span>
+      ) : focusSpecies ? (
+        <span className="text-[var(--text-1)]" data-testid="ledger-title">
+          Pairing Planner <span className="text-[var(--text-3)]">· {sp?.name}</span>
+        </span>
       ) : null}
       actions={tree ? (
         <div className="mono text-[10px] text-[var(--text-2)]" data-testid="ledger-descendants">
           {tree.descendants.total} descendant{tree.descendants.total === 1 ? '' : 's'} · {tree.descendants.living} in park
+        </div>
+      ) : focusSpecies ? (
+        <div className="mono text-[10px] text-[var(--text-2)]" data-testid="ledger-residents">
+          {plannerRoster(s, focusSpecies).length} in park
         </div>
       ) : null}
       bodyClassName="p-4 space-y-5 drawer:p-3 drawer:space-y-4"
@@ -287,6 +299,8 @@ export default function BloodlineLedger({ creatureId, onClose, onNavigate }) {
           <div className="border-t border-[var(--line)]" />
           <PairingOutlook rows={rows} onLocate={locate} />
         </>
+      ) : focusSpecies ? (
+        <PairingPlanner state={s} subjectId={focusResident ? focusResident.id : null} focusSpeciesId={focusSpecies} />
       ) : (
         <>
           <LedgerEmpty />

@@ -11,7 +11,7 @@ import { ensureLineage } from './lineage';
 import { projectPairing, recommendPartners, bestPairs } from './pairing';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
-import { placeFenceRect, damageFence } from './construction';
+import { placeFenceRect, damageFence, placeBuilding, canPlaceBuilding, demolishBuilding } from './construction';
 import { computeEnclosures, enclosureAt } from './enclosures';
 import { hireStaff, assignStaffEnclosure } from './staff';
 import { BUILDINGS } from './data/buildings';
@@ -76,6 +76,10 @@ class GameController {
         this.state._occDirty = true; this.state._encDirty = true; this.state._terrainDirty = true;
         return b;
       },
+      // the real (validated + paid) construction path, for rule/cost tests
+      placeBuilding: (typeId, x, y) => placeBuilding(this.state, typeId, x, y),
+      canPlaceBuilding: (typeId, x, y) => canPlaceBuilding(this.state, typeId, x, y),
+      demolishBuilding: (id) => demolishBuilding(this.state, id),
       hireStaff: (role) => hireStaff(this.state, role),
       assignStaff: (staffId, encId) => assignStaffEnclosure(this.state, staffId, encId),
       enclosureAt: (x, y) => enclosureAt(this.state, x, y),

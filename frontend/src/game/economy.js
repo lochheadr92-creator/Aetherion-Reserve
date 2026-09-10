@@ -29,6 +29,7 @@ export function dailyRollover(state) {
   // upkeep
   let upkeep = 0;
   for (const b of state.buildings) upkeep += (BUILDINGS[b.type]?.upkeep || 0);
+  upkeep = Math.round(upkeep); // lamps carry fractional power costs; the ledger stays in whole credits
   let fenceMaint = 0;
   for (const key of Object.keys(state.fences)) fenceMaint += FENCES[state.fences[key].tier].cost * 0.005;
   upkeep += Math.round(fenceMaint);

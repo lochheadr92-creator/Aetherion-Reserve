@@ -146,6 +146,31 @@ async def main():
         # the original outlook + tree are still there
         check("7b family tree + pairing outlook still render alongside the planner",
               await page.locator('[data-testid="ledger-tree"]').count() == 1 and await page.locator('[data-testid="ledger-pairing"]').count() == 1)
+
+        # ---- Species Database shortcut: "Plan pairing" opens the ledger focused on the species ----
+        await page.click('[data-testid="dock-species-database-open-button"]')
+        await page.wait_for_selector('[data-testid="species-database-modal"]', timeout=8000)
+        await page.click('[data-testid="species-row-nyxarr"]')
+        await page.wait_for_timeout(300)
+        btn = page.locator('[data-testid="species-plan-pairing-button"]')
+        btn_txt = await btn.inner_text()
+        await btn.click()
+        await page.wait_for_selector('[data-testid="bloodline-ledger"] [data-testid="pairing-planner"]', timeout=8000)
+        await page.wait_for_timeout(300)
+        title = await page.locator('[data-testid="ledger-title"]').inner_text()
+        pa, pb = await proj.get_attribute("data-a"), await proj.get_attribute("data-b")
+        check("9 Species Database 'Plan pairing' opens the ledger focused on the species: A = first resident, B = top recommendation, no dossier needed",
+              "Plan pairing" in btn_txt and "in park" in btn_txt and "Pairing Planner" in title and "Nyxarr" in title
+              and await page.locator('[data-testid="ledger-tree"]').count() == 0 and await page.locator('[data-testid="ledger-residents"]').count() == 1
+              and pa is not None and pb is not None and pa != pb
+              and await page.get_attribute('[data-testid="pairing-planner"]', "data-focus-species") == "nyxarr", f"{btn_txt} | {title} | {pa}x{pb}")
+        await page.click('[data-testid="dock-species-database-open-button"]')
+        await page.wait_for_selector('[data-testid="species-database-modal"]', timeout=8000)
+        await page.click('[data-testid="species-row-skitter"]')
+        await page.wait_for_timeout(300)
+        check("9b species with no residents: button disabled with a hint",
+              await page.locator('[data-testid="species-plan-pairing-button"]').get_attribute("aria-disabled") == "true"
+              and await page.locator('[data-testid="species-plan-pairing-hint"]').count() == 1)
         check("8 no page errors", not errors, errors[:2])
         await browser.close()
     print(f"\n{sum(results)}/{len(results)} checks passed")

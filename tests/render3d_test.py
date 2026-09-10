@@ -165,6 +165,18 @@ async def part_b(pw, results):
     results.append(("B26 night pass: dusk ramps the lamps part-way on (0 < on < 1)", dusk and 0.2 < dusk["night"] < 0.95 and 0.05 < dusk["on"] < 0.98, dusk))
     await page.evaluate("(() => { window.__game.state.tick = Math.floor(1800 * 0.8); })()")
     await await_frames(page, 2)
+    # player lighting: a Path Lamp beside the staged path + a Floodlight Mast beside the lab join the pass
+    placed = await asyncio.wait_for(page.evaluate("""(() => { const g = window.__game, s = g.state, e = s.entrance; const cx = e.x, cy = e.y;
+        const before = { lamps: window.__world3d.entities.lamps.count, floods: window.__world3d.entities.lamps.floods.length };
+        const a = g.dev.placeBuilding('path_lamp', cx + 1, cy - 10);      // grass tile east of the path column
+        const b = g.dev.placeBuilding('floodlight', cx - 6, cy - 3);      // touching the lab's south-west corner
+        const bad = g.dev.canPlaceBuilding('floodlight', cx - 11, cy - 2); // nothing nearby
+        return { before, a: a.ok, b: b.ok, bad: bad.ok, badReason: bad.reason }; })()"""), 120)
+    await await_frames(page, 3)
+    pl = await asyncio.wait_for(page.evaluate("(() => { const L = window.__world3d.entities.lamps; return { count: L.count, floods: L.floods.length, playerLamps: L.playerLamps, playerFloods: L.playerFloods, on: L.on, pole: L.pole.count }; })()"), 60)
+    results.append(("B27 player lighting: placed Path Lamp + Floodlight Mast join the 3D lamp pass (rules enforced)",
+                    placed["a"] and placed["b"] and not placed["bad"] and pl["playerLamps"] == 1 and pl["playerFloods"] == 1
+                    and pl["count"] == placed["before"]["lamps"] + 1 and pl["floods"] == placed["before"]["floods"] + 1 and pl["pole"] == 1 and pl["on"] > 0.95, (placed, pl)))
     # removing a fence run / creature shrinks the 3D layers (state-driven sync); wait for real frames
     shrink = await asyncio.wait_for(page.evaluate("""(() => { const s = window.__game.state; const w = window.__world3d; const ent = w.entities;
         const before = { frame: window.__gameRenderer.frame, posts: ent.fences.post.mesh.count, rigs: ent.creatures.rigs.size };

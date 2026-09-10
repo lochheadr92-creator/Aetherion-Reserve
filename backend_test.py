@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Backend API test for Aetherion Reserve Phase 21"""
+"""Backend API test for Aetherion Reserve Phase V (Phase 21+)"""
 import requests
 import sys
 import json
+import uuid
 
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tests'))
 from config import API as BASE_URL  # noqa: E402  (AETHERION_URL env var, preview fallback)
+
+# Minimal valid JPEG data URL for testing
+IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q=="
 
 class APITester:
     def __init__(self):
         self.tests_run = 0
         self.tests_passed = 0
         self.save_id = None
+        self.photo_ids = []
+        self.player_token = f"test-{uuid.uuid4().hex[:12]}"
 
     def test(self, name, condition, detail=""):
         self.tests_run += 1
@@ -27,8 +33,12 @@ class APITester:
         try:
             return self._run()
         finally:
-            if self.save_id:  # never leave test records behind
+            # Clean up test records
+            if self.save_id:
                 try: requests.delete(f"{BASE_URL}/saves/{self.save_id}", timeout=15)
+                except Exception: pass
+            for photo_id in self.photo_ids:
+                try: requests.delete(f"{BASE_URL}/photos/{photo_id}", headers={"X-Player-Token": self.player_token}, timeout=15)
                 except Exception: pass
 
     def _run(self):
@@ -176,6 +186,129 @@ class APITester:
                 self.test("GET deleted save returns 404", r.status_code == 404, f"status={r.status_code}")
             except Exception as e:
                 self.test("GET deleted save returns 404", False, str(e))
+
+        # ===== Phase V: Photo Album Caption Tests =====
+        print("\n--- Phase V: Photo Album Caption Tests ---")
+        
+        # Test 9: Create a photo
+        try:
+            photo_payload = {
+                "park_name": "Test Park",
+                "mode": "sandbox",
+                "day": 3,
+                "clock": "14:30",
+                "caption": "",
+                "width": 1280,
+                "height": 720,
+                "image": IMG,
+                "thumb": IMG
+            }
+            headers = {"X-Player-Token": self.player_token}
+            r = requests.post(f"{BASE_URL}/photos", json=photo_payload, headers=headers, timeout=20)
+            self.test("POST /photos returns 200", r.status_code == 200, f"status={r.status_code}")
+            if r.status_code == 200:
+                data = r.json()
+                photo_id = data.get("id")
+                if photo_id:
+                    self.photo_ids.append(photo_id)
+                self.test("Created photo has id", photo_id is not None, str(data))
+                self.test("Created photo meta excludes image", "image" not in data, str(data.keys()))
+                self.test("Created photo has thumb", data.get("thumb", "").startswith("data:image/jpeg"), data.get("thumb", "")[:50])
+        except Exception as e:
+            self.test("POST /photos returns 200", False, str(e))
+
+        # Test 10: PATCH caption - basic update
+        if self.photo_ids:
+            photo_id = self.photo_ids[0]
+            try:
+                caption_payload = {"caption": "  Dawn over\nthe   paddock  "}
+                r = requests.patch(f"{BASE_URL}/photos/{photo_id}", json=caption_payload, headers=headers, timeout=20)
+                self.test("PATCH /photos/{id} returns 200", r.status_code == 200, f"status={r.status_code}")
+                if r.status_code == 200:
+                    data = r.json()
+                    caption = data.get("caption", "")
+                    self.test("Caption is cleaned (single line, whitespace collapsed)", caption == "Dawn over the paddock", f"got: '{caption}'")
+                    self.test("PATCH response excludes image", "image" not in data, str(data.keys()))
+            except Exception as e:
+                self.test("PATCH /photos/{id} returns 200", False, str(e))
+
+        # Test 11: PATCH caption - control character stripping
+        if self.photo_ids:
+            photo_id = self.photo_ids[0]
+            try:
+                caption_payload = {"caption": "Test\x07caption\x00with\rcontrol\nchars"}
+                r = requests.patch(f"{BASE_URL}/photos/{photo_id}", json=caption_payload, headers=headers, timeout=20)
+                if r.status_code == 200:
+                    data = r.json()
+                    caption = data.get("caption", "")
+                    has_control = any(ord(c) < 32 and c not in ' \t' for c in caption)
+                    self.test("Caption strips control characters", not has_control and "Test" in caption and "caption" in caption, f"got: '{caption}'")
+            except Exception as e:
+                self.test("Caption strips control characters", False, str(e))
+
+        # Test 12: PATCH caption - length capping (140 chars)
+        if self.photo_ids:
+            photo_id = self.photo_ids[0]
+            try:
+                long_caption = "x" * 200
+                caption_payload = {"caption": long_caption}
+                r = requests.patch(f"{BASE_URL}/photos/{photo_id}", json=caption_payload, headers=headers, timeout=20)
+                if r.status_code == 200:
+                    data = r.json()
+                    caption = data.get("caption", "")
+                    self.test("Caption is capped at 140 chars", len(caption) == 140, f"length={len(caption)}")
+            except Exception as e:
+                self.test("Caption is capped at 140 chars", False, str(e))
+
+        # Test 13: PATCH caption - owner scoping (different token cannot update)
+        if self.photo_ids:
+            photo_id = self.photo_ids[0]
+            try:
+                other_token = f"other-{uuid.uuid4().hex[:12]}"
+                caption_payload = {"caption": "hijack attempt"}
+                r = requests.patch(f"{BASE_URL}/photos/{photo_id}", json=caption_payload, headers={"X-Player-Token": other_token}, timeout=20)
+                self.test("PATCH with different token returns 404", r.status_code == 404, f"status={r.status_code}")
+            except Exception as e:
+                self.test("PATCH with different token returns 404", False, str(e))
+
+        # Test 14: Verify caption persists
+        if self.photo_ids:
+            photo_id = self.photo_ids[0]
+            try:
+                r = requests.get(f"{BASE_URL}/photos/{photo_id}", headers=headers, timeout=20)
+                if r.status_code == 200:
+                    data = r.json()
+                    caption = data.get("caption", "")
+                    self.test("Caption persists on GET", len(caption) == 140 and caption.startswith("x"), f"caption: '{caption[:20]}...'")
+            except Exception as e:
+                self.test("Caption persists on GET", False, str(e))
+
+        # Test 15: GET /photos regression (list returns meta only, no image)
+        try:
+            r = requests.get(f"{BASE_URL}/photos", headers=headers, timeout=20)
+            self.test("GET /photos returns 200", r.status_code == 200, f"status={r.status_code}")
+            if r.status_code == 200:
+                photos = r.json()
+                self.test("GET /photos returns list", isinstance(photos, list), type(photos))
+                if photos:
+                    self.test("Photo list excludes image field", "image" not in photos[0], str(photos[0].keys()))
+                    self.test("Photo list includes thumb", "thumb" in photos[0], str(photos[0].keys()))
+        except Exception as e:
+            self.test("GET /photos returns 200", False, str(e))
+
+        # Test 16: DELETE /photos regression
+        if self.photo_ids:
+            photo_id = self.photo_ids[0]
+            try:
+                r = requests.delete(f"{BASE_URL}/photos/{photo_id}", headers=headers, timeout=20)
+                self.test("DELETE /photos/{id} returns 200", r.status_code == 200, f"status={r.status_code}")
+                if r.status_code == 200:
+                    # Verify deletion
+                    r2 = requests.get(f"{BASE_URL}/photos/{photo_id}", headers=headers, timeout=20)
+                    self.test("Deleted photo returns 404", r2.status_code == 404, f"status={r2.status_code}")
+                    self.photo_ids.remove(photo_id)
+            except Exception as e:
+                self.test("DELETE /photos/{id} returns 200", False, str(e))
 
         print(f"\n📊 Backend Tests: {self.tests_passed}/{self.tests_run} passed")
         return self.tests_passed == self.tests_run

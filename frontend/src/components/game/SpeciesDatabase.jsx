@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Lock, Search, X } from 'lucide-react';
+import { Lock, Search, X, Dna } from 'lucide-react';
 import { game } from '@/game/controller';
 import { useGameTick } from '@/components/game/useGame';
 import { SPECIES_LIST, speciesById } from '@/game/data/species';
@@ -167,7 +167,22 @@ function LockedDetail() {
   );
 }
 
-function SpeciesHeader({ sp, view, owned }) {
+// Shortcut into the Bloodline Ledger's Pairing Planner, pre-focused on this species. Disabled until the
+// park holds at least one resident (there is nothing to pair yet); the title explains why.
+function PlanPairingButton({ sp, owned, onPlanPairing }) {
+  if (!onPlanPairing) return null;
+  const disabled = owned === 0;
+  return (
+    <button type="button" data-testid="species-plan-pairing-button" disabled={disabled} aria-disabled={disabled}
+      onClick={() => onPlanPairing(sp.id)}
+      title={disabled ? `No ${sp.name} lives in the park yet` : `Open the Pairing Planner for ${sp.name}`}
+      className="nl-tool h-7 px-2.5 text-[11px] inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+      <Dna size={12} /> Plan pairing{owned > 0 ? ` · ${owned} in park` : ''}
+    </button>
+  );
+}
+
+function SpeciesHeader({ sp, view, owned, onPlanPairing }) {
   const complete = view.level.pct === 1;
   return (
     <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-4 gap-y-2 drawer:gap-x-3">
@@ -188,6 +203,10 @@ function SpeciesHeader({ sp, view, owned }) {
         <span className={CHIP} style={{ color: sp.danger >= 4 ? 'var(--danger)' : sp.danger >= 3 ? 'var(--warning)' : undefined }}>Danger {sp.danger}/5</span>
         <span className={CHIP}>Appeal {sp.appeal}</span>
         <span className={CHIP}>In park: {owned}</span>
+      </div>
+      <div className="col-span-2 flex items-center gap-2">
+        <PlanPairingButton sp={sp} owned={owned} onPlanPairing={onPlanPairing} />
+        {owned === 0 && onPlanPairing && <span className="text-[10px] text-[var(--text-3)]" data-testid="species-plan-pairing-hint">Recover a specimen to start a breeding line.</span>}
       </div>
     </div>
   );
@@ -257,10 +276,10 @@ function RelationshipsSection({ knowledge }) {
   );
 }
 
-function SpeciesDetail({ sp, view, knownEntries, knowledge, owned }) {
+function SpeciesDetail({ sp, view, knownEntries, knowledge, owned, onPlanPairing }) {
   return (
     <div className="space-y-5 drawer:space-y-4">
-      <SpeciesHeader sp={sp} view={view} owned={owned} />
+      <SpeciesHeader sp={sp} view={view} owned={owned} onPlanPairing={onPlanPairing} />
       <div className="text-[13px] text-[var(--text-2)] italic leading-relaxed border-l-2 border-[var(--line-2)] pl-3 drawer:text-[12px]">{sp.lore}</div>
       <div className="text-[12px] text-[var(--accent-violet)]">Field note: {sp.question}</div>
       <DocumentedBiology view={view} knownEntries={knownEntries} />
@@ -275,7 +294,7 @@ function SpeciesDetail({ sp, view, knownEntries, knowledge, owned }) {
 
 // ---------- screen ----------
 
-export default function SpeciesDatabase({ initialSpecies, onClose }) {
+export default function SpeciesDatabase({ initialSpecies, onClose, onPlanPairing }) {
   useGameTick();
   const compact = useScreenHost() === 'drawer';
   const s = game.state;
@@ -304,7 +323,7 @@ export default function SpeciesDatabase({ initialSpecies, onClose }) {
       <div className="flex-1 min-w-0 min-h-0 overflow-y-auto nl-scroll p-5 drawer:p-3" data-testid="species-detail">
         {!unlocked
           ? <LockedDetail />
-          : <SpeciesDetail sp={sp} view={view} knownEntries={knownEntries} knowledge={knowledge} owned={owned} />}
+          : <SpeciesDetail sp={sp} view={view} knownEntries={knownEntries} knowledge={knowledge} owned={owned} onPlanPairing={onPlanPairing} />}
       </div>
     </ScreenFrame>
   );

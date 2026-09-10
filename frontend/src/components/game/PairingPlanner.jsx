@@ -237,7 +237,7 @@ function BestPairs({ pairs, onPick }) {
   );
 }
 
-export const PairingPlanner = ({ state, subjectId }) => {
+export const PairingPlanner = ({ state, subjectId, focusSpeciesId = null }) => {
   const [aId, setAId] = useState(subjectId ?? null);
   const [bId, setBId] = useState(null);
   useEffect(() => { setAId(subjectId ?? null); setBId(null); }, [subjectId]);
@@ -253,13 +253,13 @@ export const PairingPlanner = ({ state, subjectId }) => {
   const b = creatures.find((c) => c.id === effectiveB) || null;
   const p = a && b ? projectPairing(state, a, b) : null;
   const pairs = a ? bestPairs(state, a.speciesId, 3) : [];
-  const sp = a ? speciesById(a.speciesId) : null;
+  const sp = a ? speciesById(a.speciesId) : (focusSpeciesId ? speciesById(focusSpeciesId) : null);
 
   const swap = useCallback(() => { if (a && b) { setAId(b.id); setBId(a.id); } }, [a, b]);
   const pickPair = useCallback((x, y) => { setAId(x); setBId(y); }, []);
 
   return (
-    <div data-testid="pairing-planner" className="space-y-3">
+    <div data-testid="pairing-planner" className="space-y-3" data-focus-species={focusSpeciesId || undefined}>
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] flex items-center gap-1.5"><Dna size={11} /> PAIRING PLANNER</div>
       <div className="space-y-2">
         <SlotSelect slot="A" value={a?.id ?? null} roster={rosterA} onChange={(id) => { setAId(id); setBId(null); }} placeholder="Choose an organism" />
@@ -274,7 +274,10 @@ export const PairingPlanner = ({ state, subjectId }) => {
 
       {!a && (
         <div className="text-[11px] text-[var(--text-3)] flex items-start gap-1.5" data-testid="pairing-empty">
-          <Info size={12} className="shrink-0 mt-0.5" /> Pick an organism to start planning a pairing.
+          <Info size={12} className="shrink-0 mt-0.5" />
+          {focusSpeciesId
+            ? <span>No {sp?.name || 'organism'} lives in the park yet — recover one through Field Operations to found a line.</span>
+            : <span>Pick an organism to start planning a pairing.</span>}
         </div>
       )}
       {a && !b && (

@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Images, Download, Trash2, ChevronLeft, Camera, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Images, Download, Trash2, ChevronLeft, Camera, RefreshCw, AlertTriangle, Pencil, Check, X } from 'lucide-react';
 import { on } from '@/game/state';
-import { listPhotos, getPhoto, deletePhoto, photoFileName } from '@/game/album';
+import { listPhotos, getPhoto, deletePhoto, updateCaption, stampedPhoto, photoFileName, CAPTION_MAX } from '@/game/album';
 import { ScreenFrame } from '@/components/game/ScreenFrame';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 
 // ---- Photo Album: every photo-mode capture, browsable and re-downloadable (Ops Deck drawer 'album') ----
-// Read-only over the save service's per-player photo collection; deleting is the only write.
+// Read-only over the save service's per-player photo collection apart from captions and deletes.
+// Downloads are stamped: the JPEG gains a bar underneath with park · cycle · caption.
 
 function useAlbum() {
   const [photos, setPhotos] = useState(null); // null = loading
@@ -31,21 +33,88 @@ function Tile({ p, onOpen }) {
         <span className="mono text-[9px] tracking-[0.15em] text-[var(--accent-cyan)]">CYCLE {p.day}</span>
         <span className="mono text-[9px] text-[var(--text-3)]">{p.clock}</span>
       </div>
+      {p.caption && <div className="px-2 pb-1.5 -mt-1 text-[10px] text-[var(--text-2)] truncate" data-testid="album-tile-caption">{p.caption}</div>}
     </button>
   );
 }
 
-function Detail({ meta, onBack, onDeleted }) {
+// Inline caption editor: click the caption (or "Add a caption") to edit; Enter saves, Esc cancels.
+function CaptionEditor({ meta, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(meta.caption || '');
+  const [status, setStatus] = useState('idle'); // idle | saving | saved | failed
+  const inputRef = useRef(null);
+  useEffect(() => { if (!editing) setDraft(meta.caption || ''); }, [meta.caption, editing]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  useEffect(() => {
+    if (status !== 'saved') return undefined;
+    const t = setTimeout(() => setStatus('idle'), 1800);
+    return () => clearTimeout(t);
+  }, [status]);
+  const save = async () => {
+    const text = draft.replace(/\s+/g, ' ').trim();
+    if (text === (meta.caption || '')) { setEditing(false); return; }
+    setStatus('saving');
+    try {
+      const updated = await updateCaption(meta.id, text);
+      onSaved(updated);
+      setStatus('saved'); setEditing(false);
+    } catch (e) { setStatus('failed'); }
+  };
+  const cancel = () => { setDraft(meta.caption || ''); setEditing(false); setStatus('idle'); };
+  if (editing) {
+    return (
+      <div className="space-y-1" data-testid="album-caption-editor">
+        <div className="flex items-center gap-1.5">
+          <Input ref={inputRef} data-testid="album-caption-input" value={draft} maxLength={CAPTION_MAX} placeholder="Caption this photograph…"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); } }}
+            className="h-8 text-[12px] bg-[var(--panel-2)] border-[var(--line)] text-[var(--text-1)] placeholder:text-[var(--text-3)] focus-visible:ring-[var(--focus-ring)] focus-visible:border-[var(--accent-cyan)]" />
+          <button type="button" data-testid="album-caption-save" onClick={save} disabled={status === 'saving'} aria-label="Save caption"
+            className="nl-tool h-8 w-8 flex items-center justify-center !text-[var(--accent-cyan)] disabled:opacity-50"><Check size={13} /></button>
+          <button type="button" data-testid="album-caption-cancel" onClick={cancel} aria-label="Cancel"
+            className="nl-tool h-8 w-8 flex items-center justify-center text-[var(--text-2)]"><X size={13} /></button>
+        </div>
+        <div className="flex items-center justify-between mono text-[9px] text-[var(--text-3)]">
+          <span data-testid="album-caption-status" data-status={status}>{status === 'saving' ? 'Saving…' : status === 'failed' ? 'Could not save — try again' : 'Enter to save · Esc to cancel'}</span>
+          <span>{draft.length}/{CAPTION_MAX}</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 min-w-0" data-testid="album-caption-block">
+      <button type="button" data-testid="album-caption-edit" onClick={() => setEditing(true)} title="Edit caption"
+        className={`min-w-0 flex-1 text-left flex items-center gap-1.5 rounded px-1 -mx-1 py-0.5 hover:bg-[var(--panel-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] ${meta.caption ? 'text-[12px] text-[var(--text-1)]' : 'text-[11px] italic text-[var(--text-3)]'}`}>
+        <span className="truncate" data-testid="album-caption-text">{meta.caption || 'Add a caption…'}</span>
+        <Pencil size={11} className="shrink-0 text-[var(--text-3)]" />
+      </button>
+      {status === 'saved' && <span className="mono text-[9px] text-[var(--success)] shrink-0" data-testid="album-caption-status" data-status="saved">Saved</span>}
+    </div>
+  );
+}
+
+function Detail({ meta, onBack, onDeleted, onMetaChanged }) {
   const [full, setFull] = useState(null);
   const [error, setError] = useState(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [stamped, setStamped] = useState(null); // download-ready JPEG with the caption bar
   useEffect(() => {
     let live = true;
-    setFull(null); setError(null); setConfirm(false);
+    setFull(null); setError(null); setConfirm(false); setStamped(null);
     getPhoto(meta.id).then((p) => live && setFull(p)).catch(() => live && setError('Could not load this photograph'));
     return () => { live = false; };
   }, [meta.id]);
+  // re-stamp whenever the frame or its caption changes
+  const { caption, park_name: parkName, day, clock } = meta;
+  useEffect(() => {
+    if (!full) return undefined;
+    let live = true;
+    setStamped(null);
+    stampedPhoto(full.image, { park_name: parkName, day, clock, caption }).then((url) => live && setStamped(url));
+    return () => { live = false; };
+  }, [full, caption, parkName, day, clock]);
   const remove = async () => {
     if (!confirm) { setConfirm(true); return; }
     setBusy(true);
@@ -63,13 +132,14 @@ function Detail({ meta, onBack, onDeleted }) {
           : error ? <span className="text-[11px] text-[var(--warning)] flex items-center gap-1.5"><AlertTriangle size={12} /> {error}</span>
           : <img src={meta.thumb} alt="" className="w-full h-full object-contain opacity-60" />}
       </div>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         <div className="text-[12px] font-semibold text-[var(--text-1)]" data-testid="album-detail-title">{meta.park_name} · Cycle {meta.day} · {meta.clock}</div>
+        <CaptionEditor meta={meta} onSaved={onMetaChanged} />
         <div className="mono text-[9px] text-[var(--text-3)]">{meta.width}×{meta.height} · {meta.mode} · taken {isNaN(when) ? '' : when.toLocaleString()}</div>
       </div>
       <div className="flex items-center gap-2">
-        <a data-testid="album-download-button" href={full ? full.image : undefined} download={photoFileName(meta)}
-          aria-disabled={!full}
+        <a data-testid="album-download-button" href={full ? (stamped || full.image) : undefined} download={photoFileName(meta)}
+          aria-disabled={!full} data-stamped={stamped ? 'true' : 'false'} title="JPEG with the park · cycle · caption bar stamped underneath"
           className={`nl-tool h-8 px-3 text-[11px] flex items-center gap-1.5 !text-[var(--accent-cyan)] ${full ? '' : 'opacity-50 pointer-events-none'}`}>
           <Download size={12} /> Download JPEG
         </a>
@@ -101,6 +171,7 @@ export default function AlbumScreen({ onClose, onOpenPhoto, initialPhotoId = nul
   const [openId, setOpenId] = useState(initialPhotoId);
   const selected = photos && openId ? photos.find((p) => p.id === openId) : null;
   const onDeleted = (id) => { setPhotos((list) => (list || []).filter((p) => p.id !== id)); setOpenId(null); };
+  const onMetaChanged = (updated) => setPhotos((list) => (list || []).map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
   const openPhoto = onOpenPhoto ? () => { onClose(); onOpenPhoto(); } : null;
 
   return (
@@ -126,7 +197,7 @@ export default function AlbumScreen({ onClose, onOpenPhoto, initialPhotoId = nul
       )}
       {photos && !error && photos.length === 0 && <AlbumEmpty onOpenPhoto={openPhoto} />}
       {photos && !error && photos.length > 0 && (selected
-        ? <Detail meta={selected} onBack={() => setOpenId(null)} onDeleted={onDeleted} />
+        ? <Detail meta={selected} onBack={() => setOpenId(null)} onDeleted={onDeleted} onMetaChanged={onMetaChanged} />
         : (
           <div className="grid grid-cols-2 gap-2" data-testid="album-grid">
             {photos.map((p) => <Tile key={p.id} p={p} onOpen={(x) => setOpenId(x.id)} />)}

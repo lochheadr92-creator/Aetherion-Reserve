@@ -27,15 +27,15 @@ const firstRun = () => !localStorage.getItem('aetherion_tutorial_done');
 // The Ops Deck hosts every management screen as a native drawer panel (ScreenFrame reads the drawer
 // host from context). The Bloodline Ledger is a contextual drawer (no dock button) opened from an
 // organism dossier. The legacy full-screen modal HUD was retired.
-function DeckScreen({ id, params, dbSpecies, onClose, onBuy, onClaimSpecimen, onNavigate, onOpenPhoto }) {
+function DeckScreen({ id, params, dbSpecies, onClose, onBuy, onClaimSpecimen, onNavigate, onOpenPhoto, onPlanPairing }) {
   switch (id) {
     case 'album': return <AlbumScreen onClose={onClose} onOpenPhoto={onOpenPhoto} initialPhotoId={params?.photoId} />;
-    case 'db': return <SpeciesDatabase initialSpecies={dbSpecies} onClose={onClose} />;
+    case 'db': return <SpeciesDatabase initialSpecies={dbSpecies} onClose={onClose} onPlanPairing={onPlanPairing} />;
     case 'research': return <ResearchScreen onClose={onClose} />;
     case 'finances': return <FinanceScreen onClose={onClose} />;
     case 'fieldops': return <AcquisitionScreen onClose={onClose} onBuy={onBuy} onClaimSpecimen={onClaimSpecimen} />;
     case 'staff': return <StaffScreen onClose={onClose} />;
-    case 'ledger': return <BloodlineLedger creatureId={params?.creatureId} onClose={onClose} onNavigate={onNavigate} />;
+    case 'ledger': return <BloodlineLedger creatureId={params?.creatureId} speciesId={params?.speciesId} onClose={onClose} onNavigate={onNavigate} />;
     default: return null;
   }
 }
@@ -69,6 +69,8 @@ export default function GameScreen({ onExit }) {
   const deckClaim = useCallback((expeditionId, specimen) => { closeDrawer(); claimSpecimen(expeditionId, specimen); }, [closeDrawer, claimSpecimen]);
   // organism dossier → Bloodline Ledger as a contextual drawer
   const openLedger = useCallback((creatureId) => openDrawer('ledger', { toggle: false, params: { creatureId } }), [openDrawer]);
+  // Species Database "Plan pairing" shortcut → ledger drawer focused on that species (no dossier needed)
+  const openPlanner = useCallback((speciesId) => openDrawer('ledger', { toggle: false, params: { speciesId } }), [openDrawer]);
 
   return (
     <div className="relative w-full h-full" data-testid="game-screen">
@@ -106,7 +108,7 @@ export default function GameScreen({ onExit }) {
         <>
           <OpsDock active={drawer} onOpen={openDrawer} />
           <Drawer id={drawer} onClose={closeDeck}>
-            <DeckScreen id={drawer} params={drawerParams} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} onNavigate={ui.navigateTo} onOpenPhoto={openPhoto} />
+            <DeckScreen id={drawer} params={drawerParams} dbSpecies={ui.dbSpecies} onClose={closeDeck} onBuy={deckBuy} onClaimSpecimen={deckClaim} onNavigate={ui.navigateTo} onOpenPhoto={openPhoto} onPlanPairing={openPlanner} />
           </Drawer>
         </>
       )}

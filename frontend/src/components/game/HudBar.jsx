@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera, Volume2, VolumeX, MoveHorizontal, Radio, Hash } from 'lucide-react';
+import { Pause, Play, Bell, Database, FlaskConical, Coins, Rocket, Save, DoorOpen, Users, Star, Sun, Moon, Sunset, Cloud, CloudRain, HelpCircle, UserCog, Camera, Volume2, VolumeX, MoveHorizontal, Radio, Hash, Captions, CaptionsOff } from 'lucide-react';
 import { game } from '@/game/controller';
 import { audio } from '@/game/audio';
 import { isEdgeScrollEnabled, setEdgeScrollEnabled } from '@/game/input';
@@ -178,7 +178,7 @@ function AlertsBell({ s, onNavigate }) {
 }
 
 // ---------- settings popover: ambient audio (mute + volume) and camera controls ----------
-function AudioPopover({ enabled, volume, onToggle, onVolume, edgeScroll, onEdgeScroll }) {
+function AudioPopover({ enabled, volume, onToggle, onVolume, edgeScroll, onEdgeScroll, subtitles, onSubtitles }) {
   return (
     <div className="absolute right-0 top-11 w-[260px] nl-panel z-50 p-3 space-y-3" data-testid="audio-popover">
       <div className="flex items-center justify-between">
@@ -195,8 +195,21 @@ function AudioPopover({ enabled, volume, onToggle, onVolume, edgeScroll, onEdgeS
         <span className="mono text-[10px] text-[var(--text-2)] w-8 text-right" data-testid="audio-volume-value">{Math.round(volume * 100)}%</span>
       </div>
       <p className="text-[10px] text-[var(--text-3)] leading-snug">
-        Wind follows the weather, glowing exhibits hum after dark, agitated creatures snarl and bellow, and alerts carry a short stinger. Synthesised live — no downloads.
+        Wind follows the weather, glowing exhibits hum after dark, creatures call out when idle, alarmed or feeding, and alerts carry a short stinger. Synthesised live — no downloads.
       </p>
+      <div className="pt-2 border-t border-[var(--line)] space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">CREATURE CALLS</span>
+          <button data-testid="subtitles-toggle" onClick={onSubtitles} data-active={subtitles ? 'true' : 'false'}
+            className="nl-tool h-7 px-2 mono text-[10px] flex items-center gap-1">
+            {subtitles ? <Captions size={12} /> : <CaptionsOff size={12} />}
+            {subtitles ? 'SUBTITLES ON' : 'SUBTITLES OFF'}
+          </button>
+        </div>
+        <p className="text-[10px] text-[var(--text-3)] leading-snug">
+          A small caption ("Karrgan growls") fades in beside the caller so you can spot who made the sound — even while muted.
+        </p>
+      </div>
       <div className="pt-2 border-t border-[var(--line)] space-y-2">
         <div className="flex items-center justify-between">
           <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)]">CAMERA</span>
@@ -219,6 +232,12 @@ function AudioControl() {
   const [enabled, setEnabled] = useState(audio.enabled);
   const [volume, setVolume] = useState(audio.volume);
   const [edgeScroll, setEdgeScroll] = useState(isEdgeScrollEnabled());
+  const [subtitles, setSubtitles] = useState(audio.subtitles);
+  const toggleSubtitles = useCallback(() => {
+    const next = !audio.subtitles;
+    audio.setSubtitles(next);
+    setSubtitles(next);
+  }, [setSubtitles]);
   const toggleOpen = useCallback(() => setOpen((o) => !o), [setOpen]);
   const toggleMute = useCallback(() => {
     const next = !audio.enabled;
@@ -242,7 +261,7 @@ function AudioControl() {
       </button>
       {open && (
         <AudioPopover enabled={enabled} volume={volume} onToggle={toggleMute} onVolume={changeVolume}
-          edgeScroll={edgeScroll} onEdgeScroll={toggleEdge} />
+          edgeScroll={edgeScroll} onEdgeScroll={toggleEdge} subtitles={subtitles} onSubtitles={toggleSubtitles} />
       )}
     </div>
   );

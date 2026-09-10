@@ -122,6 +122,9 @@ function station(k, b, def, y, cx, cz, w, h, trim, light) {
 }
 
 const COMPOSERS = {
+  // player lighting: only a concrete foot here — the post, head, bulb and pools are instanced by LampLayer
+  path_lamp(k, b, def, y, cx, cz) { k.box('concrete', cx, y, cz, 0.34, 0.06, 0.34, { color: CONCRETE }); },
+  floodlight(k, b, def, y, cx, cz) { k.box('concrete', cx, y, cz, 0.5, 0.08, 0.5, { color: CONCRETE }); },
   admin(k, b, def, y, cx, cz, w, h, trim, light) {
     k.box('concrete', cx, y, cz, 2.7, 1.1, 2.7, { color: CONCRETE });
     k.box('steel', cx, y + 1.1, cz, 2.78, 0.08, 2.78, { color: trim });

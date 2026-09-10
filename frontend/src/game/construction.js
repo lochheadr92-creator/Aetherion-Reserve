@@ -34,7 +34,30 @@ export function canPlaceBuilding(state, typeId, x, y) {
     if (!adj) return { ok: false, reason: 'Must be adjacent to a path' };
   }
   if (def.needsPower && !isPowered(state, x, y)) return { ok: false, reason: 'Requires Power Relay coverage' };
+  if (def.needsBuilding && !adjacentBuilding(state, x, y, def.w, def.h)) return { ok: false, reason: 'Must stand next to a building' };
   return { ok: true };
+}
+
+// Any real building (lamps themselves do not count) touching the footprint's 8-neighbourhood.
+export function adjacentBuilding(state, x, y, w = 1, h = 1) {
+  return state.buildings.some((b) => {
+    if (BUILDINGS[b.type]?.lamp) return false;
+    const bw = b.w || 1, bh = b.h || 1;
+    return b.x <= x + w && b.x + bw >= x && b.y <= y + h && b.y + bh >= y;
+  });
+}
+
+// The building a floodlight faces: nearest non-lamp building centre (for aiming its throw).
+export function lampTarget(state, lamp) {
+  let best = null, bd = Infinity;
+  for (const b of state.buildings) {
+    if (BUILDINGS[b.type]?.lamp) continue;
+    const bw = b.w || 1, bh = b.h || 1;
+    const cx = b.x + bw / 2, cy = b.y + bh / 2;
+    const d = Math.hypot(cx - (lamp.x + 0.5), cy - (lamp.y + 0.5));
+    if (d < bd) { bd = d; best = { x: cx, y: cy, b }; }
+  }
+  return best;
 }
 
 export function placeBuilding(state, typeId, x, y) {

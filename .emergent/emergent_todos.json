@@ -1,10 +1,18 @@
 [
   {
-    "content": "Run testing agent on Album + Pairing Planner + Vocals + Lighting",
+    "content": "Run testing_agent_v3 sweep for Phase V (frontend + backend)",
     "status": "completed"
   },
   {
-    "content": "Fix any issues from testing agent, re-verify",
+    "content": "Read test report and fix any regressions found (ALARM 1 + SUB 3 test flakes hardened)",
+    "status": "completed"
+  },
+  {
+    "content": "Re-run local regression suites after fixes",
+    "status": "completed"
+  },
+  {
+    "content": "Mark Phase V COMPLETED in plan.md and finish",
     "status": "completed"
   }
 ]

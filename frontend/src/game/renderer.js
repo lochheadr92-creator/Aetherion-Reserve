@@ -8,7 +8,7 @@ import { getDayPhase } from './weather';
 import { SPRITE_SCALE, hexRgb } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
 import { juvenileStage } from './art/juvenile';
-import { vocals } from './vocals';
+import { vocals, CAPTION_MS } from './vocals';
 import { contactShadow, groundAO } from './art/rig';
 import { ART_V2 } from './art/flags';
 import { getBuildingSprite } from './art/buildings';
@@ -335,9 +335,49 @@ export class GameRenderer {
     this.drawTransport(ctx);
     this.fx.drawParticles(ctx);
     this.drawTensionMarkers(ctx);
+    this.drawVocalCaptions(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawAtmosphere(ctx, W, H);
+  }
+
+  // ---- creature-call subtitles: a small fading chip above the caller ("Karrgan growls") ----
+  // Fed by the vocal scheduler (render layer), drawn in world px so it tracks the animal in both renderers.
+  drawVocalCaptions(ctx) {
+    const s = this.state;
+    const live = vocals.liveCaptions();
+    if (!live.length) return;
+    const now = Date.now();
+    ctx.save();
+    ctx.font = '600 9px "Space Grotesk", "Segoe UI", sans-serif';
+    ctx.textBaseline = 'middle';
+    for (const k of live) {
+      const c = s.creatures.find((q) => q.id === k.id);
+      if (!c) continue;
+      const age = now - k.t, life = age / CAPTION_MS;
+      if (life >= 1) continue;
+      const alpha = life < 0.62 ? 1 : 1 - (life - 0.62) / 0.38;   // hold, then fade out
+      const rise = 6 * life;                                        // drifts upward as it fades
+      const ti = idx(Math.floor(c.x), Math.floor(c.y));
+      const p = worldPx(c.x, c.y, s.heights[ti] || 0);
+      const sheet = getCreatureSheet(c.speciesId, juvenileStage(c));
+      const top = (sheet?.bounds ? sheet.bounds.h : sheet?.h || 28) * (c.juvenile ? 0.6 : 1);
+      const y = p.y - top - 14 - rise;
+      const tw = ctx.measureText(k.text).width;
+      const x0 = p.x - tw / 2 - 6, w = tw + 12, h = 14;
+      const alarmed = k.event === 'threat' || k.event === 'lunge';
+      ctx.globalAlpha = 0.92 * alpha;
+      ctx.fillStyle = 'rgba(6,10,16,0.86)';
+      ctx.beginPath(); ctx.roundRect(x0, y - h / 2, w, h, 3); ctx.fill();
+      ctx.strokeStyle = alarmed ? 'rgba(255,77,109,0.7)' : 'rgba(45,226,230,0.45)';
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
+      // tiny stem toward the animal
+      ctx.beginPath(); ctx.moveTo(p.x - 2, y + h / 2); ctx.lineTo(p.x, y + h / 2 + 3); ctx.lineTo(p.x + 2, y + h / 2); ctx.fillStyle = 'rgba(6,10,16,0.86)'; ctx.fill();
+      ctx.fillStyle = alarmed ? '#FFB3C1' : '#E6EDF5';
+      ctx.fillText(k.text, x0 + 6, y);
+    }
+    ctx.restore();
   }
 
   // ---------- cinematic 3D branch: WebGL world underneath, gameplay overlays on this canvas ----------
@@ -356,6 +396,7 @@ export class GameRenderer {
     this.drawEventBeacons(ctx);
     this.fx.drawParticles(ctx);
     this.drawTensionMarkers(ctx);
+    this.drawVocalCaptions(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawRain(ctx, W, H);
@@ -591,6 +632,48 @@ export class GameRenderer {
     }
   }
 
+  // Player lamps after dark (classic renderer): additive ground pools + bulb halos drawn OVER the night
+  // grade so they punch through it; `k` ramps them in through dusk. The 3D world lights its own lamps.
+  drawLampLight(ctx, k) {
+    const s = this.state;
+    let any = false;
+    for (const b of s.buildings) if (BUILDINGS[b.type]?.lamp) { any = true; break; }
+    if (!any) return;
+    ctx.save();
+    ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x + this.fx.offset.x, this.cam.y + this.fx.offset.y);
+    ctx.globalCompositeOperation = 'lighter';
+    const S = SPRITE_SCALE;
+    for (const b of s.buildings) {
+      const lamp = BUILDINGS[b.type]?.lamp;
+      if (!lamp) continue;
+      const h = s.heights[idx(b.x, b.y)] || 0;
+      const pc = worldPx(b.x + 0.5, b.y + 0.5, h);
+      const warm = lamp === 'path';
+      const rgb = warm ? '255,179,71' : '221,243,255';
+      const rx = warm ? 40 : 60, ry = warm ? 20 : 28;
+      // ground pool
+      const grad = ctx.createRadialGradient(pc.x, pc.y, 2, pc.x, pc.y, rx);
+      grad.addColorStop(0, `rgba(${rgb},${0.26 * k})`);
+      grad.addColorStop(0.6, `rgba(${rgb},${0.09 * k})`);
+      grad.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.save();
+      ctx.translate(pc.x, pc.y); ctx.scale(1, ry / rx); ctx.translate(-pc.x, -pc.y);
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(pc.x, pc.y, rx, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      // bulb halo at head height (sprite art px * device scale)
+      const headY = pc.y - (warm ? 24 : 35) * S;
+      const halo = ctx.createRadialGradient(pc.x, headY, 1, pc.x, headY, warm ? 14 : 18);
+      halo.addColorStop(0, `rgba(${rgb},${0.9 * k})`);
+      halo.addColorStop(0.35, `rgba(${rgb},${0.35 * k})`);
+      halo.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(pc.x, headY, warm ? 14 : 18, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
   // day-night grade, rain and lightning — screen-space, drawn last
   drawAtmosphere(ctx, W, H) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -603,6 +686,7 @@ export class GameRenderer {
       vg.addColorStop(1, 'rgba(2,4,14,0.38)');
       ctx.fillStyle = vg;
       ctx.fillRect(0, 0, W, H);
+      this.drawLampLight(ctx, 1);
     } else if (this._phase === 'dusk') {
       // warm horizon gradient falling to cool shadow
       const gr = ctx.createLinearGradient(0, 0, 0, H);
@@ -611,6 +695,7 @@ export class GameRenderer {
       gr.addColorStop(1, 'rgba(96,46,30,0.14)');
       ctx.fillStyle = gr;
       ctx.fillRect(0, 0, W, H);
+      this.drawLampLight(ctx, 0.55);
     }
     if (this._overcast) {
       ctx.fillStyle = 'rgba(14, 20, 30, 0.18)';
@@ -929,8 +1014,10 @@ export class GameRenderer {
     const h = s.heights[idx(b.x, b.y)] || 0;
     const spr = getBuildingSprite(b.type, b.w, b.h);
     const p00 = worldPx(b.x, b.y, h);
-    // slow ambient frame (status lights / pulses)
-    const fi = Math.floor(this.frame / 42 + (b.id % 2)) % spr.frames.length;
+    const lamp = BUILDINGS[b.type]?.lamp;
+    // slow ambient frame (status lights / pulses); player lamps pick lit/unlit from the day phase instead
+    const lit = lamp && this._phase !== 'day';
+    const fi = lamp ? (lit ? 1 : 0) : Math.floor(this.frame / 42 + (b.id % 2)) % spr.frames.length;
     const S = SPRITE_SCALE;
     ctx.save();
     // grounding cast shadow toward lower-right
@@ -944,7 +1031,8 @@ export class GameRenderer {
     }
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
-    ctx.ellipse(pc.x + 4, pc.y + 2, (b.w + b.h) * 15, (b.w + b.h) * 7, 0, 0, Math.PI * 2);
+    if (lamp) ctx.ellipse(pc.x + 3, pc.y + 1, 9, 4, 0, 0, Math.PI * 2);
+    else ctx.ellipse(pc.x + 4, pc.y + 2, (b.w + b.h) * 15, (b.w + b.h) * 7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(spr.frames[fi], p00.x - spr.ox * S, p00.y - spr.oy * S, spr.W * S, spr.H * S);

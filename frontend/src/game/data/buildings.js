@@ -230,6 +230,20 @@ export const BUILDINGS = {
     color: '#1e2418', light: '#F2C14E', desc: 'High-speed park rail. Moves crowds fast across large parks. Requires power.',
     transport: 'rail', fee: 15, needsPath: true, needsPower: true,
   },
+
+  // ---- Lighting (cat: lighting) — player-placed lamps. Cosmetic + a small running power cost; they
+  // join the automatic dusk switch-on in both renderers. ----
+  path_lamp: {
+    id: 'path_lamp', name: 'Path Lamp', cat: 'lighting', w: 1, h: 1, cost: 40, upkeep: 0.5,
+    color: '#2a2418', light: '#FFB347', desc: 'A warm lamp post beside a walkway. Switches on at dusk, off at dawn. Draws ◈0.5/cycle of mains power.',
+    needsPath: true, lamp: 'path',
+  },
+  floodlight: {
+    id: 'floodlight', name: 'Floodlight Mast', cat: 'lighting', w: 1, h: 1, cost: 120, upkeep: 2,
+    color: '#20262e', light: '#DDF3FF', desc: 'A cool floodlight mast that washes the neighbouring building in light after dark. Must stand next to a building. Draws ◈2/cycle of power.',
+    needsBuilding: true, lamp: 'flood',
+  },
 };
 
 export const BUILDING_LIST = Object.values(BUILDINGS);
+export const LAMP_TYPES = new Set(['path_lamp', 'floodlight']);

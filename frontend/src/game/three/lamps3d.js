@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { MAP_SIZE } from '../constants';
 import { idx, inMap } from '../state';
 import { BUILDINGS } from '../data/buildings';
+import { lampTarget } from '../construction';
 import { Instances, hash, radialTexture } from './materials';
 import { buildingBaseY } from './buildings3d';
 
@@ -43,7 +44,26 @@ export function pathLampSpots(state) {
     spots.push({ x: x + 0.5 + ox * 0.36, z: y + 0.5 + oz * 0.36, key: i });
   }
   if (spots.length > LAMP_MAX) { const step = Math.ceil(spots.length / LAMP_MAX); return spots.filter((_, k) => k % step === 0); }
+  // player-placed Path Lamps stand at their tile centre (never thinned)
+  for (const b of state.buildings) if (BUILDINGS[b.type]?.lamp === 'path') spots.push({ x: b.x + 0.5, z: b.y + 0.5, key: `b${b.id}`, player: true });
   return spots;
+}
+
+// Player-placed Floodlight Masts: a free-standing pole aimed at the nearest building.
+export const FLOOD_MAST_H = 1.9;
+export function playerFloodSpots(state, heightAt) {
+  const out = [];
+  for (const b of state.buildings) {
+    if (BUILDINGS[b.type]?.lamp !== 'flood') continue;
+    const x = b.x + 0.5, z = b.y + 0.5;
+    const y = heightAt(x, z);
+    const t = lampTarget(state, b);
+    let dx = 1, dz = 1;
+    if (t) { dx = t.x - x; dz = t.y - z; }
+    const n = Math.hypot(dx, dz) || 1;
+    out.push({ x, z, top: y + FLOOD_MAST_H, dx: dx / n, dz: dz / n, id: b.id, key: `m${b.id}`, mast: true, base: y });
+  }
+  return out;
 }
 
 // Floodlights sit on the camera-facing (+x) roof corners and throw an oval pool outward from the corner.
@@ -90,6 +110,8 @@ export class LampLayer {
     this.floodHead = add(new Instances(new THREE.BoxGeometry(0.17, 0.1, 0.13), this.steel, 32, { shadow: false }));
     this.lens = add(new Instances(new THREE.BoxGeometry(0.15, 0.085, 0.02), this.lensMat, 32, { shadow: false, receive: false }));
     this.floodPool = add(new Instances(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), this.floodPoolMat, 32, { shadow: false, receive: false, renderOrder: 3 }));
+    // free-standing masts for player floodlights (roof floods reuse the short mast above)
+    this.pole = add(new Instances(new THREE.CylinderGeometry(0.03, 0.045, FLOOD_MAST_H, 8).translate(0, FLOOD_MAST_H / 2, 0), this.steel, 32, { shadow: true }));
     // real lights (pooled)
     this.lights = [];
     this.setQuality(quality);
@@ -137,10 +159,13 @@ export class LampLayer {
   _rebuild(state) {
     const heightAt = (x, z) => this.terrain.heightAt(x, z);
     this.spots = pathLampSpots(state).map((s) => ({ ...s, y: heightAt(s.x, s.z) }));
-    this.floods = floodSpots(state, heightAt, (x, z, fb) => this.roofHeightAt(x, z, fb)).map((f) => {
-      const px = f.x + f.dx * 1.15, pz = f.z + f.dz * 1.15;
+    this.floods = [...floodSpots(state, heightAt, (x, z, fb) => this.roofHeightAt(x, z, fb)), ...playerFloodSpots(state, heightAt)].map((f) => {
+      const reach = f.mast ? 1.6 : 1.15;
+      const px = f.x + f.dx * reach, pz = f.z + f.dz * reach;
       return { ...f, py: heightAt(px, pz), px, pz };
     });
+    this.playerLamps = this.spots.filter((s) => s.player).length;
+    this.playerFloods = this.floods.filter((f) => f.mast).length;
     this.count = this.spots.length;
     // static instance transforms (pool / bulb intensities animate through their shared materials)
     this.post.begin(); this.head.begin(); this.bulb.begin(); this.pool.begin();
@@ -152,10 +177,11 @@ export class LampLayer {
       this.pool.push(_p.set(s.x, s.y + 0.02, s.z), _s.set(1, 1, 1), null, rot);
     }
     this.post.end(); this.head.end(); this.bulb.end(); this.pool.end();
-    this.mast.begin(); this.floodHead.begin(); this.lens.begin(); this.floodPool.begin();
+    this.mast.begin(); this.floodHead.begin(); this.lens.begin(); this.floodPool.begin(); this.pole.begin();
     for (const f of this.floods) {
       const yaw = Math.atan2(f.dx, f.dz);
-      this.mast.push(_p.set(f.x, f.top, f.z), _s.set(1, 1, 1), null, yaw);
+      if (f.mast) this.pole.push(_p.set(f.x, f.base, f.z), _s.set(1, 1, 1), null, yaw);
+      else this.mast.push(_p.set(f.x, f.top, f.z), _s.set(1, 1, 1), null, yaw);
       // head tilted down ~38deg toward the pool, lens on its front face
       _q.setFromEuler(_e.set(0.66, yaw, 0, 'YXZ'));
       _m.compose(_p.set(f.x, f.top + 0.36, f.z), _q, _s.set(1, 1, 1));
@@ -164,9 +190,9 @@ export class LampLayer {
       _m.compose(_p.set(fx, f.top + 0.325, fz), _q, _s);
       this.lens.pushMatrix(_m, null);
       // oval pool: long axis along the throw direction (local +x -> (dx, dz) after a Y rotation of atan2(-dz, dx))
-      this.floodPool.push(_p.set(f.px, f.py + 0.02, f.pz), _s.set(2.6, 1, 1.7), null, Math.atan2(-f.dz, f.dx));
+      this.floodPool.push(_p.set(f.px, f.py + 0.02, f.pz), _s.set(f.mast ? 3.2 : 2.6, 1, f.mast ? 2.1 : 1.7), null, Math.atan2(-f.dz, f.dx));
     }
-    this.mast.end(); this.floodHead.end(); this.lens.end(); this.floodPool.end();
+    this.mast.end(); this.floodHead.end(); this.lens.end(); this.floodPool.end(); this.pole.end();
   }
 
   sync(state, dt, light, view = null) {
@@ -202,7 +228,7 @@ export class LampLayer {
   }
 
   dispose() {
-    for (const inst of [this.post, this.head, this.bulb, this.pool, this.mast, this.floodHead, this.lens, this.floodPool]) inst.dispose();
+    for (const inst of [this.post, this.head, this.bulb, this.pool, this.mast, this.floodHead, this.lens, this.floodPool, this.pole]) inst.dispose();
     for (const l of this.lights) { this.group.remove(l); l.dispose(); }
     this.lights.length = 0;
     this.bulbMat.dispose(); this.lensMat.dispose(); this.poolMat.dispose(); this.floodPoolMat.dispose(); this.poolTex.dispose();

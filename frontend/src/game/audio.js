@@ -13,6 +13,7 @@ const LS_VOLUME = 'aetherion_audio_volume';
 const STINGER_GAP_MS = 380;     // minimum spacing between stingers
 const UPDATE_EVERY = 20;        // frames between ambience re-targeting
 const LOG_MAX = 24;             // one-shot history kept for debugging/tests
+const SUBTITLES_KEY = 'aetherion_subtitles';
 // creature voices (render-layer cues): per-animal spacing, global spacing and a rolling cap
 const VOICE_GAP_MS = 2600;
 const VOICE_ALARM_CUT_MS = 400;  // an alarm may cut through this animal's recent idle/feed call
@@ -69,6 +70,8 @@ export class AudioManager {
     this.enabled = readLS(LS_ENABLED, 'true') !== 'false';
     this.volume = Math.max(0, Math.min(1, parseFloat(readLS(LS_VOLUME, '0.6')) || 0));
     this.log = [];                 // recent one-shots: { kind, t }
+    // creature-call subtitles (render layer reads this; on by default)
+    this.subtitles = readLS(SUBTITLES_KEY, 'true') !== 'false';
     this.voices = { attempted: 0, played: 0, limited: 0, muted: 0, byEvent: {} }; // creature-voice counters (tests/debug)
     this._voiceAt = new Map();     // creature id -> { t: last voice time, event }
     this._voiceTimes = [];         // recent voice times (rolling cap)
@@ -292,6 +295,11 @@ export class AudioManager {
     if (!res) return;
     if (res.ok) this.place();
     else if (res.reason) this.deny();
+  }
+
+  setSubtitles(on) {
+    this.subtitles = !!on;
+    writeLS(SUBTITLES_KEY, this.subtitles ? 'true' : 'false');
   }
 
   // ---------- creature voices ----------

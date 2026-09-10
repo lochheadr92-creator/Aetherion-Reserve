@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { MousePointer2, Hand, Hammer, Undo2, Mountain, ArrowDownToLine, AlignVerticalJustifyCenter, Waves, TreePine, Route, Fence, DoorClosed, Building2, Eraser, Lock } from 'lucide-react';
+import { MousePointer2, Hand, Hammer, Undo2, Mountain, ArrowDownToLine, AlignVerticalJustifyCenter, Waves, TreePine, Route, Fence, DoorClosed, Building2, Eraser, Lock, Lightbulb, LampCeiling } from 'lucide-react';
 import { game } from '@/game/controller';
 import { MATERIALS, VEG, FENCES, COSTS } from '@/game/constants';
 import { BUILDINGS } from '@/game/data/buildings';
@@ -190,12 +190,23 @@ const ATTRACTION_GROUPS = [
 
 function BuildingsSection({ s, cat, is, setTool }) {
   const list = useMemo(
-    () => BUILDING_LIST.filter((b) => (cat === 'habitat' ? b.cat === 'habitat' : !ATTRACTION_CATS.includes(b.cat) && b.cat !== 'habitat')),
+    () => BUILDING_LIST.filter((b) => (cat === 'habitat' ? b.cat === 'habitat' : !ATTRACTION_CATS.includes(b.cat) && b.cat !== 'habitat' && b.cat !== 'lighting')),
     [cat],
   );
+  const lighting = useMemo(() => (cat === 'habitat' ? [] : BUILDING_LIST.filter((b) => b.cat === 'lighting')), [cat]);
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {list.map((b) => <BuildingButton key={b.id} b={b} s={s} is={is} setTool={setTool} />)}
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {list.map((b) => <BuildingButton key={b.id} b={b} s={s} is={is} setTool={setTool} />)}
+      </div>
+      {lighting.length > 0 && (
+        <div data-testid="lighting-group">
+          <div className="mono text-[8px] tracking-[0.2em] text-[var(--text-3)] mb-1">LIGHTING · SWITCHES ON AT DUSK · SMALL POWER COST</div>
+          <div className="flex flex-wrap gap-1.5">
+            {lighting.map((b) => <BuildingButton key={b.id} b={b} s={s} is={is} setTool={setTool} icon={b.lamp === 'flood' ? LampCeiling : Lightbulb} />)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -223,13 +234,13 @@ function AttractionsSection({ s, is, setTool }) {
   );
 }
 
-function BuildingButton({ b, s, is, setTool }) {
+function BuildingButton({ b, s, is, setTool, icon: Icon = Building2 }) {
   const locked = b.locked && !hasResearch(s, b.locked);
   return (
     <ToolButton testId={`building-${b.id}`} disabled={locked} active={is('building', { buildingType: b.id })}
       onClick={() => setTool({ mode: 'building', buildingType: b.id })}
       title={locked ? 'Requires research' : `${b.name} — ◈${b.cost} · upkeep ◈${b.upkeep}/cycle · ${b.desc}`}>
-      <Building2 size={16} style={{ color: b.light }} />
+      <Icon size={16} style={{ color: b.light }} />
       <span className="text-center leading-tight">{b.name}</span>
       <span className="mono text-[var(--text-3)]">{locked ? <Lock size={9} className="inline" /> : `◈${b.cost}`}</span>
     </ToolButton>

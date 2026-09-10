@@ -11,7 +11,8 @@
 // reads sim state + camera only. Idle timing uses wall-clock Math.random — render-only, never the sim RNG.
 import { TILE_W, TILE_H, H_STEP } from './constants';
 import { idx } from './state';
-import { audio } from './audio';
+import { audio, voiceProfile } from './audio';
+import { speciesById } from './data/species';
 
 const LUNGE_CYCLE = 96;                    // render frames between lunge bursts (mirrors renderer.js)
 const IDLE_MIN_MS = 9000, IDLE_MAX_MS = 26000;
@@ -21,6 +22,22 @@ export const CALM_STATES = new Set(['idle', 'resting', 'socialising', 'swimming'
 
 const rand = (lo, hi) => lo + Math.random() * (hi - lo);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// ---- subtitles: a short verb per voice family x cue, shown next to the caller for CAPTION_MS ----
+export const CAPTION_MS = 1600;
+const CAPTION_MAX = 6;
+export const CAPTION_VERBS = {
+  snarl: { idle: 'growls', feed: 'tears at its meal', threat: 'snarls', lunge: 'roars and lunges' },
+  bellow: { idle: 'hums low', feed: 'grazes, rumbling', threat: 'bellows', lunge: 'charges, bellowing' },
+  keen: { idle: 'trills', feed: 'chitters over its food', threat: 'keens sharply', lunge: 'shrieks' },
+  chirp: { idle: 'chirps', feed: 'clicks while feeding', threat: 'chatters a warning', lunge: 'shrills' },
+};
+export function captionText(c, sheet, event) {
+  const prof = voiceProfile(sheet, c.speciesId);
+  const verb = (CAPTION_VERBS[prof.kind] || CAPTION_VERBS.chirp)[event] || 'calls';
+  const sp = speciesById(c.speciesId);
+  return `${sp?.name || c.name} ${verb}`;
+}
 
 // pure: which cue (if any) an organism raises this frame given its previous edge memory
 export function vocalEvent(c, sheet, mem, frame, now) {
@@ -49,9 +66,24 @@ export class VocalScheduler {
     this.stats = { idle: 0, feed: 0, threat: 0, lunge: 0, offscreen: 0 };
     this._state = null;
     this.last = null;          // last cue placed: { id, event, pan, proximity } (tests/debug)
+    this.captions = [];        // live subtitles: { id, text, t, event } (render layer reads + prunes)
   }
 
-  reset() { this.mem.clear(); }
+  reset() { this.mem.clear(); this.captions.length = 0; }
+
+  /** Subtitles still alive at `now` (prunes expired ones in place). */
+  liveCaptions(now = Date.now()) {
+    if (this.captions.length && now - this.captions[0].t > CAPTION_MS) this.captions = this.captions.filter((k) => now - k.t <= CAPTION_MS);
+    return this.captions;
+  }
+
+  _caption(c, sheet, event, now) {
+    if (!audio.subtitles) return;
+    // one caption per animal at a time; newest cue replaces it
+    this.captions = this.captions.filter((k) => k.id !== c.id && now - k.t <= CAPTION_MS);
+    this.captions.push({ id: c.id, text: captionText(c, sheet, event), t: now, event });
+    if (this.captions.length > CAPTION_MAX) this.captions.splice(0, this.captions.length - CAPTION_MAX);
+  }
 
   // screen-space placement of a world position under the current camera
   static place(state, c, cam, W, H, offX, offY) {
@@ -93,6 +125,7 @@ export class VocalScheduler {
       if (res === 'limited-self') continue;
       this.stats[event]++;
       this.last = { id: c.id, event, pan: cue.pan, proximity: cue.proximity, res };
+      this._caption(c, sheet, event, now); // muted players still get the subtitle
     }
   }
 }

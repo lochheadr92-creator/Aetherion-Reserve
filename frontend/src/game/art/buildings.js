@@ -18,6 +18,7 @@ const Z = {
   restaurant: 15, food_court: 14, sky_dining: 32, megastore: 18, merch_stall: 9, hotel: 30,
   rest_area: 6, medical_station: 13, info_center: 12, picnic_area: 5, premium_lounge: 16,
   tram_station: 12, gondola_station: 12, rail_station: 13,
+  path_lamp: 26, floodlight: 36,
 };
 const TOP_PAD = {
   admin: 20, lab: 12, power: 12, security_post: 12, tower: 14, viewing: 10,
@@ -27,6 +28,7 @@ const TOP_PAD = {
   tram_station: 18, gondola_station: 18, rail_station: 18, megastore: 10, evo_museum: 12, relic_gallery: 10,
   restaurant: 8, food_court: 8, medical_station: 8, info_center: 8, premium_lounge: 10, merch_stall: 8,
   keeper_tour: 8, hatchery_view: 8, nursery_view: 10, predator_gallery: 10, glass_tunnel: 8, picnic_area: 8, rest_area: 8,
+  path_lamp: 10, floodlight: 12,
 };
 
 const CONCRETE = '#3b414c';
@@ -736,6 +738,45 @@ DETAIL.picnic_area = groundsDetail(true);
 DETAIL.tram_station = stationDetail;
 DETAIL.gondola_station = stationDetail;
 DETAIL.rail_station = stationDetail;
+
+// ---- player lighting: frame 0 = daylight (unlit), frame 1 = lit (the renderer picks by day phase) ----
+// Path lamp: a slim post on a small concrete foot, a cap head and a warm bulb beneath it.
+DETAIL.path_lamp = (P, g, z, f, def) => {
+  const { pt } = g;
+  const [gx, gy] = pt(0.5, 0.5); // tile centre on the ground
+  const x = Math.round(gx), y = Math.round(gy);
+  P.blob(x, y, 4, 2, tone(CONCRETE, -0.2), { lite: 0.15, dark: 0.3 });
+  P.vl(x, y - z, z, tone(STEEL, -0.1));
+  P.vl(x + 1, y - z + 1, z - 1, tone(STEEL, -0.4));
+  P.hl(x - 3, y - z - 1, 7, tone(DARKMETAL, 0.15)); // cap
+  P.hl(x - 2, y - z - 2, 5, tone(DARKMETAL, 0.3));
+  if (f === 1) {
+    P.glow(x, y - z + 2, def.light, 0.55);
+    P.r(x - 1, y - z + 1, 3, 3, tone(def.light, 0.3));
+  } else {
+    P.r(x - 1, y - z + 1, 3, 3, tone(def.light, -0.55));
+  }
+};
+// Floodlight: a taller braced mast with an angled head; the lens faces the viewer.
+DETAIL.floodlight = (P, g, z, f, def) => {
+  const { pt } = g;
+  const [gx, gy] = pt(0.5, 0.5);
+  const x = Math.round(gx), y = Math.round(gy);
+  P.blob(x, y, 5, 2.5, tone(CONCRETE, -0.25), { lite: 0.15, dark: 0.3 });
+  P.vl(x, y - z, z, tone(STEEL, 0.05));
+  P.vl(x + 1, y - z + 2, z - 2, tone(STEEL, -0.4));
+  P.line(x - 3, y - 2, x, y - 10, tone(STEEL, -0.3)); // braces
+  P.line(x + 4, y - 2, x + 1, y - 10, tone(STEEL, -0.35));
+  // head: angled box + lens
+  P.slab(x - 4, y - z - 4, 9, 5, DARKMETAL);
+  P.hl(x - 4, y - z - 4, 9, tone(DARKMETAL, 0.3));
+  if (f === 1) {
+    P.r(x - 3, y - z, 7, 2, tone(def.light, 0.2));
+    P.glow(x, y - z + 1, def.light, 0.5);
+  } else {
+    P.r(x - 3, y - z, 7, 2, tone(def.light, -0.6));
+  }
+};
 
 // types that keep the boxy massing (everything except shelter + open feeders)
 const BOXY = new Set(['admin', 'lab', 'power', 'security_post', 'tower', 'restroom', 'gift_shop', 'food_stall', 'drink_stall', 'viewing',

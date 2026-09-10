@@ -108,10 +108,14 @@ async def part_a():
         await wait_for(page, "(window.__audio.voices.byEvent.idle || 0) >= 1")
         t_idle = await page.evaluate("Date.now()")
         await page.evaluate("(() => { const c = window.__game.state.creatures[0]; c.speciesId = 'karrgan'; c.escaped = true; c.stress = 0.95; c.path = []; c.state = 'idle'; })()")
-        ok = await wait_for(page, "(window.__audio.voices.byEvent.threat || 0) >= 1", tries=16, ms=100)
+        # either alarm cue counts: a fresh display edge raises 'threat', unless the lunge frame-cycle window is
+        # already open, in which case the scheduler (correctly) voices the 'lunge' burst first. Both are alarms
+        # and both use the 400 ms cut-through window (audio.creatureVoice: alarm = threat || lunge).
+        ok = await wait_for(page, "((window.__audio.voices.byEvent.threat || 0) + (window.__audio.voices.byEvent.lunge || 0)) >= 1", tries=16, ms=100)
         dt = await page.evaluate("Date.now()") - t_idle
         st = await page.evaluate(STATS)
-        check("ALARM 1 a threat display cuts through the same animal's idle call within ~1 s (not the 2.6 s spacing)", ok and dt < 1600 and "voice:snarl:threat" in st["log"], f"dt={dt}ms log={st['log']}")
+        alarmed = any(k in ("voice:snarl:threat", "voice:snarl:lunge") for k in st["log"])
+        check("ALARM 1 an alarm (threat display / lunge) cuts through the same animal's idle call within ~1 s (not the 2.6 s spacing)", ok and dt < 1600 and alarmed, f"dt={dt}ms log={st['log']}")
 
         # ---- per-species signature ----
         prof = await page.evaluate("""(() => { const a = window.__audio, r = window.__gameRenderer; const out = {};
@@ -126,6 +130,44 @@ async def part_a():
 
         after = await page.evaluate("({ tick: window.__game.state.tick, cash: window.__game.state.cash })")
         check("SIM 1 vocals never touch the simulation (paused tick + cash unchanged)", after["tick"] == base["tick"] and after["cash"] == base["cash"], f"{base} -> {after}")
+
+        # ---- subtitles: caption next to the caller, fades, toggle persists ----
+        await page.evaluate("(() => { const c = window.__game.state.creatures[0]; c.speciesId = 'skitter'; c.escaped = false; c.stress = 0; window.__audio.setSubtitles(true); })()")
+        await page.evaluate(RESET)
+        await page.evaluate(CALM, [0, 0, 0])
+        await wait_for(page, "(window.__audio.voices.byEvent.idle || 0) >= 1")
+        caps = await page.evaluate("window.__vocals.liveCaptions().map(k => ({ id: k.id, text: k.text, event: k.event }))")
+        cid = await page.evaluate("window.__game.state.creatures[0].id")
+        check("SUB 1 an idle call raises a subtitle next to the caller ('<Species> chirps')",
+              caps and caps[0]["id"] == cid and caps[0]["event"] == "idle" and caps[0]["text"].endswith(" chirps") and "Skitter" in caps[0]["text"], str(caps))
+        await page.wait_for_timeout(1800)
+        check("SUB 2 the subtitle expires after ~1.6 s", await page.evaluate("window.__vocals.liveCaptions().length") == 0)
+        # alarmed captions carry the alarm verb; muted players still get captions
+        await page.evaluate("window.__audio.setEnabled(false)")
+        await page.evaluate(RESET)
+        await page.evaluate("(() => { const c = window.__game.state.creatures[0]; c.speciesId = 'karrgan'; c.escaped = true; c.stress = 0.95; c.path = []; c.state = 'idle'; const m = window.__vocals.mem.get(c.id); m.display = m.lunging = false; })()")
+        # other animals may raise their own idle captions meanwhile: wait for + check the karrgan's caption specifically
+        await wait_for(page, "window.__vocals.liveCaptions().some(k => k.text.includes('Karrgan'))")
+        caps = await page.evaluate("window.__vocals.liveCaptions().map(k => k.text)")
+        karr = [t for t in caps if "Karrgan" in t]
+        check("SUB 3 alarm cue -> alarm verb; captions still appear while audio is muted", karr and ("snarls" in karr[0] or "lunges" in karr[0]), str(caps))
+        await page.evaluate("window.__audio.setEnabled(true)")
+        # HUD toggle off -> no captions for new cues, persisted
+        await page.click('[data-testid="hud-audio-button"]')
+        await page.wait_for_selector('[data-testid="subtitles-toggle"]', timeout=5000)
+        on_txt = await page.locator('[data-testid="subtitles-toggle"]').inner_text()
+        await page.click('[data-testid="subtitles-toggle"]')
+        off_txt = await page.locator('[data-testid="subtitles-toggle"]').inner_text()
+        stored = await page.evaluate("localStorage.getItem('aetherion_subtitles')")
+        await page.click('[data-testid="hud-audio-button"]')
+        await page.evaluate("window.__vocals.captions.length = 0")
+        await page.evaluate(RESET)
+        await page.evaluate("(() => { const c = window.__game.state.creatures[0]; c.speciesId = 'skitter'; c.escaped = false; c.stress = 0; })()")
+        await page.evaluate(CALM, [0, 0, 0])
+        await wait_for(page, "(window.__audio.voices.byEvent.idle || 0) >= 1")
+        check("SUB 4 HUD toggle turns subtitles off (persisted) and new cues raise no caption",
+              "ON" in on_txt and "OFF" in off_txt and stored == "false" and await page.evaluate("window.__vocals.liveCaptions().length") == 0, (on_txt, off_txt, stored))
+        await page.evaluate("window.__audio.setSubtitles(true)")
         check("A no page errors", not errors, errors[:2])
         await browser.close()
 

@@ -13,9 +13,10 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- **Phase U — Immersion + Meta Tools (Album, Pairing Planner, Vocals, Night Lighting)**
-  - Add player-facing “meta” tools that increase retention and readability **without altering the deterministic sim**.
-  - **Now focus:** stabilization + UX polish + regression (testing agent sweep across all four features).
+- **Phase V — Quality-of-life + Immersion Extensions (Planner Shortcut, Album Captions, Vocal Subtitles, Lamp Placement)** ✅ COMPLETED + ✅ VERIFIED
+  - All four features implemented without compromising deterministic simulation.
+  - Independent testing sweep (`test_reports/iteration_31.json`): backend 36/36, frontend 19/19, zero bugs.
+  - **Next:** await user feedback / new feature picks (see §6 backlog).
 
 ---
 
@@ -62,7 +63,7 @@
 - S4 Species filters: search + family-class + tier chips; locked species never leak.
 
 ### Phase U — Immersion + Meta Tools ✅ IMPLEMENTED + ✅ VERIFIED
-All four new requirements are complete.
+All four original new requirements are complete and independently validated.
 
 #### U1 — Photo Album ✅ COMPLETE + ✅ VERIFIED
 - Backend: `/api/photos` CRUD, owner scoping via `X-Player-Token`, listing returns meta (thumb only), `GET /photos/{id}` returns full image.
@@ -136,7 +137,7 @@ All four new requirements are complete.
 ---
 
 ## 4) Phase U — New User Picks (DONE)
-The user picked 4 new features; all are now complete.
+The user picked 4 features; all are now complete.
 
 ### U1) Photo Album (gallery + persistence) ✅ DONE
 - Captures auto-save and are browsable/downloadable/deletable in a dedicated drawer.
@@ -154,64 +155,110 @@ The user picked 4 new features; all are now complete.
 
 ## 5) Implementation Steps (revised sequence)
 
-### U0) Prep ✅ done
-- Ops Dock supports adding new drawer screens.
+### U0–U5 ✅ complete
+- Phase U is completed and verified (see Status Summary).
 
-### U1) Photo Album ✅ complete
-1. Backend: `photos` CRUD + owner scoping + size limits.
-2. Frontend: PhotoMode saves JPEG+thumb; AlbumScreen in drawer.
-3. Test: `tests/photo_album_test.py`.
-4. Fix: add `album` to `DRAWER_IDS`.
+### V0) Phase V Prep (NEW)
+- Add a small navigation payload mechanism for opening drawers with context.
+  - **New requirement**: Bloodline Ledger currently keys on `creatureId` selection; Phase V requires opening it with a **species focus**.
+  - Introduce `ledgerFocus: { creatureId?: number, speciesId?: string }` or equivalent in the drawer host state.
 
-### U2) Pairing Planner ✅ complete
-1. Create `frontend/src/game/pairing.js` (deterministic projections; no mutation).
-2. Add `PairingPlanner` UI + integrate into Bloodline Ledger.
-3. Expose projection helpers via `window.__gameDebug`.
-4. Add `tests/pairing_planner_test.py`.
-5. Confirm phase21 ledger suite remains green.
+### V1) Planner Shortcut (P0)
+**Goal:** Species Database species cards get a **“Plan pairing”** button.
+- Enabled when **≥ 1 resident** of that species exists in the park.
+- Click action:
+  - Open Bloodline Ledger drawer
+  - Set ledger focus to `{ speciesId }`
+  - Planner prefill:
+    - A = first resident creature id for that species (stable ordering)
+    - B = top recommendation for A
+- Files likely touched:
+  - `frontend/src/components/game/SpeciesDatabase.jsx`
+  - `frontend/src/components/game/Drawer.jsx` / drawer host state
+  - `frontend/src/components/game/BloodlineLedger.jsx` (accept species focus)
+- Tests:
+  - Extend a ledger/species UI test or add `tests/planner_shortcut_test.py`.
 
-### U3) Creature Vocals ✅ complete
-1. Add `game/vocals.js` scheduler and run it from renderer every frame (classic + 3D).
-2. Upgrade `audio.js` for positional calls and new event types (idle/feed/alarm).
-3. Add/extend tests (`creature_vocals_test.py`, keep `creature_voices_test.py` green).
+### V4) Album Captions (P0)
+**Goal:** caption editing + stamped downloads.
+- Backend:
+  - Add `PATCH /api/photos/{photo_id}` with body `{ caption }` (owner-scoped), or equivalent additive update route.
+  - Validate caption length (e.g., 0–120 chars) and sanitize.
+- Frontend:
+  - Album detail view adds inline caption editor (Input + Save; Enter to save; Esc to cancel).
+  - Download action composes a **JPEG with a caption bar** (park name · day/clock · caption) via an offscreen `<canvas>`.
+- Tests:
+  - Extend `tests/photo_album_test.py` to:
+    - set caption, reload album, caption persists
+    - verify downloaded image differs from original (height includes caption bar)
 
-### U4) Night Lighting Pass ✅ complete
-1. Implement `three/lamps3d.js` (instanced lamps + floods + dusk switch + pooled real lights).
-2. Wire into `EntityLayers`.
-3. Extend `tests/render3d_test.py` (lamp assertions; SwiftShader robustness).
+### V2) Vocal Subtitles (P1)
+**Decision:** subtitles **ON by default**, with a toggle.
+- Data flow:
+  - `vocals.js` records recent call events: `{ creatureId, speciesId, kind, event, t }`.
+  - `renderer.js` overlay draws a fading caption near the creature for ~1.6s.
+- Text generation:
+  - Verb table by `voice kind × event` (e.g., snarl: growls/snaps; keen: chirps/keens; bellow: bellows/booms).
+- Toggle:
+  - UI toggle in audio/settings menu.
+  - Stored in `localStorage['aetherion_subtitles']` (default **true**).
+- Tests:
+  - Add `tests/vocal_subtitles_test.py` or extend `tests/creature_vocals_test.py`:
+    - force a cue → caption list non-empty
+    - toggle off → captions not drawn/returned
 
-### U5) Final verification sweep (NOW)
-1. **Automated tests**
-   - `tests/photo_album_test.py`
-   - `tests/pairing_planner_test.py`
-   - `tests/creature_voices_test.py`
-   - `tests/creature_vocals_test.py`
-   - `tests/render3d_test.py`
-   - key smoke/regression: `tests/ops_deck_native_test.py`, `tests/smoke_game.py`, `tests/gamefeel_test.py`
-2. **Testing agent sweep**
-   - Album: dock open, tile browse, detail download/delete
-   - Planner: pick A/B, swap, recommendations, best pairs
-   - Vocals: verify unobtrusive rate limiting + mute/unmute + no UI lag
-   - Night lighting: verify dusk ramp + pools, no flicker artifacts
-3. Fix any regressions found; rerun the suite.
+### V3) Lamp Placement Tool (P1)
+**Goal:** player-placeable lamps with running power cost.
+- UI:
+  - Facilities tab add placeables:
+    - **Path Lamp**: build ~$40, upkeep ~$0.5/day
+    - **Floodlight**: build ~$120, upkeep ~$2/day, must be adjacent to a building
+- Simulation (deterministic, saved additively):
+  - Add `state.lamps[]` (or similar) with `{ id, type, x, y, rot? }`.
+  - Costs:
+    - build cost at placement
+    - daily upkeep included in finances/power cost pass
+- Rendering:
+  - 2D: sprite/icon for lamps and night glow.
+  - 3D: `LampLayer` merges player lamps with auto-placed lamps and uses the same dusk switch.
+- Optional gameplay effect (default):
+  - **Cosmetic + cost only** (no guest comfort bonus unless a clean hook already exists and is requested later).
+- Tests:
+  - placement rules (floodlight adjacency), build cost deducted
+  - upkeep applied at day rollover
+  - save/load preserves lamps
+  - 3D smoke: lamp counts increase and lamps switch on at night
+
+### V5) Final verification sweep (for Phase V) ✅ COMPLETED
+1. **Automated tests** (all run sequentially, in isolation — SwiftShader suites starve each other if run concurrently):
+   - `tests/photo_album_test.py` **15/15** (captions persist; stamped download adds ≥44px caption bar; re-stamps on edit)
+   - `tests/pairing_planner_test.py` **15/15**
+   - `tests/creature_vocals_test.py` **19/19** (incl. subtitles SUB 1–4 + forced-3D Part B)
+   - `tests/render3d_test.py` **31/31** (incl. B23 lamp placement rules: path adjacency, floodlight adjacency rejection, costs, night switch)
+   - `tests/phase_v_test.py` **19/19** (added by testing agent: planner shortcut, subtitles toggle persistence, lighting group, save)
+2. **Testing agent sweep** → `test_reports/iteration_31.json`: backend **36/36**, frontend **19/19**, no bugs.
+3. **Test hardening (no product changes):**
+   - `ALARM 1` accepted only `threat`; when the lunge frame-cycle window is already open the scheduler correctly voices `lunge` first (both are alarms sharing the 400 ms cut-through in `audio.creatureVoice`). Test now accepts either.
+   - `SUB 3` read `caps[0]`, which could be another animal's idle caption. Test now waits for and checks the karrgan caption specifically.
+
+## Phase V — Status: ✅ COMPLETED
 
 ---
 
 ## 6) Next Actions (updated backlog)
-1. **Stabilization & QA (P0)**
-   - Run the testing agent sweep across Album + Pairing Planner + Vocals + Night Lighting.
-   - Address any UX/timing issues, performance spikes, or Playwright flakes.
-2. **Final regression sweep (P0)**
-   - Classic + forced 3D + backend API suites.
-3. **Polish (P1)**
-   - Minor UI spacing/accessibility improvements, help text/tooltips, and performance tuning if needed.
+1. **Phase V** ✅ done and verified.
+2. **Polish (P1)** — candidates for the next user pick:
+   - Small UX refinements (tooltips, keyboard shortcuts, minor layout improvements).
+   - Lamp gameplay hook (optional): guest comfort / safety bonus near lit paths at night.
+   - Album: share/export whole album as a contact sheet.
+   - Subtitles: per-species caption colour or icon glyph.
 
 ---
 
 ## 7) Success Criteria
-- All Phase R/S acceptance criteria remain true.
-- **Album** works end-to-end and respects per-player ownership; automated album suite stays green.
-- **Pairing Planner** projections match existing inbreeding + readiness semantics and remain deterministic/read-only.
-- **Creature vocals** add life without spamming, are 3D-positioned, and remain render-only (no sim mutation).
-- **Night lighting** improves dusk/night readability while maintaining the diorama composition; pooled lights behave by quality tier.
+- All Phase R/S/U acceptance criteria remain true.
+- **Planner Shortcut:** users can open the Pairing Planner from the Species Database without selecting a creature first.
+- **Album Captions:** captions persist server-side and are stamped into downloaded images.
+- **Vocal Subtitles:** captions appear by default, fade cleanly, toggle off/on reliably, and never affect sim determinism.
+- **Lamp Placement Tool:** player lamps are deterministic sim entities with correct build/upkeep costs, save/load stability, and dusk/night switching in 3D.
 - Full automated regression stays green (classic and forced 3D).

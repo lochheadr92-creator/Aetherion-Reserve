@@ -41,6 +41,14 @@ def backend():
     others = requests.get(f"{api}/photos", headers={"X-Player-Token": other}, timeout=20).json()
     foreign = requests.get(f"{api}/photos/{pid}", headers={"X-Player-Token": other}, timeout=20).status_code if pid else 0
     bad = requests.post(f"{api}/photos", json={"image": "javascript:alert(1)", "thumb": "x"}, headers=h, timeout=20).status_code
+    # captions: PATCH is owner-scoped, single-line, control chars stripped, capped at 140
+    cap = requests.patch(f"{api}/photos/{pid}", json={"caption": "  Dawn over\nthe   paddock\u0007 " + "x" * 200}, headers=h, timeout=20)
+    cap_ok = cap.status_code == 200 and cap.json().get("caption", "").startswith("Dawn over the paddock x") and len(cap.json().get("caption", "")) == 140 and "image" not in cap.json()
+    cap_foreign = requests.patch(f"{api}/photos/{pid}", json={"caption": "hijack"}, headers={"X-Player-Token": other}, timeout=20).status_code
+    cap_persisted = requests.get(f"{api}/photos/{pid}", headers=h, timeout=20).json().get("caption", "")
+    check("1b backend: PATCH caption sanitises (single line, no control chars, <=140) and is owner-scoped",
+          cap_ok and cap_foreign == 404 and cap_persisted.startswith("Dawn over the paddock") and "hijack" not in cap_persisted,
+          (cap.status_code, cap_foreign, cap_persisted[:30]))
     dele = requests.delete(f"{api}/photos/{pid}", headers=h, timeout=20).status_code if pid else 0
     gone = requests.get(f"{api}/photos/{pid}", headers=h, timeout=20).status_code if pid else 0
     check("1 backend: create returns meta without image; list has thumb only; get returns image; scoping + validation + delete",
@@ -85,13 +93,47 @@ async def ui():
 
         await tiles.first.click()
         await page.wait_for_selector('[data-testid="album-detail-image"]', timeout=15000)
+        await page.wait_for_selector('[data-testid="album-download-button"][data-stamped="true"]', timeout=15000)
         href = await page.get_attribute('[data-testid="album-download-button"]', "href") or ""
         dl = await page.get_attribute('[data-testid="album-download-button"]', "download") or ""
+        raw_h = await page.evaluate("(() => { const i = document.querySelector('[data-testid=\"album-detail-image\"]'); return i.naturalHeight; })()")
+        stamped_h = await page.evaluate("(src) => new Promise(r => { const i = new Image(); i.onload = () => r(i.naturalHeight); i.onerror = () => r(-1); i.src = src; })", href)
         check("4 tile opens the detail view with the full JPEG and a download link",
               href.startswith("data:image/jpeg") and dl.endswith(".jpg") and "cycle" in dl
               and "Cycle" in await page.locator('[data-testid="album-detail-title"]').inner_text(), dl)
+        check("4c the download is stamped: a caption bar is added under the frame (taller than the stored image)",
+              raw_h > 0 and stamped_h >= raw_h + 44, (raw_h, stamped_h))
+
+        # ---- captions: inline editor, Enter saves, persists, re-stamps the download ----
+        check("8a empty caption shows the 'Add a caption' affordance",
+              "Add a caption" in await page.locator('[data-testid="album-caption-text"]').inner_text())
+        await page.click('[data-testid="album-caption-edit"]')
+        await page.wait_for_selector('[data-testid="album-caption-input"]', timeout=5000)
+        await page.fill('[data-testid="album-caption-input"]', "  Dawn   patrol by the north fence  ")
+        await page.keyboard.press("Enter")
+        await page.wait_for_selector('[data-testid="album-caption-text"]', timeout=8000)
+        await page.wait_for_timeout(300)
+        shown = await page.locator('[data-testid="album-caption-text"]').inner_text()
+        server = requests.get(URL.rstrip('/') + "/api/photos", headers={"X-Player-Token": token}, timeout=20).json()
+        check("8b Enter saves the caption (whitespace collapsed) and it persists server-side",
+              shown == "Dawn patrol by the north fence" and server and server[0]["caption"] == "Dawn patrol by the north fence", (shown, server[0]["caption"] if server else None))
+        await page.wait_for_selector('[data-testid="album-download-button"][data-stamped="true"]', timeout=15000)
+        href2 = await page.get_attribute('[data-testid="album-download-button"]', "href") or ""
+        check("8c the stamped download re-renders with the caption (different JPEG bytes, same bar height)",
+              href2.startswith("data:image/jpeg") and href2 != href
+              and await page.evaluate("(src) => new Promise(r => { const i = new Image(); i.onload = () => r(i.naturalHeight); i.src = src; })", href2) == stamped_h)
+        # Esc cancels an edit without saving
+        await page.click('[data-testid="album-caption-edit"]')
+        await page.fill('[data-testid="album-caption-input"]', "discarded text")
+        await page.keyboard.press("Escape")
+        await page.wait_for_selector('[data-testid="album-caption-text"]', timeout=5000)
+        check("8d Esc cancels the edit and keeps the saved caption; the drawer stays open",
+              await page.locator('[data-testid="album-caption-text"]').inner_text() == "Dawn patrol by the north fence"
+              and await page.locator('[data-testid="album-modal"]').count() == 1)
         await page.click('[data-testid="album-back-button"]')
-        check("4b back returns to the grid", await page.locator('[data-testid="album-grid"]').count() == 1)
+        check("4b back returns to the grid; the tile shows the caption",
+              await page.locator('[data-testid="album-grid"]').count() == 1
+              and await page.locator('[data-testid="album-tile-caption"]').inner_text() == "Dawn patrol by the north fence")
 
         await tiles.first.click()
         await page.wait_for_selector('[data-testid="album-delete-button"]', timeout=5000)

@@ -309,6 +309,34 @@ async def delete_photo(photo_id: str, x_player_token: Optional[str] = Header(Non
     return {"deleted": photo_id}
 
 
+PHOTO_CAPTION_MAX = 140
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+class PhotoCaption(BaseModel):
+    caption: str = Field("", max_length=1000)
+
+
+def _clean_caption(value: str) -> str:
+    # single line, no control characters, trimmed, capped — the caption is stamped onto downloads
+    text = _CTRL_RE.sub("", value.replace("\r", " ").replace("\n", " ").replace("\t", " "))
+    return " ".join(text.split())[:PHOTO_CAPTION_MAX]
+
+
+@api_router.patch("/photos/{photo_id}", response_model=PhotoMeta)
+async def update_photo_caption(
+    photo_id: str, payload: PhotoCaption, x_player_token: Optional[str] = Header(None, alias=PLAYER_HEADER)
+) -> Dict[str, Any]:
+    x_player_token = _check_token(x_player_token)
+    existing = await db.photos.find_one({"id": photo_id}, {"_id": 0, "owner": 1})
+    if existing is None or not _can_touch(existing, x_player_token):
+        raise HTTPException(status_code=404, detail="Photo not found")
+    caption = _clean_caption(payload.caption)
+    await db.photos.update_one({"id": photo_id}, {"$set": {"caption": caption}})
+    doc = await db.photos.find_one({"id": photo_id}, {"_id": 0, "image": 0})
+    return doc
+
+
 app.include_router(api_router)
 
 app.add_middleware(

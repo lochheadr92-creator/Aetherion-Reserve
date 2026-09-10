@@ -90,21 +90,34 @@ function StatsList({ def }) {
 
 // Player lamps: what the lamp reaches and whether it is earning its upkeep right now.
 function LampReport({ report }) {
-  const status = report.night ? 'LIT — guests on these tiles gain comfort' : report.on ? 'SWITCHING ON (dusk)' : 'OFF UNTIL DUSK';
+  const unpowered = report.needsPower && !report.powered;
+  const status = unpowered ? 'NO POWER — this floodlight is dark'
+    : report.night ? 'LIT — guests on these tiles gain comfort'
+    : report.on ? 'SWITCHING ON (dusk)' : 'OFF UNTIL DUSK';
+  const tone = unpowered ? 'var(--danger)' : report.night ? 'var(--accent-amber)' : 'var(--text-3)';
+  const border = unpowered ? 'var(--danger)' : report.night ? 'var(--accent-amber)' : 'var(--line-2)';
   return (
     <div data-testid="lamp-report">
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1.5">NIGHT LIGHTING</div>
-      <div className="text-[11px] rounded border px-2 py-1.5 mb-1.5" data-testid="lamp-status" data-on={report.night ? 'true' : 'false'}
-        style={{ borderColor: report.night ? 'var(--accent-amber)' : 'var(--line-2)', color: report.night ? 'var(--accent-amber)' : 'var(--text-3)' }}>
+      <div className="text-[11px] rounded border px-2 py-1.5 mb-1.5" data-testid="lamp-status" data-on={report.night && !unpowered ? 'true' : 'false'} data-powered={report.powered ? 'true' : 'false'}
+        style={{ borderColor: border, color: tone }}>
         {status}
       </div>
       <div className="text-[11px] space-y-1">
         <div className="flex justify-between"><span className="text-[var(--text-3)]">Reach</span><span className="mono">{report.radius} tiles</span></div>
         <div className="flex justify-between"><span className="text-[var(--text-3)]">Path tiles lit</span><span className="mono" data-testid="lamp-path-tiles">{report.pathTiles}</span></div>
         <div className="flex justify-between"><span className="text-[var(--text-3)]">Guests under it now</span><span className="mono" data-testid="lamp-guests">{report.guests}</span></div>
+        {report.needsPower && (
+          <div className="flex justify-between"><span className="text-[var(--text-3)]">Power</span>
+            <span className="mono" data-testid="lamp-power" style={{ color: report.powered ? 'var(--success)' : 'var(--danger)' }}>{report.powered ? 'On grid' : 'No relay'}</span>
+          </div>
+        )}
       </div>
       {report.pathTiles === 0 && report.kind === 'path' && (
         <div className="text-[10px] text-[var(--warning)] mt-1.5">No walkway inside its reach — move it closer to a path to help anyone.</div>
+      )}
+      {unpowered && (
+        <div className="text-[10px] text-[var(--danger)] mt-1.5">A Power Relay must cover this mast. It stays dark while the relay is offline (surge) or out of range.</div>
       )}
     </div>
   );

@@ -159,6 +159,39 @@ async def ui():
         check("9b one tall sheet: 1240px wide, 3 columns, height follows the photo count",
               sheet and sheet["w"] == 1240 and sheet["h"] == expected_h and sheet["n"] == n_photos and n_photos >= 3, (sheet, n_photos, expected_h))
         check("9c the sheet is a real JPEG data URL", await page.evaluate("window.__albumDebug.lastSheet.startsWith('data:image/jpeg')"))
+
+        # ---- 9d/9e contact sheet FILTERS: captioned-only + cycle range scope both the grid and the export ----
+        allp = requests.get(f"{api}/photos", headers=h, timeout=20).json()
+        pdays = sorted({p["day"] for p in allp if isinstance(p.get("day"), int)})
+        n_cap = len([p for p in allp if (p.get("caption") or "").strip()])
+        maxday = pdays[-1]
+        n_maxday = len([p for p in allp if p.get("day") == maxday])
+        default_txt = await page.locator('[data-testid="album-sheet-count"]').inner_text()
+        # captioned only
+        await page.click('[data-testid="album-filter-captioned"]')
+        await page.wait_for_timeout(300)
+        grid_cap = await page.locator('[data-testid^="album-photo-"]').count()
+        cap_txt = await page.locator('[data-testid="album-sheet-count"]').inner_text()
+        async with page.expect_download(timeout=20000) as dl2:
+            await page.click('[data-testid="album-contact-sheet-button"]')
+        await dl2.value
+        sc_cap = await page.evaluate("window.__albumDebug.sheetCount")
+        check("9d captioned-only scopes the grid and the exported sheet to captioned frames only",
+              grid_cap == n_cap and sc_cap == n_cap and n_cap >= 1 and n_cap < len(allp) and "filtered" in cap_txt and "filtered" not in default_txt,
+              (grid_cap, sc_cap, n_cap, len(allp), cap_txt, default_txt))
+        # back off, then narrow to the latest cycle only via the range picker
+        await page.click('[data-testid="album-filter-captioned"]')
+        await page.wait_for_timeout(200)
+        await page.click('[data-testid="album-filter-from"]')
+        await page.click(f'[data-testid="album-filter-from-{maxday}"]')
+        await page.wait_for_timeout(300)
+        grid_rng = await page.locator('[data-testid^="album-photo-"]').count()
+        async with page.expect_download(timeout=20000) as dl3:
+            await page.click('[data-testid="album-contact-sheet-button"]')
+        await dl3.value
+        sc_rng = await page.evaluate("window.__albumDebug.sheetCount")
+        check("9e cycle-range picker narrows the grid + export to the chosen cycles",
+              grid_rng == n_maxday and sc_rng == n_maxday and n_maxday >= 1 and n_maxday <= len(allp), (grid_rng, sc_rng, n_maxday, len(allp)))
         for pid in seeded:
             requests.delete(f"{api}/photos/{pid}", headers=h, timeout=10)
         await page.click('[data-testid="album-close-button"]')

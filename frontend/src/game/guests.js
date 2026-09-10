@@ -10,7 +10,7 @@ import { wasteNear } from './staff';
 import { synergyScore } from './attractions';
 import { activeEvents, hottestEvent } from './events';
 import { geneAppealMult } from './genetics';
-import { guestLightingTick } from './lighting';
+import { guestLightingTick, bumpFootfall } from './lighting';
 
 // 7 visitor archetypes with distinct interests: what they seek, what they pay
 const ARCHETYPES = [
@@ -103,6 +103,9 @@ export function spawnGuests(state) {
 export function tickGuestMovement(state, g) {
   g.ticksInPark++;
   if (g.riding) return; // aboard a transport car — position managed by transport.js
+  // record foot traffic on walkways (feeds the "light the gaps" lamp auto-suggest)
+  const fx = Math.floor(g.x), fy = Math.floor(g.y);
+  if (inMap(fx, fy) && state.paths[idx(fx, fy)]) bumpFootfall(state, fx, fy);
   if (g.path && g.path.length) {
     const t = g.path[0];
     const dx = t.x + 0.5 - g.x, dy = t.y + 0.5 - g.y;

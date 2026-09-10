@@ -38,23 +38,49 @@ export function playerLamps(state) {
   return state.buildings.filter((b) => !!BUILDINGS[b.type]?.lamp);
 }
 
-function lampKey(lamps) {
+// ---- power link: a floodlight only shines while an online Power Relay covers it ----
+// Kept local (rather than importing construction.isPowered) to avoid a lighting <-> construction <->
+// economy import cycle. Mirrors construction.isPowered exactly: surge-damaged relays (offlineUntil in
+// the future) do not count, so an energivore discharge visibly blacks out the floodlights it knocks out.
+export function relayPowered(state, x, y) {
+  const def = BUILDINGS.power;
+  for (const b of state.buildings) {
+    if (b.type !== 'power') continue;
+    if (b.offlineUntil && state.tick < b.offlineUntil) continue; // surge-damaged relay
+    const cx = b.x + (b.w || def.w) / 2, cy = b.y + (b.h || def.h) / 2;
+    if (Math.hypot(x - cx, y - cy) <= def.powerRadius) return true;
+  }
+  return false;
+}
+
+/** True unless this is a floodlight with no live power. Path lamps run on their own trickle and are unaffected. */
+export function lampPowered(state, b) {
+  return BUILDINGS[b.type]?.lamp !== 'flood' || relayPowered(state, b.x, b.y);
+}
+
+function lampKey(state, lamps) {
   let k = '';
-  for (const b of lamps) k += `${b.type}:${b.x},${b.y};`;
+  for (const b of lamps) {
+    k += `${b.type}:${b.x},${b.y}`;
+    if (BUILDINGS[b.type].lamp === 'flood') k += relayPowered(state, b.x, b.y) ? ':p' : ':x'; // power flips invalidate the cache
+    k += ';';
+  }
   return k;
 }
 
 /**
  * Uint8Array over the map: 0 dark, LIT_PATH under a path lamp, LIT_FLOOD under a floodlight (flood
- * wins where both overlap). Independent of the time of day — callers gate on lampsOn().
+ * wins where both overlap). Independent of the time of day — callers gate on lampsOn(). Unpowered
+ * floodlights contribute nothing (they are dark), so a knocked-out relay costs its coverage.
  */
 export function lightMap(state) {
   const lamps = playerLamps(state);
-  const key = lampKey(lamps);
+  const key = lampKey(state, lamps);
   if (state._light && state._light.key === key) return state._light.map;
   const map = new Uint8Array(MAP_SIZE * MAP_SIZE);
   for (const b of lamps) {
     const kind = BUILDINGS[b.type].lamp;
+    if (kind === 'flood' && !relayPowered(state, b.x, b.y)) continue; // dark floodlight
     const r = LAMP_RADIUS[kind] || 2;
     const cx = b.x + 0.5, cy = b.y + 0.5;
     const level = kind === 'flood' ? LIT_FLOOD : LIT_PATH;
@@ -181,12 +207,14 @@ export function lightingReport(state) {
   const guestsLit = state.guests.filter((g) => g.lit === 'lit').length;
   const guestsDark = state.guests.filter((g) => g.lit === 'dark').length;
   const upkeep = lamps.reduce((s, b) => s + (BUILDINGS[b.type].upkeep || 0), 0);
+  const floodsOffline = lamps.filter((b) => BUILDINGS[b.type].lamp === 'flood' && !relayPowered(state, b.x, b.y)).length;
   return {
     on: lampsOn(state),
     night: isNight(state),
     lamps: lamps.length,
     pathLamps: lamps.filter((b) => BUILDINGS[b.type].lamp === 'path').length,
     floodlights: lamps.filter((b) => BUILDINGS[b.type].lamp === 'flood').length,
+    floodsOffline,
     upkeep,
     pathTiles,
     litPathTiles,
@@ -216,5 +244,91 @@ export function lampReport(state, b) {
     }
   }
   const guests = state.guests.filter((g) => Math.hypot(g.x - cx, g.y - cy) <= r).length;
-  return { kind: def?.lamp || 'path', radius: r, tiles, pathTiles, guests, on: lampsOn(state), night: isNight(state), upkeep: def?.upkeep || 0 };
+  const needsPower = def?.lamp === 'flood';
+  const powered = lampPowered(state, b);
+  return { kind: def?.lamp || 'path', radius: r, tiles, pathTiles, guests, on: lampsOn(state), night: isNight(state), upkeep: def?.upkeep || 0, needsPower, powered, lit: lampsOn(state) && powered };
+}
+
+
+// ---- foot traffic + "light the gaps" auto-suggest ----
+// Where guests actually walk (footfall) feeds the auto-suggest: the busiest UNLIT walkway tiles are
+// the ones worth a lamp. Footfall is a transient accumulator (never serialized — the key is `_`-prefixed)
+// driven purely by deterministic guest movement, so it rebuilds itself after a load and never affects
+// the sim or a save. It decays a little each dawn so old routes fade as the park changes.
+export function footfall(state) {
+  if (!state._footfall || state._footfall.length !== MAP_SIZE * MAP_SIZE) state._footfall = new Float32Array(MAP_SIZE * MAP_SIZE);
+  return state._footfall;
+}
+
+/** One guest stepped on a walkway tile this tick. */
+export function bumpFootfall(state, x, y) {
+  if (!inMap(x, y)) return;
+  const ff = footfall(state);
+  ff[idx(x, y)] += 1;
+}
+
+/** Dawn decay so the busyness map tracks the park as it grows rather than the whole history. */
+export function footfallDecay(state) {
+  const ff = state._footfall;
+  if (!ff) return;
+  for (let i = 0; i < ff.length; i++) ff[i] *= 0.7;
+}
+
+// destinations guests head for — used to seed structural busyness so the hint is useful even before
+// any traffic has been recorded (fresh park / just-loaded save).
+function isDestination(def) {
+  return !!def && !def.lamp && (def.viewRadius || def.sells || def.transport);
+}
+
+/**
+ * Rank the darkest, busiest walkway tiles and return a spaced-out set of lamp spots to light the gaps.
+ * A tile scores on: real foot traffic (dominant when present), closeness to the entrance, and closeness
+ * to attractions/amenities. Only UNLIT path tiles are considered; picks are spaced by a path lamp's reach
+ * so the suggestions never clump. Returns [] when every busy walkway is already covered.
+ */
+export function suggestLampSpots(state, { max = 8 } = {}) {
+  const map = lightMap(state); // coverage regardless of time of day
+  const ff = state._footfall;
+  const dests = state.buildings.filter((b) => isDestination(BUILDINGS[b.type]));
+  const ex = (state.entrance?.x ?? 0) + 0.5, ey = (state.entrance?.y ?? 0) + 0.5;
+  const cand = [];
+  for (let i = 0; i < map.length; i++) {
+    if (!state.paths[i] || map[i] > 0) continue; // dark walkway tiles only
+    const x = i % MAP_SIZE, y = Math.floor(i / MAP_SIZE);
+    const cx = x + 0.5, cy = y + 0.5;
+    let score = 1; // every unlit walkway tile is worth a little
+    const de = Math.hypot(cx - ex, cy - ey);
+    if (de < 10) score += (10 - de) * 0.4; // near the gate: everyone passes here
+    for (const b of dests) {
+      const bx = b.x + (b.w || 1) / 2, by = b.y + (b.h || 1) / 2;
+      const d = Math.hypot(cx - bx, cy - by);
+      if (d <= 6) score += (6 - d) * 0.5; // approaches to attractions/amenities
+    }
+    if (ff) score += ff[i] * 0.02; // real recorded traffic dominates once guests have walked
+    cand.push({ i, x, y, score });
+  }
+  cand.sort((a, b) => b.score - a.score);
+  const chosen = [];
+  const covered = new Uint8Array(map.length);
+  const R = LAMP_RADIUS.path, Rc = Math.ceil(R);
+  for (const c of cand) {
+    if (chosen.length >= max) break;
+    if (covered[c.i]) continue;
+    chosen.push({ x: c.x, y: c.y, i: c.i, score: c.score });
+    for (let dy = -Rc; dy <= Rc; dy++) for (let dx = -Rc; dx <= Rc; dx++) {
+      const nx = c.x + dx, ny = c.y + dy;
+      if (inMap(nx, ny) && Math.hypot(dx, dy) <= R) covered[idx(nx, ny)] = 1;
+    }
+  }
+  return chosen;
+}
+
+/** Counts of guests currently reading as safe (lit) vs in the dark, for the night mood overlay / tests. */
+export function guestMoodCounts(state) {
+  let lit = 0, dark = 0;
+  for (const g of state.guests) {
+    if (g.lit === 'lit') lit++;
+    else if (g.lit === 'dark') dark++;
+  }
+  return { lit, dark };
 }

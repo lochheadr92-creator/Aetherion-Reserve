@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { MousePointer2, Hand, Hammer, Undo2, Mountain, ArrowDownToLine, AlignVerticalJustifyCenter, Waves, TreePine, Route, Fence, DoorClosed, Building2, Eraser, Lock, Lightbulb, LampCeiling } from 'lucide-react';
+import { MousePointer2, Hand, Hammer, Undo2, Mountain, ArrowDownToLine, AlignVerticalJustifyCenter, Waves, TreePine, Route, Fence, DoorClosed, Building2, Eraser, Lock, Lightbulb, LampCeiling, Wand2 } from 'lucide-react';
 import { game } from '@/game/controller';
 import { MATERIALS, VEG, FENCES, COSTS } from '@/game/constants';
 import { BUILDINGS } from '@/game/data/buildings';
 import { hasResearch } from '@/game/state';
+import { suggestLampSpots } from '@/game/lighting';
 import { undoTerrain, getUndoCount } from '@/game/terrain';
 import { useGameTick } from '@/components/game/useGame';
 
@@ -202,12 +203,35 @@ function BuildingsSection({ s, cat, is, setTool }) {
       {lighting.length > 0 && (
         <div data-testid="lighting-group">
           <div className="mono text-[8px] tracking-[0.2em] text-[var(--text-3)] mb-1">LIGHTING · SWITCHES ON AT DUSK · SMALL POWER COST</div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 items-center">
             {lighting.map((b) => <BuildingButton key={b.id} b={b} s={s} is={is} setTool={setTool} icon={b.lamp === 'flood' ? LampCeiling : Lightbulb} />)}
+            <LightGapsButton s={s} setTool={setTool} />
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// One-click "light the gaps": marks the busiest unlit walkway tiles on the map and arms the Path Lamp
+// tool so the player can drop lamps straight onto the glowing markers.
+function LightGapsButton({ s, setTool }) {
+  const onClick = useCallback(() => {
+    const spots = suggestLampSpots(s, { max: 8 });
+    if (window.__gameRenderer) window.__gameRenderer.setLampSuggestions(spots);
+    if (!spots.length) {
+      toast.info('No dark walkways to light — every busy path is already covered after dusk.');
+      return;
+    }
+    setTool({ mode: 'building', buildingType: 'path_lamp' });
+    toast.success(`Lit the gaps — ${spots.length} busy dark ${spots.length === 1 ? 'spot' : 'spots'} marked. Drop path lamps on the glowing tiles.`, { duration: 3400 });
+  }, [s, setTool]);
+  return (
+    <button type="button" data-testid="lamp-suggest-button" onClick={onClick}
+      title="Highlight the busiest unlit walkway tiles so you can light the gaps"
+      className="nl-tool h-8 px-2.5 text-[10px] flex items-center gap-1.5 !text-[var(--accent-amber)]">
+      <Wand2 size={12} /> Light the gaps
+    </button>
   );
 }
 

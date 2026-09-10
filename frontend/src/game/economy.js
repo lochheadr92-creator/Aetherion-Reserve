@@ -4,7 +4,7 @@ import { BUILDINGS } from './data/buildings';
 import { FENCES } from './constants';
 import { speciesById } from './data/species';
 import { STAFF_ROLES } from './data/staffRoles';
-import { lightingRollover } from './lighting';
+import { lightingRollover, footfallDecay } from './lighting';
 
 export function spend(state, amount, cat, label) {
   amount = Math.round(amount);
@@ -54,6 +54,7 @@ export function dailyRollover(state) {
   for (const st of state.staff || []) st.report = {};
   // dawn: freeze last night's lit/dark path visits and fold them into the rating's safety carrot
   lightingRollover(state);
+  footfallDecay(state); // let the busyness map track the park as it grows
   state.day++;
 }
 

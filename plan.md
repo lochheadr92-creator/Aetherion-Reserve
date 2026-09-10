@@ -13,8 +13,16 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- **Phase X — Night Comfort + Album Export + Subtitle Colours + HUD Readability** ✅ COMPLETED + ✅ VERIFIED (`test_reports/iteration_32.json`)
-  - **Next:** await user feedback / new feature picks (see §6 backlog).
+- **Phase Y — Night Mood Icons + Lamp Auto-Suggest + Floodlight Power Link + Contact Sheet Filters** ✅ IMPLEMENTED + ✅ LOCALLY VERIFIED
+  - Local sweeps green: `lighting_test.py` 19/19 (incl. F1–F6), `photo_album_test.py` 20/20 (incl. 9d/9e filters), `render3d_test.py` 31/31 (B22–B27 unaffected), `determinism_test.py` 8/8, `save_compat_test.py` 6/6, `phase_v_test.py` 19/19.
+  - **Next:** independent `testing_agent_v3` sweep, then await user feedback.
+
+### Phase Y — details (this session)
+- **Y1 Guest Night Mood Icons** — renderer draws a warm lamp glyph over guests who feel safe on a lit path and a cool crescent-moon glyph over guests caught in the dark. New `renderer.drawGuestMoodIcons` + `moodLampGlyph`/`moodMoonGlyph`, wired into both the 2D and 3D overlay passes; reads the existing `g.lit` tag (only shows at night, skips panicked/riding). Debug: `__gameDebug.guestMoods()` and `lighting.guestMoodCounts`.
+- **Y2 Lamp Auto-Suggest ("Light the gaps")** — new `lighting.suggestLampSpots(state,{max})` ranks the darkest, busiest walkway tiles (real foot traffic via a transient `state._footfall` accumulator + structural closeness to the entrance/attractions) and returns a spaced set of dark path tiles. Footfall bumped in `guests.tickGuestMovement`, decayed at dawn (`economy` → `footfallDecay`). Facilities lighting group gains a `lamp-suggest-button` that arms pulsing on-map markers (`renderer.setLampSuggestions`/`drawLampSuggestions`, self-expiring + drops a tile the instant a lamp covers it) and selects the Path Lamp tool. Debug: `__gameDebug.suggestLampSpots(max)`.
+- **Y3 Floodlight Power Link** — a floodlight only shines while an online Power Relay covers it, so a surge that knocks a relay offline now blacks out its floodlights (visible night cost). `lighting.relayPowered`/`lampPowered` (kept local to avoid a lighting↔construction↔economy cycle), `lightMap` skips unpowered floods with a power-aware cache key, `lampReport` gains `needsPower`/`powered`/`lit`, `lightingReport.floodsOffline`. 2D lighting overlay draws unpowered flood rings red-dashed with a NO POWER tag; `BuildingPanel` LampReport shows the power state; 3D `lamps3d.js` gates player masts (rebuild on a power-state flip, dark fixture keeps its pole/head but loses the lens glow + light pool + real light). Placement rules unchanged (does NOT require power to place — keeps render3d B27 green). Floodlight desc updated.
+- **Y4 Contact Sheet Filters** — `album.filterPhotos`/`photoDays` (pure); `AlbumScreen` grid gains a From/To cycle range (Shadcn Select) + a Captioned-only Switch that scope both the grid preview and the exported contact sheet, with a live "Exports X of N" count (`album-sheet-count`). Defaults = whole album so existing exports are unchanged.
+
 
 ---
 

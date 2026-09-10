@@ -9,7 +9,7 @@ import { applyScenario } from './scenarios';
 import { ensureGenes, inheritGenes } from './genetics';
 import { ensureLineage } from './lineage';
 import { projectPairing, recommendPartners, bestPairs } from './pairing';
-import { lightingReport, lightAt, lampReport, guestLightingTick } from './lighting';
+import { lightingReport, lightAt, lampReport, guestLightingTick, suggestLampSpots, guestMoodCounts } from './lighting';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
 import { placeFenceRect, damageFence, placeBuilding, canPlaceBuilding, demolishBuilding } from './construction';
@@ -65,6 +65,9 @@ class GameController {
         lightAt: (x, y) => lightAt(this.state, x, y),
         lampReport: (id) => { const b = (this.state?.buildings || []).find((q) => q.id === id); return b ? lampReport(this.state, b) : null; },
         guestLightingTick: (guestId) => { const g = (this.state?.guests || []).find((q) => q.id === guestId); return g ? guestLightingTick(this.state, g) : null; },
+        // lamp auto-suggest + night guest moods (read-only over this.state)
+        suggestLampSpots: (max) => suggestLampSpots(this.state, { max: max || 8 }),
+        guestMoods: () => guestMoodCounts(this.state),
       };
     }
     // Deterministic setup harness for tests / debug tooling: scripted world building through the

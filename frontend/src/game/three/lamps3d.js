@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { MAP_SIZE } from '../constants';
 import { idx, inMap } from '../state';
 import { BUILDINGS } from '../data/buildings';
-import { lampTarget } from '../construction';
+import { lampTarget, isPowered } from '../construction';
 import { Instances, hash, radialTexture } from './materials';
 import { buildingBaseY } from './buildings3d';
 
@@ -156,13 +156,24 @@ export class LampLayer {
     return `${a}|${paths.length}|${b}`;
   }
 
+  // A player Floodlight Mast only shines while an online Power Relay covers it. This flips when an
+  // energivore surge blacks out a relay, so it folds into the rebuild signature (the mast goes dark
+  // until power returns). Roof floods are decorative and never gate on power.
+  _powerSig(state) {
+    let s = '';
+    for (const bld of state.buildings) if (BUILDINGS[bld.type]?.lamp === 'flood') s += isPowered(state, bld.x, bld.y) ? '1' : '0';
+    return s;
+  }
+
   _rebuild(state) {
     const heightAt = (x, z) => this.terrain.heightAt(x, z);
     this.spots = pathLampSpots(state).map((s) => ({ ...s, y: heightAt(s.x, s.z) }));
     this.floods = [...floodSpots(state, heightAt, (x, z, fb) => this.roofHeightAt(x, z, fb)), ...playerFloodSpots(state, heightAt)].map((f) => {
       const reach = f.mast ? 1.6 : 1.15;
       const px = f.x + f.dx * reach, pz = f.z + f.dz * reach;
-      return { ...f, py: heightAt(px, pz), px, pz };
+      // player masts go dark without live power; roof floods are decorative and always lit
+      const powered = f.mast ? isPowered(state, Math.floor(f.x), Math.floor(f.z)) : true;
+      return { ...f, py: heightAt(px, pz), px, pz, powered };
     });
     this.playerLamps = this.spots.filter((s) => s.player).length;
     this.playerFloods = this.floods.filter((f) => f.mast).length;
@@ -180,12 +191,14 @@ export class LampLayer {
     this.mast.begin(); this.floodHead.begin(); this.lens.begin(); this.floodPool.begin(); this.pole.begin();
     for (const f of this.floods) {
       const yaw = Math.atan2(f.dx, f.dz);
+      // the physical fixture (pole/mast + head) always exists; only the lit lens + ground pool are gated on power
       if (f.mast) this.pole.push(_p.set(f.x, f.base, f.z), _s.set(1, 1, 1), null, yaw);
       else this.mast.push(_p.set(f.x, f.top, f.z), _s.set(1, 1, 1), null, yaw);
       // head tilted down ~38deg toward the pool, lens on its front face
       _q.setFromEuler(_e.set(0.66, yaw, 0, 'YXZ'));
       _m.compose(_p.set(f.x, f.top + 0.36, f.z), _q, _s.set(1, 1, 1));
       this.floodHead.pushMatrix(_m, null);
+      if (f.powered === false) continue; // dark floodlight: no glowing lens, no light pool
       const fx = f.x + f.dx * 0.085, fz = f.z + f.dz * 0.085;
       _m.compose(_p.set(fx, f.top + 0.325, fz), _q, _s);
       this.lens.pushMatrix(_m, null);
@@ -197,7 +210,7 @@ export class LampLayer {
 
   sync(state, dt, light, view = null) {
     this.time += dt;
-    const sig = this._signature(state);
+    const sig = `${this._signature(state)}#${this._powerSig(state)}`;
     if (sig !== this.signature) { this.signature = sig; this._rebuild(state); }
     // dusk curve + a faint mains hum on the warm bulbs
     const on = lampSwitch(light.night);
@@ -212,7 +225,7 @@ export class LampLayer {
     if (this.lights.length) {
       const tx = view?.target?.x ?? MAP_SIZE / 2, tz = view?.target?.z ?? MAP_SIZE / 2;
       const cands = [];
-      for (const f of this.floods) cands.push({ x: f.px, y: f.py + 0.9, z: f.pz, d: Math.hypot(f.px - tx, f.pz - tz) - 3, warm: false });
+      for (const f of this.floods) { if (f.powered === false) continue; cands.push({ x: f.px, y: f.py + 0.9, z: f.pz, d: Math.hypot(f.px - tx, f.pz - tz) - 3, warm: false }); }
       for (const s of this.spots) cands.push({ x: s.x, y: s.y + 0.95, z: s.z, d: Math.hypot(s.x - tx, s.z - tz), warm: true });
       cands.sort((a, b) => a.d - b.d);
       for (let i = 0; i < this.lights.length; i++) {

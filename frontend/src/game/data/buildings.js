@@ -240,7 +240,7 @@ export const BUILDINGS = {
   },
   floodlight: {
     id: 'floodlight', name: 'Floodlight Mast', cat: 'lighting', w: 1, h: 1, cost: 120, upkeep: 2,
-    color: '#20262e', light: '#DDF3FF', desc: 'A cool floodlight mast that washes the neighbouring building in light after dark. Must stand next to a building. Draws ◈2/cycle of power.',
+    color: '#20262e', light: '#DDF3FF', desc: 'A cool floodlight mast that washes the neighbouring building in light after dark. Must stand next to a building; needs a Power Relay in range and goes dark if the relay is knocked offline.',
     needsBuilding: true, lamp: 'flood',
   },
 };

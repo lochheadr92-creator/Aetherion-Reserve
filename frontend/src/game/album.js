@@ -115,6 +115,22 @@ export function stampedPhoto(imageDataUrl, meta) {
 
 export const photoFileName = (p, ext = 'jpg') => `aetherion-${(p.park_name || 'park').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-cycle${p.day}-${(p.clock || '').replace(':', '')}.${ext}`;
 
+// ---- contact sheet filters: pick a cycle range and/or only captioned frames to export ----
+/** Sorted list of the distinct cycles present in the album (feeds the range pickers). */
+export function photoDays(photos) {
+  return [...new Set((photos || []).map((p) => p.day).filter((d) => Number.isFinite(d)))].sort((a, b) => a - b);
+}
+
+/** Pure filter used by the contact-sheet export: an inclusive cycle range and an optional captioned-only gate. */
+export function filterPhotos(photos, { fromDay = null, toDay = null, captionedOnly = false } = {}) {
+  return (photos || []).filter((p) => {
+    if (captionedOnly && !(p.caption && String(p.caption).trim())) return false;
+    if (fromDay != null && Number.isFinite(p.day) && p.day < fromDay) return false;
+    if (toDay != null && Number.isFinite(p.day) && p.day > toDay) return false;
+    return true;
+  });
+}
+
 // ---- contact sheet: the whole album as one tall, printable JPEG ----
 export const SHEET = { width: 1240, cols: 3, gutter: 40, thumbW: 360, cellText: 46, header: 132, footer: 56 };
 

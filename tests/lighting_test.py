@@ -137,6 +137,68 @@ async def ui(page, st):
           lamps.startswith("1") and "tiles" in cov and "%" in cov and "lit" in last and "dark" in last and status == "true", (lamps, cov, last, status))
 
 
+async def features(page):
+    """Phase Y: floodlight power link, light-the-gaps auto-suggest, guest night mood icons."""
+    # ---- floodlight power link: a floodlight only shines while an online relay covers it ----
+    fp = await page.evaluate("""(() => {
+      const g = window.__game, s = g.state, D = window.__gameDebug;
+      g.dev.spawnBuilding('lab', 10, 12);
+      const relay = g.dev.spawnBuilding('power', 12, 10);   // 2x2, centre ~ (13,11) — within 14 of the mast
+      const flood = g.dev.spawnBuilding('floodlight', 10, 10);
+      s.tick = 200;
+      const powered = { lit: D.lightAt(10, 10), rep: D.lampReport(flood.id) };
+      relay.offlineUntil = s.tick + 500;                    // an energivore surge knocks the relay offline
+      const offline = { lit: D.lightAt(10, 10), rep: D.lampReport(flood.id) };
+      relay.offlineUntil = 0;                               // power restored
+      const restored = { lit: D.lightAt(10, 10), rep: D.lampReport(flood.id) };
+      return { powered, offline, restored };
+    })()""")
+    check("F1 a powered floodlight lights its tiles and reports needsPower + powered",
+          fp["powered"]["lit"] > 0 and fp["powered"]["rep"]["needsPower"] and fp["powered"]["rep"]["powered"], str(fp["powered"]))
+    check("F2 an offline Power Relay makes the floodlight go dark (surge has a visible night cost)",
+          fp["offline"]["lit"] == 0 and fp["offline"]["rep"]["powered"] is False, str(fp["offline"]))
+    check("F3 restoring power relights the floodlight",
+          fp["restored"]["lit"] > 0 and fp["restored"]["rep"]["powered"], str(fp["restored"]))
+
+    # ---- light the gaps: suggest the darkest busy walkway tiles, never the already-lit ones ----
+    sg = await page.evaluate("""(() => {
+      const g = window.__game, s = g.state, D = window.__gameDebug;
+      const size = Math.round(Math.sqrt(s.paths.length));
+      const y = 20, x0 = 16;
+      for (let i = 0; i < 16; i++) s.paths[y * size + (x0 + i)] = 1;
+      s._occDirty = true; s._light = null;
+      g.dev.spawnBuilding('path_lamp', x0, y - 1);          // lights the west end only
+      const spots = D.suggestLampSpots(8);
+      const allDark = spots.every((sp) => D.lightAt(sp.x, sp.y) === 0 && s.paths[sp.y * size + sp.x] === 1);
+      const westLit = D.lightAt(x0 + 1, y) > 0;
+      const suggestsWestEnd = spots.some((sp) => sp.x === x0 + 1 && sp.y === y);
+      return { n: spots.length, allDark, westLit, suggestsWestEnd };
+    })()""")
+    check("F4 light-the-gaps suggests only dark walkway tiles (never the already-lit west end)",
+          sg["n"] > 0 and sg["allDark"] and sg["westLit"] and not sg["suggestsWestEnd"], str(sg))
+
+    # ---- night mood tags + the renderer's mood-icon pass ----
+    mm = await page.evaluate("""(() => {
+      const g = window.__game, s = g.state, D = window.__gameDebug;
+      s.tick = Math.floor(1800 * 0.85);
+      const y = 20, x0 = 16;
+      const litG = g.dev.spawnGuest(x0 + 1, y, { satisfaction: 0.6 });
+      const darkG = g.dev.spawnGuest(x0 + 12, y, { satisfaction: 0.6 });
+      D.guestLightingTick(litG.id); D.guestLightingTick(darkG.id);
+      return { moods: D.guestMoods(), tags: [litG.lit, darkG.lit], hasRenderer: typeof window.__gameRenderer.drawGuestMoodIcons === 'function' };
+    })()""")
+    check("F5 guests carry a night mood (safe=lit, dark) and the renderer exposes the mood-icon pass",
+          mm["moods"]["lit"] >= 1 and mm["moods"]["dark"] >= 1 and mm["tags"] == ["lit", "dark"] and mm["hasRenderer"], str(mm))
+
+    # ---- UI: the "Light the gaps" button lives in Facilities and arms the on-map markers ----
+    await page.click('[data-testid="cat-facilities"]')
+    await page.wait_for_selector('[data-testid="lamp-suggest-button"]', timeout=5000)
+    await page.click('[data-testid="lamp-suggest-button"]')
+    await page.wait_for_timeout(300)
+    armed = await page.evaluate("(() => { const r = window.__gameRenderer; return r.lampSuggestions ? r.lampSuggestions.spots.length : 0; })()")
+    check("F6 the Facilities 'Light the gaps' button highlights suggested lamp tiles on the map", armed > 0, armed)
+
+
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch()
@@ -152,6 +214,7 @@ async def main():
         await page.evaluate("window.__game.setPaused(true)")
         st = await sim(page)
         await ui(page, st)
+        await features(page)
         check("no page errors", not errors, errors[:2])
         await browser.close()
     n = sum(results)

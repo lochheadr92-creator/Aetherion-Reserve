@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Images, Download, Trash2, ChevronLeft, Camera, RefreshCw, AlertTriangle, Pencil, Check, X, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 import { on } from '@/game/state';
 import { game } from '@/game/controller';
-import { listPhotos, getPhoto, deletePhoto, updateCaption, stampedPhoto, photoFileName, CAPTION_MAX, buildContactSheet, sheetFileName } from '@/game/album';
+import { listPhotos, getPhoto, deletePhoto, updateCaption, stampedPhoto, photoFileName, CAPTION_MAX, buildContactSheet, sheetFileName, filterPhotos, photoDays } from '@/game/album';
 import { ScreenFrame } from '@/components/game/ScreenFrame';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { captionHint } from '@/components/game/tone';
 
 // ---- Photo Album: every photo-mode capture, browsable and re-downloadable (Ops Deck drawer 'album') ----
@@ -212,21 +214,75 @@ function useContactSheet(photos) {
 
 const SHEET_LABEL = { idle: 'Contact sheet', building: 'Composing…', done: 'Contact sheet', failed: 'Retry contact sheet' };
 
+// Cycle-range + captioned-only pickers scope both the grid preview and the exported contact sheet.
+function CycleRange({ days, fromDay, toDay, setFromDay, setToDay }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="mono text-[9px] tracking-[0.12em] text-[var(--text-3)]">CYCLES</span>
+      <Select value={String(fromDay)} onValueChange={(v) => { const n = Number(v); setFromDay(n); if (n > toDay) setToDay(n); }}>
+        <SelectTrigger data-testid="album-filter-from" className="h-7 w-[86px] px-2 text-[10px] border-[var(--line)] bg-[var(--panel-1)] text-[var(--text-1)] focus:ring-[var(--focus-ring)]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="border-[var(--line)] bg-[var(--panel-1)] max-h-60">
+          {days.map((d) => <SelectItem key={d} value={String(d)} data-testid={`album-filter-from-${d}`} className="text-[10px]">Cycle {d}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <span className="text-[10px] text-[var(--text-3)]">to</span>
+      <Select value={String(toDay)} onValueChange={(v) => { const n = Number(v); setToDay(n); if (n < fromDay) setFromDay(n); }}>
+        <SelectTrigger data-testid="album-filter-to" className="h-7 w-[86px] px-2 text-[10px] border-[var(--line)] bg-[var(--panel-1)] text-[var(--text-1)] focus:ring-[var(--focus-ring)]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="border-[var(--line)] bg-[var(--panel-1)] max-h-60">
+          {days.map((d) => <SelectItem key={d} value={String(d)} data-testid={`album-filter-to-${d}`} className="text-[10px]">Cycle {d}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 function AlbumGrid({ photos, onOpen }) {
-  const sheet = useContactSheet(photos);
+  const days = useMemo(() => photoDays(photos), [photos]);
+  const minDay = days[0] ?? 1;
+  const maxDay = days[days.length - 1] ?? 1;
+  const [fromDay, setFromDay] = useState(minDay);
+  const [toDay, setToDay] = useState(maxDay);
+  const [captionedOnly, setCaptionedOnly] = useState(false);
+  useEffect(() => { setFromDay(minDay); setToDay(maxDay); }, [minDay, maxDay]);
+  const filtered = useMemo(() => filterPhotos(photos, { fromDay, toDay, captionedOnly }), [photos, fromDay, toDay, captionedOnly]);
+  const sheet = useContactSheet(filtered);
+  const filtering = captionedOnly || fromDay !== minDay || toDay !== maxDay;
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="mono text-[9px] tracking-[0.15em] text-[var(--text-3)]">EXPORT THE WHOLE ALBUM</span>
-        <button type="button" data-testid="album-contact-sheet-button" onClick={sheet.build} disabled={sheet.status === 'building'}
-          data-status={sheet.status} title="One printable JPEG: every photograph in 3 columns with its caption and cycle"
-          className="nl-tool h-7 px-2.5 text-[10px] flex items-center gap-1.5 !text-[var(--accent-cyan)] disabled:opacity-60">
-          <LayoutGrid size={11} /> {SHEET_LABEL[sheet.status]}
-        </button>
+      <div className="rounded-lg border border-[var(--line)] bg-[var(--panel-2)] p-2 space-y-2" data-testid="album-sheet-panel">
+        <div className="flex items-center justify-between gap-2">
+          <span className="mono text-[9px] tracking-[0.15em] text-[var(--text-3)]">CONTACT SHEET</span>
+          <button type="button" data-testid="album-contact-sheet-button" onClick={sheet.build}
+            disabled={sheet.status === 'building' || filtered.length === 0}
+            data-status={sheet.status} title="One printable JPEG of the selected photographs in 3 columns with each caption and cycle"
+            className="nl-tool h-7 px-2.5 text-[10px] flex items-center gap-1.5 !text-[var(--accent-cyan)] disabled:opacity-50 disabled:pointer-events-none">
+            <LayoutGrid size={11} /> {SHEET_LABEL[sheet.status]}
+          </button>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <CycleRange days={days} fromDay={fromDay} toDay={toDay} setFromDay={setFromDay} setToDay={setToDay} />
+          <label className="flex items-center gap-1.5 ml-auto cursor-pointer select-none" title="Only include photographs that have a caption">
+            <span className="text-[10px] text-[var(--text-2)]">Captioned only</span>
+            <Switch data-testid="album-filter-captioned" checked={captionedOnly} onCheckedChange={setCaptionedOnly} className="data-[state=checked]:bg-[var(--accent-cyan)]" />
+          </label>
+        </div>
+        <div className="mono text-[9px] text-[var(--text-3)]" data-testid="album-sheet-count">
+          Exports {filtered.length} of {photos.length} photo{photos.length === 1 ? '' : 's'}{filtering ? ' · filtered' : ''}
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-2" data-testid="album-grid">
-        {photos.map((p) => <Tile key={p.id} p={p} onOpen={onOpen} />)}
-      </div>
+      {filtered.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-[var(--line)] p-4 text-center text-[11px] text-[var(--text-3)]" data-testid="album-grid-empty">
+          No photographs match this filter.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2" data-testid="album-grid">
+          {filtered.map((p) => <Tile key={p.id} p={p} onOpen={onOpen} />)}
+        </div>
+      )}
     </div>
   );
 }

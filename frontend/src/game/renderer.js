@@ -9,7 +9,7 @@ import { SPRITE_SCALE, hexRgb } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
 import { juvenileStage } from './art/juvenile';
 import { vocals, CAPTION_MS, captionTint, captionSwatch } from './vocals';
-import { lightMap, lampsOn, isNight, playerLamps, LAMP_RADIUS } from './lighting';
+import { lightMap, lampsOn, isNight, playerLamps, LAMP_RADIUS, lampPowered } from './lighting';
 import { contactShadow, groundAO } from './art/rig';
 import { ART_V2 } from './art/flags';
 import { getBuildingSprite } from './art/buildings';
@@ -298,6 +298,7 @@ export class GameRenderer {
     this.fx.drawFootprints(ctx); // ground decals sit under every entity
 
     this.drawOverlays(ctx);
+    this.drawLampSuggestions(ctx);
     this.drawToolPreview(ctx);
 
     // ---- depth-sorted dynamic entities ----
@@ -337,6 +338,7 @@ export class GameRenderer {
     this.fx.drawParticles(ctx);
     this.drawTensionMarkers(ctx);
     this.drawVocalCaptions(ctx);
+    this.drawGuestMoodIcons(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawAtmosphere(ctx, W, H);
@@ -397,12 +399,14 @@ export class GameRenderer {
     this.world3d.sync({ state: s, cam: this.cam, offX: this.fx.offset.x, offY: this.fx.offset.y, W, H, photo: this.photoMode });
     ctx.setTransform(this.cam.zoom, 0, 0, this.cam.zoom, this.cam.x + this.fx.offset.x, this.cam.y + this.fx.offset.y);
     this.drawOverlays(ctx);        // habitat / power / view analysis tints
+    this.drawLampSuggestions(ctx); // "light the gaps" markers
     this.drawToolPreview(ctx);     // brushes, fence lines, building footprints
     this.drawKeeperMarkers(ctx);
     this.drawEventBeacons(ctx);
     this.fx.drawParticles(ctx);
     this.drawTensionMarkers(ctx);
     this.drawVocalCaptions(ctx);
+    this.drawGuestMoodIcons(ctx);
     this.drawSelection(ctx);
     this.drawHover(ctx);
     this.drawRain(ctx, W, H);
@@ -1465,14 +1469,109 @@ export class GameRenderer {
       const def = BUILDINGS[b.type];
       const r = LAMP_RADIUS[def.lamp] || 2;
       const c = worldPx(b.x + 0.5, b.y + 0.5, s.heights[idx(b.x, b.y)] || 0);
-      ctx.strokeStyle = def.lamp === 'flood' ? 'rgba(221,243,255,0.55)' : 'rgba(255,179,71,0.6)';
-      ctx.setLineDash(on ? [] : [4, 4]);
+      const dark = def.lamp === 'flood' && !lampPowered(s, b); // relay offline / no coverage
+      ctx.strokeStyle = dark ? 'rgba(255,77,109,0.75)' : def.lamp === 'flood' ? 'rgba(221,243,255,0.55)' : 'rgba(255,179,71,0.6)';
+      ctx.setLineDash(dark ? [5, 4] : on ? [] : [4, 4]);
       ctx.beginPath();
       ctx.ellipse(c.x, c.y, r * TILE_W / 2, r * TILE_H / 2, 0, 0, Math.PI * 2);
       ctx.stroke();
+      if (dark) {
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#FF4D6D';
+        ctx.font = `600 ${9 / this.cam.zoom}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('NO POWER', c.x, c.y - 6);
+        ctx.textAlign = 'left';
+      }
     }
     ctx.setLineDash([]);
   }
+
+  // ---- night mood icons: a tiny lamp over guests who feel safe on a lit path, a moon over those
+  // caught in the dark. Drawn in world px (both renderers) so the glyph tracks the guest. g.lit is set
+  // by the lighting tick, so a guest only carries a mood while standing on a walkway after dark.
+  drawGuestMoodIcons(ctx) {
+    const s = this.state;
+    if (!s || !isNight(s)) return;
+    ctx.save();
+    for (const g of s.guests) {
+      if (g.riding || g.panic || !g.lit) continue;
+      const p = worldPx(g.x, g.y, s.heights[idx(Math.floor(g.x), Math.floor(g.y))] || 0);
+      const y = p.y - 20;
+      // soft dark backing so the glyph reads over any world
+      ctx.globalAlpha = 0.42;
+      ctx.fillStyle = 'rgba(6,10,16,0.9)';
+      ctx.beginPath(); ctx.arc(p.x, y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      if (g.lit === 'lit') this.moodLampGlyph(ctx, p.x, y);
+      else this.moodMoonGlyph(ctx, p.x, y);
+    }
+    ctx.restore();
+  }
+
+  // warm lamp bulb with a gentle breathing halo — "this guest feels safe"
+  moodLampGlyph(ctx, x, y) {
+    const pulse = 0.55 + 0.45 * Math.sin(this.frame / 20);
+    ctx.save();
+    ctx.globalAlpha = 0.5 * pulse;
+    ctx.fillStyle = 'rgba(255,179,71,0.95)';
+    ctx.beginPath(); ctx.arc(x, y, 4.4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#FFCF74';
+    ctx.beginPath(); ctx.arc(x, y - 0.4, 2.1, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#FFCF74'; ctx.lineWidth = 0.9; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y + 1.8); ctx.lineTo(x, y + 3.4); ctx.stroke();
+    ctx.restore();
+  }
+
+  // cool crescent moon (single filled path, no compositing) — "this guest is in the dark"
+  moodMoonGlyph(ctx, x, y) {
+    const r = 2.9;
+    ctx.save();
+    ctx.fillStyle = '#A6BEF5';
+    ctx.beginPath();
+    ctx.arc(x, y, r, Math.PI * 0.34, Math.PI * 1.66, false);
+    ctx.arc(x + 1.5, y, r * 0.96, Math.PI * 1.55, Math.PI * 0.45, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ---- "light the gaps" auto-suggest markers: pulsing amber tiles the player can drop lamps on.
+  // Render-only + self-expiring; a tile drops out the instant a lamp actually covers it.
+  setLampSuggestions(spots, ms = 12000) {
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    this.lampSuggestions = spots && spots.length ? { spots, until: now + ms } : null;
+  }
+
+  drawLampSuggestions(ctx) {
+    const sug = this.lampSuggestions;
+    if (!sug || !sug.spots.length) return;
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (now > sug.until) { this.lampSuggestions = null; return; }
+    const s = this.state;
+    const map = lightMap(s);
+    const pulse = 0.5 + 0.5 * Math.sin(this.frame / 12);
+    ctx.save();
+    for (const spot of sug.spots) {
+      if (map[idx(spot.x, spot.y)] > 0) continue; // a lamp now covers this gap — stop nagging
+      ctx.globalAlpha = 0.22 + 0.3 * pulse;
+      ctx.fillStyle = 'rgba(255,179,71,0.9)';
+      this.diamondPath(ctx, spot.x, spot.y);
+      ctx.fill();
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = '#FFCF74'; ctx.lineWidth = 1.4;
+      this.diamondPath(ctx, spot.x, spot.y);
+      ctx.stroke();
+      const p = worldPx(spot.x + 0.5, spot.y + 0.5, s.heights[idx(spot.x, spot.y)] || 0);
+      ctx.globalAlpha = 0.55 + 0.45 * pulse;
+      ctx.fillStyle = '#FFCF74';
+      ctx.beginPath(); ctx.arc(p.x, p.y - 11, 2.4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
 
   // ---------- tool previews / hover / selection ----------
   drawToolPreview(ctx) {

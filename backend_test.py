@@ -4,6 +4,7 @@ import requests
 import sys
 import json
 import uuid
+from typing import Any, List, Optional
 
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tests'))
@@ -13,23 +14,23 @@ from config import API as BASE_URL  # noqa: E402  (AETHERION_URL env var, previe
 IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q=="
 
 class APITester:
-    def __init__(self):
-        self.tests_run = 0
-        self.tests_passed = 0
-        self.save_id = None
-        self.photo_ids = []
-        self.player_token = f"test-{uuid.uuid4().hex[:12]}"
+    def __init__(self) -> None:
+        self.tests_run: int = 0
+        self.tests_passed: int = 0
+        self.save_id: Optional[str] = None
+        self.photo_ids: List[str] = []
+        self.player_token: str = f"test-{uuid.uuid4().hex[:12]}"
 
-    def test(self, name, condition, detail=""):
+    def test(self, name: str, condition: Any, detail: Any = "") -> bool:
         self.tests_run += 1
         if condition:
             self.tests_passed += 1
             print(f"✅ {name}")
         else:
             print(f"❌ {name}: {detail}")
-        return condition
+        return bool(condition)
 
-    def run(self):
+    def run(self) -> bool:
         try:
             return self._run()
         finally:
@@ -41,7 +42,7 @@ class APITester:
                 try: requests.delete(f"{BASE_URL}/photos/{photo_id}", headers={"X-Player-Token": self.player_token}, timeout=15)
                 except Exception: pass
 
-    def _run(self):
+    def _run(self) -> bool:
         print("Testing Backend API...")
         
         # Test 1: Root endpoint

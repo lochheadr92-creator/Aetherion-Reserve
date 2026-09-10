@@ -1,18 +1,30 @@
 [
   {
-    "content": "Run testing_agent_v3 sweep for Phase V (frontend + backend)",
+    "content": "#5 Refactor GameCanvas mount effect into named helpers (runtime, 3D attach, resize, frame loop)",
     "status": "completed"
   },
   {
-    "content": "Read test report and fix any regressions found (ALARM 1 + SUB 3 test flakes hardened)",
+    "content": "#5 Refactor PairingPlanner: extract derivePlan() + PlannerEmpty",
     "status": "completed"
   },
   {
-    "content": "Re-run local regression suites after fixes",
+    "content": "#5 Refactor BloodlineLedger: extract describeLedger() + header/body components",
     "status": "completed"
   },
   {
-    "content": "Mark Phase V COMPLETED in plan.md and finish",
+    "content": "#5 Refactor AlbumScreen: extract AlbumBody/AlbumLoading/AlbumError",
+    "status": "completed"
+  },
+  {
+    "content": "#4 Add context logging to empty catch blocks (9 sites)",
+    "status": "completed"
+  },
+  {
+    "content": "#7 Add type hints to backend/tools/gen_textures.py and backend_test.py",
+    "status": "completed"
+  },
+  {
+    "content": "Verify: esbuild compile, ESLint hooks, run regression suites (pairing, album, phase_v, vocals, render3d)",
     "status": "completed"
   }
 ]

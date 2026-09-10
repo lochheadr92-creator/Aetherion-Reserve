@@ -237,14 +237,11 @@ function BestPairs({ pairs, onPick }) {
   );
 }
 
-export const PairingPlanner = ({ state, subjectId, focusSpeciesId = null }) => {
-  const [aId, setAId] = useState(subjectId ?? null);
-  const [bId, setBId] = useState(null);
-  useEffect(() => { setAId(subjectId ?? null); setBId(null); }, [subjectId]);
-
+// Pure projection of the planner's derived data for the current slot choices. Cheap over a few dozen
+// residents; recomputed on every tick re-render so the planner stays live.
+function derivePlan(state, aId, bId, focusSpeciesId) {
   const creatures = state?.creatures || [];
   const a = creatures.find((c) => c.id === aId) || null;
-  // cheap over a few dozen residents; recomputed on every tick re-render so the planner stays live
   const rosterA = plannerRoster(state);
   const rosterB = a ? plannerRoster(state, a.speciesId).filter((c) => c.id !== a.id) : [];
   const recs = a ? recommendPartners(state, a, 5) : [];
@@ -253,16 +250,41 @@ export const PairingPlanner = ({ state, subjectId, focusSpeciesId = null }) => {
   const b = creatures.find((c) => c.id === effectiveB) || null;
   const p = a && b ? projectPairing(state, a, b) : null;
   const pairs = a ? bestPairs(state, a.speciesId, 3) : [];
-  const sp = a ? speciesById(a.speciesId) : (focusSpeciesId ? speciesById(focusSpeciesId) : null);
+  const speciesId = a ? a.speciesId : focusSpeciesId;
+  const sp = speciesId ? speciesById(speciesId) : null;
+  return { a, b, rosterA, rosterB, recs, p, pairs, sp };
+}
+
+// Empty states: no organism A yet (species-focused or generic) / A has no possible partner.
+function PlannerEmpty({ a, sp, focusSpeciesId }) {
+  const name = sp?.name || 'organism';
+  let text;
+  if (!a && focusSpeciesId) text = `No ${name} lives in the park yet — recover one through Field Operations to found a line.`;
+  else if (!a) text = 'Pick an organism to start planning a pairing.';
+  else text = `No other ${name} in the park — acquire fresh blood to found a line.`;
+  return (
+    <div className="text-[11px] text-[var(--text-3)] flex items-start gap-1.5" data-testid="pairing-empty">
+      <Info size={12} className="shrink-0 mt-0.5" /> <span>{text}</span>
+    </div>
+  );
+}
+
+export const PairingPlanner = ({ state, subjectId, focusSpeciesId = null }) => {
+  const [aId, setAId] = useState(subjectId ?? null);
+  const [bId, setBId] = useState(null);
+  useEffect(() => { setAId(subjectId ?? null); setBId(null); }, [subjectId]);
+
+  const { a, b, rosterA, rosterB, recs, p, pairs, sp } = derivePlan(state, aId, bId, focusSpeciesId);
 
   const swap = useCallback(() => { if (a && b) { setAId(b.id); setBId(a.id); } }, [a, b]);
   const pickPair = useCallback((x, y) => { setAId(x); setBId(y); }, []);
+  const pickA = useCallback((id) => { setAId(id); setBId(null); }, []);
 
   return (
     <div data-testid="pairing-planner" className="space-y-3" data-focus-species={focusSpeciesId || undefined}>
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] flex items-center gap-1.5"><Dna size={11} /> PAIRING PLANNER</div>
       <div className="space-y-2">
-        <SlotSelect slot="A" value={a?.id ?? null} roster={rosterA} onChange={(id) => { setAId(id); setBId(null); }} placeholder="Choose an organism" />
+        <SlotSelect slot="A" value={a?.id ?? null} roster={rosterA} onChange={pickA} placeholder="Choose an organism" />
         <div className="flex justify-center -my-1">
           <button type="button" data-testid="pairing-swap" onClick={swap} disabled={!a || !b} title="Swap A and B"
             className="nl-tool h-6 px-2 text-[10px] flex items-center gap-1 disabled:opacity-40">
@@ -272,19 +294,7 @@ export const PairingPlanner = ({ state, subjectId, focusSpeciesId = null }) => {
         <SlotSelect slot="B" value={b?.id ?? null} roster={rosterB} onChange={setBId} placeholder={a ? `Choose a ${sp?.name || 'partner'}` : 'Pick organism A first'} />
       </div>
 
-      {!a && (
-        <div className="text-[11px] text-[var(--text-3)] flex items-start gap-1.5" data-testid="pairing-empty">
-          <Info size={12} className="shrink-0 mt-0.5" />
-          {focusSpeciesId
-            ? <span>No {sp?.name || 'organism'} lives in the park yet — recover one through Field Operations to found a line.</span>
-            : <span>Pick an organism to start planning a pairing.</span>}
-        </div>
-      )}
-      {a && !b && (
-        <div className="text-[11px] text-[var(--text-3)] flex items-start gap-1.5" data-testid="pairing-empty">
-          <Info size={12} className="shrink-0 mt-0.5" /> No other {sp?.name || 'organism'} in the park — acquire fresh blood to found a line.
-        </div>
-      )}
+      {(!a || !b) && <PlannerEmpty a={a} sp={sp} focusSpeciesId={focusSpeciesId} />}
 
       {p && (
         <div className="space-y-2" data-testid="pairing-projection" data-a={p.a.id} data-b={p.b.id}>

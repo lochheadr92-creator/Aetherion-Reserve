@@ -248,18 +248,85 @@ function LedgerEmpty() {
   );
 }
 
+// Resolve what the ledger is showing. Three modes:
+//   'tree'    an organism's registry entry (family tree + planner + pairing outlook)
+//   'species' species focus from the Species Database "Plan pairing" shortcut (planner only)
+//   'empty'   nothing selected (empty state + free planner)
+// Registry-derived views are cheap; recomputed on every tick re-render so the ledger stays live.
+function describeLedger(s, creatureId, speciesId) {
+  const c = s.creatures.find((q) => q.id === creatureId) || null;
+  const tree = creatureId != null ? familyTree(s, creatureId) : null;
+  if (tree) return { mode: 'tree', c, tree, rows: c ? pairingOutlook(s, c) : [], sp: speciesById(tree.me.speciesId) };
+  if (speciesId) {
+    const roster = plannerRoster(s, speciesId); // slot A = first resident (stable ordering)
+    return { mode: 'species', speciesId, sp: speciesById(speciesId), residents: roster.length, focusResident: roster[0] || null };
+  }
+  return { mode: 'empty' };
+}
+
+function LedgerSubtitle({ view }) {
+  if (view.mode === 'tree') {
+    return (
+      <span className="text-[var(--text-1)]" data-testid="ledger-title">
+        {view.tree.me.name} <span className="text-[var(--text-3)]">· {view.sp?.name} · {genLabel(view.tree.me)}</span>
+      </span>
+    );
+  }
+  if (view.mode === 'species') {
+    return (
+      <span className="text-[var(--text-1)]" data-testid="ledger-title">
+        Pairing Planner <span className="text-[var(--text-3)]">· {view.sp?.name}</span>
+      </span>
+    );
+  }
+  return null;
+}
+
+function LedgerActions({ view }) {
+  if (view.mode === 'tree') {
+    const d = view.tree.descendants;
+    return (
+      <div className="mono text-[10px] text-[var(--text-2)]" data-testid="ledger-descendants">
+        {d.total} descendant{d.total === 1 ? '' : 's'} · {d.living} in park
+      </div>
+    );
+  }
+  if (view.mode === 'species') {
+    return <div className="mono text-[10px] text-[var(--text-2)]" data-testid="ledger-residents">{view.residents} in park</div>;
+  }
+  return null;
+}
+
+function LedgerBody({ view, state, onLocate }) {
+  if (view.mode === 'tree') {
+    return (
+      <>
+        <FamilyTreeView tree={view.tree} onLocate={onLocate} />
+        <div className="border-t border-[var(--line)]" />
+        <PairingPlanner state={state} subjectId={view.c ? view.c.id : null} />
+        <div className="border-t border-[var(--line)]" />
+        <PairingOutlook rows={view.rows} onLocate={onLocate} />
+      </>
+    );
+  }
+  if (view.mode === 'species') {
+    return <PairingPlanner state={state} subjectId={view.focusResident ? view.focusResident.id : null} focusSpeciesId={view.speciesId} />;
+  }
+  return (
+    <>
+      <LedgerEmpty />
+      <div className="border-t border-[var(--line)]" />
+      <PairingPlanner state={state} subjectId={null} />
+    </>
+  );
+}
+
 export default function BloodlineLedger({ creatureId, speciesId, onClose, onNavigate }) {
   useGameTick();
   const s = game.state;
-  const c = s?.creatures.find((q) => q.id === creatureId);
-  // registry-derived views are cheap; recomputed on every tick re-render so the ledger stays live
-  const tree = s && creatureId != null ? familyTree(s, creatureId) : null;
-  const rows = s && c ? pairingOutlook(s, c) : [];
   if (!s) return null;
-  const sp = tree ? speciesById(tree.me.speciesId) : (speciesId ? speciesById(speciesId) : null);
-  // species focus (opened from the Species Database "Plan pairing" shortcut): slot A = first resident
-  const focusSpecies = !tree && speciesId ? speciesId : null;
-  const focusResident = focusSpecies ? plannerRoster(s, focusSpecies)[0] : null;
+  const view = describeLedger(s, creatureId, speciesId);
+  const hasHeader = view.mode !== 'empty'; // ScreenFrame only renders the strip for truthy subtitle/actions
   const locate = (id) => {
     onClose();
     onNavigate({ kind: 'creature', id });
@@ -271,43 +338,11 @@ export default function BloodlineLedger({ creatureId, speciesId, onClose, onNavi
       closeTestId="ledger-close-button"
       onClose={onClose}
       eyebrow={<><GitBranch size={11} /> BLOODLINE LEDGER</>}
-      subtitle={tree ? (
-        <span className="text-[var(--text-1)]" data-testid="ledger-title">
-          {tree.me.name} <span className="text-[var(--text-3)]">· {sp?.name} · {genLabel(tree.me)}</span>
-        </span>
-      ) : focusSpecies ? (
-        <span className="text-[var(--text-1)]" data-testid="ledger-title">
-          Pairing Planner <span className="text-[var(--text-3)]">· {sp?.name}</span>
-        </span>
-      ) : null}
-      actions={tree ? (
-        <div className="mono text-[10px] text-[var(--text-2)]" data-testid="ledger-descendants">
-          {tree.descendants.total} descendant{tree.descendants.total === 1 ? '' : 's'} · {tree.descendants.living} in park
-        </div>
-      ) : focusSpecies ? (
-        <div className="mono text-[10px] text-[var(--text-2)]" data-testid="ledger-residents">
-          {plannerRoster(s, focusSpecies).length} in park
-        </div>
-      ) : null}
+      subtitle={hasHeader ? <LedgerSubtitle view={view} /> : null}
+      actions={hasHeader ? <LedgerActions view={view} /> : null}
       bodyClassName="p-4 space-y-5 drawer:p-3 drawer:space-y-4"
     >
-      {tree ? (
-        <>
-          <FamilyTreeView tree={tree} onLocate={locate} />
-          <div className="border-t border-[var(--line)]" />
-          <PairingPlanner state={s} subjectId={c ? c.id : null} />
-          <div className="border-t border-[var(--line)]" />
-          <PairingOutlook rows={rows} onLocate={locate} />
-        </>
-      ) : focusSpecies ? (
-        <PairingPlanner state={s} subjectId={focusResident ? focusResident.id : null} focusSpeciesId={focusSpecies} />
-      ) : (
-        <>
-          <LedgerEmpty />
-          <div className="border-t border-[var(--line)]" />
-          <PairingPlanner state={s} subjectId={null} />
-        </>
-      )}
+      <LedgerBody view={view} state={s} onLocate={locate} />
     </ScreenFrame>
   );
 }

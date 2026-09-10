@@ -245,6 +245,31 @@ The user picked 4 features; all are now complete.
 
 ---
 
+## Phase W — Code Review Response ✅ COMPLETED
+An automated code-quality report was triaged against the official tooling; findings were either fixed or documented as false positives.
+
+### Applied
+- **Complexity (#5):** behaviour-preserving extractions, all `data-testid`s and copy unchanged:
+  - `GameCanvas.jsx` mount effect (79 lines) → `createRuntime`, `wants3D`, `tryAttach3D`, `dropWorld`, `fitCanvases`, `startFrameLoop`, `pauseSimSafely`; the effect is now ~25 lines of orchestration. Frame-loop order preserved (`setState` → `input.frame` → `renderer.render` → `audio.update`); two-stage error recovery preserved.
+  - `PairingPlanner.jsx` → pure `derivePlan()` + `PlannerEmpty`.
+  - `BloodlineLedger.jsx` → `describeLedger()` (modes `tree | species | empty`) + `LedgerSubtitle` / `LedgerActions` / `LedgerBody`; header strip still `null` in empty mode (ScreenFrame gates on truthiness).
+  - `AlbumScreen.jsx` → `AlbumBody` state switch + `AlbumLoading` / `AlbumError` / `AlbumGrid`.
+- **Empty catch blocks (#4):** context logging (`console.debug`/`warn`) added at all 9 sites (world.js ×2, seed.js, audio.js, input.js, ErrorBoundary ×2, ScenarioTracker, PhotoMode, plus the new GameCanvas helpers).
+- **Type hints (#7):** `backend/tools/gen_textures.py` and `backend_test.py` fully annotated. `server.py` was already 100% annotated (the flagged defs are multi-line signatures).
+- **Test hardening:** `creature_vocals_test.py` Part B now polls rendered frames (per the §2 test constraint) instead of a fixed 15 s wall-clock wait.
+
+### Rejected as false positives (verified)
+- **Hook dependencies (#1, "60 instances"):** `eslint-plugin-react-hooks@5.2.0` `exhaustive-deps` reports **0** issues across all 162 source files (rule verified to fire on a deliberate violation). Every flagged name is a module-level constant/import (`increment`, `subscribeTicks`, `listeners`, `PLACE_HINTS`, `toast`, `game`, `hireStaff`, `navigateToTarget`, `handleHotkey`…) or declared inside the effect itself (`listener`, `index`) — never valid deps.
+- **"Direct state mutations" (#2):** `this.state` in `renderer.js` / `controller.js` is the deterministic **sim** state, not React state; `_terrainDirty` is a render-cache flag and lines 76/88 are the `__gameDebug.dev` test hooks. Routing through `setState` would break the sim/render separation (§2).
+- **localStorage (#3):** only UI preferences (gfx tier, edge-scroll, art flags, subtitles) and an anonymous client-minted save-scope UUID; no credentials, no login system → httpOnly cookies not applicable.
+- **Python `is` vs `==` (#6):** every flagged line is `is None` (PEP 8 idiom). `backend_test.py:237` contains no `is`.
+
+### Verification
+- esbuild compile clean; ESLint hooks clean on refactored files.
+- `pairing_planner` 15/15 · `photo_album` 15/15 · `phase_v` 19/19 · `phase21_features` (ledger) 28/28 · `creature_vocals` 19/19 (incl. forced 3D) · `render3d` 31/31.
+
+---
+
 ## 6) Next Actions (updated backlog)
 1. **Phase V** ✅ done and verified.
 2. **Polish (P1)** — candidates for the next user pick:

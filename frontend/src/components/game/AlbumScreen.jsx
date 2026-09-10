@@ -166,6 +166,40 @@ function AlbumEmpty({ onOpenPhoto }) {
   );
 }
 
+function AlbumLoading() {
+  return (
+    <div className="grid grid-cols-2 gap-2" data-testid="album-loading">
+      {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="aspect-video rounded-lg bg-[var(--panel-2)]" />)}
+    </div>
+  );
+}
+
+function AlbumError({ error, onRetry }) {
+  return (
+    <div className="rounded-lg border border-[var(--line)] p-3 text-[11px] text-[var(--warning)] flex items-center justify-between gap-2" data-testid="album-error">
+      <span className="flex items-center gap-1.5"><AlertTriangle size={12} /> {error}</span>
+      <button type="button" data-testid="album-retry-button" onClick={onRetry} className="nl-tool h-7 px-2 text-[10px] flex items-center gap-1"><RefreshCw size={11} /> Retry</button>
+    </div>
+  );
+}
+
+function AlbumGrid({ photos, onOpen }) {
+  return (
+    <div className="grid grid-cols-2 gap-2" data-testid="album-grid">
+      {photos.map((p) => <Tile key={p.id} p={p} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
+// Data-state switch: loading -> error -> empty -> detail | grid
+function AlbumBody({ photos, error, reload, selected, onOpen, onBack, onDeleted, onMetaChanged, onOpenPhoto }) {
+  if (photos === null) return <AlbumLoading />;
+  if (error) return <AlbumError error={error} onRetry={reload} />;
+  if (photos.length === 0) return <AlbumEmpty onOpenPhoto={onOpenPhoto} />;
+  if (selected) return <Detail meta={selected} onBack={onBack} onDeleted={onDeleted} onMetaChanged={onMetaChanged} />;
+  return <AlbumGrid photos={photos} onOpen={onOpen} />;
+}
+
 export default function AlbumScreen({ onClose, onOpenPhoto, initialPhotoId = null }) {
   const { photos, error, reload, setPhotos } = useAlbum();
   const [openId, setOpenId] = useState(initialPhotoId);
@@ -184,25 +218,8 @@ export default function AlbumScreen({ onClose, onOpenPhoto, initialPhotoId = nul
       actions={photos ? <span className="mono text-[10px] text-[var(--text-2)]" data-testid="album-count">{photos.length} photo{photos.length === 1 ? '' : 's'}</span> : null}
       bodyClassName="p-3"
     >
-      {photos === null && (
-        <div className="grid grid-cols-2 gap-2" data-testid="album-loading">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="aspect-video rounded-lg bg-[var(--panel-2)]" />)}
-        </div>
-      )}
-      {photos && error && (
-        <div className="rounded-lg border border-[var(--line)] p-3 text-[11px] text-[var(--warning)] flex items-center justify-between gap-2" data-testid="album-error">
-          <span className="flex items-center gap-1.5"><AlertTriangle size={12} /> {error}</span>
-          <button type="button" data-testid="album-retry-button" onClick={reload} className="nl-tool h-7 px-2 text-[10px] flex items-center gap-1"><RefreshCw size={11} /> Retry</button>
-        </div>
-      )}
-      {photos && !error && photos.length === 0 && <AlbumEmpty onOpenPhoto={openPhoto} />}
-      {photos && !error && photos.length > 0 && (selected
-        ? <Detail meta={selected} onBack={() => setOpenId(null)} onDeleted={onDeleted} onMetaChanged={onMetaChanged} />
-        : (
-          <div className="grid grid-cols-2 gap-2" data-testid="album-grid">
-            {photos.map((p) => <Tile key={p.id} p={p} onOpen={(x) => setOpenId(x.id)} />)}
-          </div>
-        ))}
+      <AlbumBody photos={photos} error={error} reload={reload} selected={selected}
+        onOpen={(x) => setOpenId(x.id)} onBack={() => setOpenId(null)} onDeleted={onDeleted} onMetaChanged={onMetaChanged} onOpenPhoto={openPhoto} />
     </ScreenFrame>
   );
 }

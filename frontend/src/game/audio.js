@@ -24,7 +24,7 @@ const VOICE_WINDOW_MAX = 3;
 const readLS = (k, fallback) => {
   try { const v = localStorage.getItem(k); return v == null ? fallback : v; } catch (e) { return fallback; }
 };
-const writeLS = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* storage unavailable */ } };
+const writeLS = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { console.debug('[audio] preference not persisted:', k, e && e.message); } };
 
 // looping brown-ish noise buffer (2s) — the wind bed source
 function makeNoiseBuffer(ctx, seconds = 2) {

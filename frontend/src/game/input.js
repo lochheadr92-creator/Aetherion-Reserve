@@ -26,7 +26,7 @@ let edgePref = readEdgePref();
 export const isEdgeScrollEnabled = () => edgePref;
 export function setEdgeScrollEnabled(v) {
   edgePref = !!v;
-  try { localStorage.setItem(EDGE_LS_KEY, String(edgePref)); } catch (e) { /* storage unavailable */ }
+  try { localStorage.setItem(EDGE_LS_KEY, String(edgePref)); } catch (e) { console.debug('[input] edge-scroll preference not persisted:', e && e.message); }
 }
 
 export class InputController {

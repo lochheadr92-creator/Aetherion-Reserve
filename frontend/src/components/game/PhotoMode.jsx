@@ -51,7 +51,7 @@ function composeShot(state) {
   const world = typeof window !== 'undefined' ? window.__world3d : null;
   const gl = document.querySelector('canvas[data-testid="game-canvas-3d"]');
   if (world && gl && gl.width) {
-    try { world.renderNow(); ctx.drawImage(gl, 0, 0, out.width, out.height); } catch (e) { /* overlay only */ }
+    try { world.renderNow(); ctx.drawImage(gl, 0, 0, out.width, out.height); } catch (e) { console.warn('[photo] 3D frame unavailable, capturing overlay only:', e && e.message); }
   }
   ctx.drawImage(src, 0, 0);
   drawVignette(ctx, out.width, out.height);

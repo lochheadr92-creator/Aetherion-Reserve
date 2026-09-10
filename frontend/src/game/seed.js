@@ -37,7 +37,7 @@ export async function copyText(text) {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch (e) { /* fall through */ }
+  } catch (e) { console.debug('[clipboard] async API refused, trying execCommand fallback:', e && e.message); }
   try {
     const ta = document.createElement('textarea');
     ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';

@@ -23,7 +23,7 @@ export function pickQuality() {
     if (TIERS.includes(q)) return q; // explicit request (also pins the tier, see constructor)
     const saved = window.localStorage.getItem(QUALITY_KEY);
     if (TIERS.includes(saved)) return saved;
-  } catch (e) { /* no storage */ }
+  } catch (e) { console.debug('[render3d] storage unavailable, picking quality from hardware:', e && e.message); }
   if (softwareRenderer()) return 'low'; // SwiftShader / llvmpipe (headless, VMs): keep the post stack off
   const cores = navigator.hardwareConcurrency || 4;
   return cores >= 8 ? 'high' : cores >= 4 ? 'medium' : 'low';
@@ -103,7 +103,7 @@ export class World3D {
   setQuality(q) {
     if (!TIERS.includes(q) || q === this.quality) return;
     this.quality = q;
-    try { window.localStorage.setItem(QUALITY_KEY, q); } catch (e) { /* ignore */ }
+    try { window.localStorage.setItem(QUALITY_KEY, q); } catch (e) { console.debug('[render3d] quality preference not persisted:', e && e.message); }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : 1.5));
     this.renderer.setSize(this.W, this.H, false);
     this.lights.setShadowSize(q === 'high' ? 2048 : q === 'medium' ? 1536 : 1024);

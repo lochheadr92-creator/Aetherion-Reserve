@@ -202,16 +202,24 @@ async def part_b():
         await asyncio.wait_for(page.evaluate(RESET), 60)
         await asyncio.wait_for(page.evaluate("window.__vocals.last = null"), 60)
         await asyncio.wait_for(page.evaluate(CALM, [0, 0, 0]), 60)
+        # SwiftShader frames can take seconds each (shader compiles), so poll rendered frames rather than
+        # wall-clock: the scheduler runs once per frame and needs a few frames after CALM to place the cue
+        f0 = await asyncio.wait_for(page.evaluate("window.__gameRenderer.frame"), 60)
         fired = False
-        for _ in range(10):
+        frames = 0
+        for _ in range(40):
             await page.wait_for_timeout(1500)
             try:
                 if await asyncio.wait_for(page.evaluate("(window.__audio.voices.byEvent.idle || 0) >= 1 && !!window.__vocals.last"), 60):
                     fired = True
                     break
+                frames = await asyncio.wait_for(page.evaluate("window.__gameRenderer.frame"), 60) - f0
+                if frames >= 8:
+                    break  # plenty of frames rendered and still no cue: a real failure, stop waiting
             except Exception:
                 pass
         st = await asyncio.wait_for(page.evaluate("({ log: window.__audio.log.map(l => l.kind).filter(k => k.startsWith('voice:')), last: window.__vocals.last, mode: window.__renderMode })"), 60)
+        st["framesAfterCalm"] = frames
         check("3D 1 the vocal scheduler runs under the WebGL renderer: idle cue fires with a spatial placement",
               fired and st["last"] and st["last"]["event"] == "idle" and abs(st["last"]["pan"]) < 0.15 and st["mode"] == "3d", f"{st}")
         check("B no page errors", not errors, errors[:2])

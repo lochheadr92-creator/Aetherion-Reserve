@@ -16,7 +16,7 @@ function markCompleted(id) {
       done[id] = true;
       localStorage.setItem('aetherion_scenarios_done', JSON.stringify(done));
     }
-  } catch (e) { /* storage unavailable */ }
+  } catch (e) { console.debug('[scenarios] completion not persisted:', e && e.message); }
 }
 
 // persist the completion badge as soon as a scenario is won

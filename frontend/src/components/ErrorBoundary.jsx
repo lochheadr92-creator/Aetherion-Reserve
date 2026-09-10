@@ -22,12 +22,12 @@ export class ErrorBoundary extends Component {
 
   retry = () => {
     // the sim loop from the crashed session must not keep ticking under a remounted tree
-    try { game.stopLoop(); } catch (e) { /* loop may already be stopped */ }
+    try { game.stopLoop(); } catch (e) { console.debug('[boundary] sim loop already stopped:', e && e.message); }
     this.setState({ error: null });
   };
 
   backToMenu = () => {
-    try { game.stopLoop(); } catch (e) { /* loop may already be stopped */ }
+    try { game.stopLoop(); } catch (e) { console.debug('[boundary] sim loop already stopped:', e && e.message); }
     // clearing the error unmounts the fallback and remounts <App/> fresh, i.e. on the main menu
     this.setState({ error: null });
   };

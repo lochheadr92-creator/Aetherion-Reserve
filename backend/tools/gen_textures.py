@@ -24,6 +24,9 @@ import time
 import numpy as np
 from dotenv import load_dotenv
 from PIL import Image, ImageFilter
+from typing import Any, Dict
+
+from numpy.typing import NDArray
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -68,11 +71,11 @@ TEXTURES = {
 }
 
 
-def log(*a):
+def log(*a: Any) -> None:
     print(time.strftime('%H:%M:%S'), *a, flush=True)
 
 
-async def generate(key, prompt):
+async def generate(key: str, prompt: str) -> bytes:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     api_key = os.getenv('EMERGENT_LLM_KEY')
     if not api_key:
@@ -86,13 +89,13 @@ async def generate(key, prompt):
     return base64.b64decode(images[0]['data'])
 
 
-def square(img):
+def square(img: Image.Image) -> Image.Image:
     w, h = img.size
     s = min(w, h)
     return img.crop(((w - s) // 2, (h - s) // 2, (w - s) // 2 + s, (h - s) // 2 + s))
 
 
-def make_seamless(arr):
+def make_seamless(arr: NDArray[np.float32]) -> NDArray[np.float32]:
     """Blend the image with a half-offset copy, weighting the copy towards the borders."""
     h, w = arr.shape[:2]
     rolled = np.roll(np.roll(arr, h // 2, axis=0), w // 2, axis=1)
@@ -104,7 +107,7 @@ def make_seamless(arr):
     return out
 
 
-def normal_map(lum, strength):
+def normal_map(lum: NDArray[np.float32], strength: float) -> NDArray[np.uint8]:
     """Height (luminance) -> tangent-space normal map (OpenGL convention, +Y up)."""
     lum = np.asarray(Image.fromarray((lum * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.2)), dtype=np.float32) / 255.0
     dx = (np.roll(lum, -1, axis=1) - np.roll(lum, 1, axis=1)) * strength * 6.0
@@ -115,7 +118,7 @@ def normal_map(lum, strength):
     return ((n * 0.5 + 0.5) * 255).astype(np.uint8)
 
 
-def post_process(key, src_path, albedo_size, strength, base_rough, kind):
+def post_process(key: str, src_path: str, albedo_size: int, strength: float, base_rough: float, kind: str) -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     img = Image.open(src_path).convert('RGB')
     img = square(img).resize((1024, 1024), Image.LANCZOS)
@@ -139,7 +142,7 @@ def post_process(key, src_path, albedo_size, strength, base_rough, kind):
     Image.fromarray((rough * 255).astype(np.uint8)).save(os.path.join(OUT_DIR, f'{key}_rough.jpg'), quality=80)
 
 
-def water_normal():
+def water_normal() -> None:
     """Procedural ripple normal map (AI output is unreliable for normal maps)."""
     n = 512
     rng = np.random.default_rng(7)
@@ -153,7 +156,7 @@ def water_normal():
     Image.fromarray(normal_map(h, 0.9)).save(os.path.join(OUT_DIR, 'water_normal.jpg'), quality=90)
 
 
-async def main():
+async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--only', nargs='*')
     ap.add_argument('--post-only', action='store_true')
@@ -161,7 +164,7 @@ async def main():
     os.makedirs(SRC_DIR, exist_ok=True)
     os.makedirs(OUT_DIR, exist_ok=True)
     keys = args.only or list(TEXTURES.keys())
-    manifest = {}
+    manifest: Dict[str, Dict[str, Any]] = {}
     for key in keys:
         prompt, size, strength, rough, kind = TEXTURES[key]
         src = os.path.join(SRC_DIR, f'{key}.png')
@@ -184,7 +187,7 @@ async def main():
         log('done', key)
     water_normal()
     mpath = os.path.join(OUT_DIR, 'manifest.json')
-    prev = {}
+    prev: Dict[str, Dict[str, Any]] = {}
     if os.path.exists(mpath):
         try:
             prev = json.load(open(mpath))

@@ -10,6 +10,7 @@ import Portrait from '@/components/game/Portrait';
 import ExpeditionsTab from '@/components/game/fieldops/ExpeditionsTab';
 import ContractsTab from '@/components/game/fieldops/ContractsTab';
 import { ScreenFrame, useScreenHost } from '@/components/game/ScreenFrame';
+import { tierNumeral } from '@/components/game/tone';
 
 const BUY_BUTTON_STYLE = { background: 'var(--accent-cyan)', color: '#061014' };
 const ATTENTION_DOT_STYLE = { background: 'var(--accent-seaglass)' };
@@ -58,7 +59,7 @@ function CardHeader({ sp, unlocked, owned }) {
       </div>
       <div className="min-w-0">
         <div className="text-xs font-semibold truncate">{unlocked ? sp.name : 'UNRESOLVED SIGNAL'}</div>
-        <div className="mono text-[9px] text-[var(--text-3)]">{unlocked ? `${sp.family} · ${sp.rarity}` : `Field Operations ${sp.tier === 2 ? 'II' : sp.tier === 3 ? 'III' : 'IV'} required`}</div>
+        <div className="mono text-[9px] text-[var(--text-3)]">{unlocked ? `${sp.family} · ${sp.rarity}` : `Field Operations ${tierNumeral(sp.tier)} required`}</div>
         {unlocked && <CardBadges sp={sp} owned={owned} />}
       </div>
     </div>

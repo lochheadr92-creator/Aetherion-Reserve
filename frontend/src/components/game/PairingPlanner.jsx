@@ -4,6 +4,7 @@ import { speciesById } from '@/game/data/species';
 import { MORPHS } from '@/game/genetics';
 import { projectPairing, recommendPartners, bestPairs, plannerRoster, OUTLOOK_KEYS, GENE_GOOD_HIGH } from '@/game/pairing';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { traitTone } from '@/components/game/tone';
 
 // ---- Pairing Planner: pick two organisms, read the projected pairing ----
 // Read-only over live state (every value comes from the pure helpers in game/pairing.js).
@@ -130,7 +131,7 @@ function MorphOutlook({ m }) {
 // parents' ticks + the expected offspring range on a 0..1 track
 function TraitBar({ g, aName, bName }) {
   const good = GENE_GOOD_HIGH.has(g.key);
-  const tone = g.depression ? 'var(--danger)' : good && g.mean >= 0.65 ? 'var(--accent-seaglass)' : 'var(--accent-cyan)';
+  const tone = traitTone(g, good);
   return (
     <div className="space-y-0.5" data-testid={`pairing-trait-${g.key}`} data-mean={g.mean.toFixed(2)}>
       <div className="flex items-center justify-between text-[10px]">

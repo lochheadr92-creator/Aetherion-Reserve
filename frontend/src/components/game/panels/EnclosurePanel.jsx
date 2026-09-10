@@ -7,6 +7,7 @@ import { FENCES, MATERIALS } from '@/game/constants';
 import { gapsFor, openGaps } from '@/game/construction';
 import { enclosureTension, assignedKeepers, STRESS } from '@/game/tensionProfile';
 import Bar from '@/components/game/panels/Bar';
+import { levelTone, hazardTone, relationClass } from '@/components/game/tone';
 
 function CompositionSection({ enc, mats }) {
   return (
@@ -67,7 +68,7 @@ function ResidentsSection({ residents, bySpecies, pairs, onNavigate }) {
                   {c.name}
                   {(c.injured || c.distressed) && <AlertTriangle size={10} className="text-[var(--danger)]" aria-label="distressed" />}
                 </span>
-                <span className="mono" style={{ color: c.welfare > 0.65 ? 'var(--success)' : c.welfare > 0.4 ? 'var(--warning)' : 'var(--danger)' }}>{(c.welfare * 100).toFixed(0)}%</span>
+                <span className="mono" style={{ color: levelTone(c.welfare) }}>{(c.welfare * 100).toFixed(0)}%</span>
               </button>
             ))}
           </div>
@@ -79,7 +80,7 @@ function ResidentsSection({ residents, bySpecies, pairs, onNavigate }) {
             <div key={p.a + p.b} className="text-[10px] flex items-center gap-1.5">
               {p.status === 'hostile' ? <AlertTriangle size={11} className="text-[var(--danger)]" /> : <span className="w-[11px]" />}
               <span className="text-[var(--text-3)]">{speciesById(p.a).name} + {speciesById(p.b).name}:</span>
-              <span className={p.status === 'hostile' ? 'text-[var(--danger)]' : p.status === 'compatible' ? 'text-[var(--success)]' : 'text-[#ff8aa0] mono'}>
+              <span className={relationClass(p.status)}>
                 {p.status === 'unknown' ? 'RELATIONSHIP UNKNOWN' : p.status.toUpperCase()}
               </span>
             </div>
@@ -166,7 +167,7 @@ function TensionSection({ s, enc, bySpecies }) {
       ) : (
         <div className="space-y-2">
           <Bar label="Mean stress" value={t.mean} testId="enclosure-tension-mean"
-            color={t.mean > 0.6 ? 'var(--danger)' : t.mean > 0.35 ? 'var(--warning)' : 'var(--accent-violet)'}
+            color={hazardTone(t.mean)}
             cause={`Mean ${(t.mean * 100).toFixed(0)}% · peak ${(t.max * 100).toFixed(0)}% — above 70% residents test weak barriers, above 75% they turn on each other`} />
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
             <div className="flex justify-between"><span className="text-[var(--text-3)]">Agitated</span>

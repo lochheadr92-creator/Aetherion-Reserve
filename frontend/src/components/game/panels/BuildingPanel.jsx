@@ -7,6 +7,8 @@ import { demolishBuilding } from '@/game/construction';
 import { platformVisibilityReport } from '@/game/guests';
 import { attractionReport } from '@/game/attractions';
 import { stationHasCar } from '@/game/transport';
+import { lampReport } from '@/game/lighting';
+import { scoreTone } from '@/components/game/tone';
 
 const ATTRACTION_CATS = ['experience', 'major', 'amenity'];
 
@@ -17,6 +19,7 @@ function buildReports(s, b, def) {
   return {
     visReport: def.viewRadius ? platformVisibilityReport(s, b) : null,
     synReport: isAttraction ? attractionReport(s, b) : null,
+    lamp: def.lamp ? lampReport(s, b) : null,
     isStation,
     linked: isStation ? stationHasCar(s, b.id) : false,
   };
@@ -51,7 +54,7 @@ function SynergyReport({ report }) {
     <div data-testid="building-synergy-report">
       <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1.5">ATTRACTION RATING</div>
       <div className="flex items-baseline gap-2">
-        <span className="text-lg font-semibold mono" style={{ color: report.score >= 1.3 ? 'var(--success)' : report.score <= 0.75 ? 'var(--danger)' : 'var(--text-1)' }}>{pct}%</span>
+        <span className="text-lg font-semibold mono" style={{ color: scoreTone(report.score) }}>{pct}%</span>
         <span className="text-[10px] text-[var(--text-3)]">of base value — placement matters</span>
       </div>
       <div className="space-y-0.5 mt-1">
@@ -85,6 +88,28 @@ function StatsList({ def }) {
   );
 }
 
+// Player lamps: what the lamp reaches and whether it is earning its upkeep right now.
+function LampReport({ report }) {
+  const status = report.night ? 'LIT — guests on these tiles gain comfort' : report.on ? 'SWITCHING ON (dusk)' : 'OFF UNTIL DUSK';
+  return (
+    <div data-testid="lamp-report">
+      <div className="mono text-[10px] tracking-[0.2em] text-[var(--text-3)] mb-1.5">NIGHT LIGHTING</div>
+      <div className="text-[11px] rounded border px-2 py-1.5 mb-1.5" data-testid="lamp-status" data-on={report.night ? 'true' : 'false'}
+        style={{ borderColor: report.night ? 'var(--accent-amber)' : 'var(--line-2)', color: report.night ? 'var(--accent-amber)' : 'var(--text-3)' }}>
+        {status}
+      </div>
+      <div className="text-[11px] space-y-1">
+        <div className="flex justify-between"><span className="text-[var(--text-3)]">Reach</span><span className="mono">{report.radius} tiles</span></div>
+        <div className="flex justify-between"><span className="text-[var(--text-3)]">Path tiles lit</span><span className="mono" data-testid="lamp-path-tiles">{report.pathTiles}</span></div>
+        <div className="flex justify-between"><span className="text-[var(--text-3)]">Guests under it now</span><span className="mono" data-testid="lamp-guests">{report.guests}</span></div>
+      </div>
+      {report.pathTiles === 0 && report.kind === 'path' && (
+        <div className="text-[10px] text-[var(--warning)] mt-1.5">No walkway inside its reach — move it closer to a path to help anyone.</div>
+      )}
+    </div>
+  );
+}
+
 function StationStatus({ linked }) {
   return (
     <div className="text-[11px] rounded border px-2 py-1.5" data-testid="station-link-status"
@@ -99,7 +124,7 @@ export default function BuildingPanel({ id, onClose }) {
   const b = s.buildings.find((q) => q.id === id);
   if (!b) return <div className="p-4 text-xs text-[var(--text-3)]">Structure removed.</div>;
   const def = BUILDINGS[b.type];
-  const { visReport, synReport, isStation, linked } = buildReports(s, b, def);
+  const { visReport, synReport, lamp, isStation, linked } = buildReports(s, b, def);
 
   return (
     <div className="flex flex-col gap-3 p-4" data-testid="building-panel">
@@ -109,6 +134,7 @@ export default function BuildingPanel({ id, onClose }) {
       </div>
       <StatsList def={def} />
       {isStation && <StationStatus linked={linked} />}
+      {lamp && <LampReport report={lamp} />}
       {synReport && <SynergyReport report={synReport} />}
       {visReport && <VisibilityReport report={visReport} />}
       <button data-testid="building-demolish-button" onClick={() => demolishWithRefund(s, b, def, onClose)}

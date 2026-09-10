@@ -136,10 +136,11 @@ async def part_a():
         await page.evaluate(RESET)
         await page.evaluate(CALM, [0, 0, 0])
         await wait_for(page, "(window.__audio.voices.byEvent.idle || 0) >= 1")
-        caps = await page.evaluate("window.__vocals.liveCaptions().map(k => ({ id: k.id, text: k.text, event: k.event }))")
+        caps = await page.evaluate("window.__vocals.liveCaptions().map(k => ({ id: k.id, text: k.text, event: k.event, speciesId: k.speciesId }))")
         cid = await page.evaluate("window.__game.state.creatures[0].id")
         check("SUB 1 an idle call raises a subtitle next to the caller ('<Species> chirps')",
               caps and caps[0]["id"] == cid and caps[0]["event"] == "idle" and caps[0]["text"].endswith(" chirps") and "Skitter" in caps[0]["text"], str(caps))
+        check("SUB 1b the caption carries the caller's species (drives the per-species tint + swatch)", caps and caps[0].get("speciesId") == "skitter", str(caps))
         await page.wait_for_timeout(1800)
         check("SUB 2 the subtitle expires after ~1.6 s", await page.evaluate("window.__vocals.liveCaptions().length") == 0)
         # alarmed captions carry the alarm verb; muted players still get captions
@@ -168,6 +169,13 @@ async def part_a():
         check("SUB 4 HUD toggle turns subtitles off (persisted) and new cues raise no caption",
               "ON" in on_txt and "OFF" in off_txt and stored == "false" and await page.evaluate("window.__vocals.liveCaptions().length") == 0, (on_txt, off_txt, stored))
         await page.evaluate("window.__audio.setSubtitles(true)")
+        # species caption colours: accent lifted toward white, memoised, distinct per species, safe default
+        tints = await page.evaluate("({ k: window.__vocals.captionTint('karrgan'), s: window.__vocals.captionTint('skitter'), s2: window.__vocals.captionTint('skitter'), sw: window.__vocals.captionSwatch('skitter'), unknown: window.__vocals.captionTint('no-such-species') })")
+        hex6 = lambda v: isinstance(v, str) and len(v) == 7 and v.startswith('#') and all(ch in '0123456789abcdefABCDEF' for ch in v[1:])
+        def lum(v): return sum(int(v[i:i+2], 16) for i in (1, 3, 5)) / 3
+        check("SUB 5 species caption tints: valid hex, distinct per species, lighter than the raw swatch, default for unknown ids",
+              all(hex6(v) for v in (tints["k"], tints["s"], tints["sw"])) and tints["k"] != tints["s"] and tints["s"] == tints["s2"]
+              and lum(tints["s"]) > lum(tints["sw"]) and tints["unknown"] == "#E6EDF5", str(tints))
         check("A no page errors", not errors, errors[:2])
         await browser.close()
 

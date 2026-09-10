@@ -52,7 +52,9 @@ async def select_creature(page, cid):
     sel = await page.evaluate("window.__gameRenderer.selection")
     if not sel or sel.get("id") != cid:
         # fall back to the navigation path used by alerts (deterministic)
-        await page.evaluate(f"window.__gameRenderer.selection = {{ kind: 'creature', id: {cid} }}")
+        # overlapping sprites can hand the click to a neighbour: select through the input layer so React's
+        # inspect panel follows (renderer.selection alone never reaches the UI)
+        await page.evaluate(f"window.__gameInput.setSelection({{ kind: 'creature', id: {cid} }})")
     return sel
 
 

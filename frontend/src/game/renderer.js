@@ -8,7 +8,8 @@ import { getDayPhase } from './weather';
 import { SPRITE_SCALE, hexRgb } from './art/pixel';
 import { getCreatureSheet } from './art/creatures';
 import { juvenileStage } from './art/juvenile';
-import { vocals, CAPTION_MS } from './vocals';
+import { vocals, CAPTION_MS, captionTint, captionSwatch } from './vocals';
+import { lightMap, lampsOn, isNight, playerLamps, LAMP_RADIUS } from './lighting';
 import { contactShadow, groundAO } from './art/rig';
 import { ART_V2 } from './art/flags';
 import { getBuildingSprite } from './art/buildings';
@@ -57,7 +58,7 @@ export class GameRenderer {
     this.fenceLinePreview = null; // { mode, edges: [{x,y,d,ok}], count, cost }
     this.tool = { mode: 'select' };
     this.selection = null; // {kind, id?, x?, y?, d?}
-    this.overlay = null; // 'habitat' | 'power' | 'view' | null
+    this.overlay = null; // 'habitat' | 'power' | 'view' | 'lighting' | null
     this.brushSize = 1;
     this.frame = 0;
     this.fx = new FxManager(this); // render-only game-feel effects
@@ -364,8 +365,10 @@ export class GameRenderer {
       const top = (sheet?.bounds ? sheet.bounds.h : sheet?.h || 28) * (c.juvenile ? 0.6 : 1);
       const y = p.y - top - 14 - rise;
       const tw = ctx.measureText(k.text).width;
-      const x0 = p.x - tw / 2 - 6, w = tw + 12, h = 14;
+      const dot = 4, dotGap = 5;                                    // species swatch before the text
+      const x0 = p.x - (tw + dot + dotGap) / 2 - 6, w = tw + dot + dotGap + 12, h = 14;
       const alarmed = k.event === 'threat' || k.event === 'lunge';
+      const speciesId = k.speciesId || c.speciesId;
       ctx.globalAlpha = 0.92 * alpha;
       ctx.fillStyle = 'rgba(6,10,16,0.86)';
       ctx.beginPath(); ctx.roundRect(x0, y - h / 2, w, h, 3); ctx.fill();
@@ -374,8 +377,11 @@ export class GameRenderer {
       ctx.stroke();
       // tiny stem toward the animal
       ctx.beginPath(); ctx.moveTo(p.x - 2, y + h / 2); ctx.lineTo(p.x, y + h / 2 + 3); ctx.lineTo(p.x + 2, y + h / 2); ctx.fillStyle = 'rgba(6,10,16,0.86)'; ctx.fill();
-      ctx.fillStyle = alarmed ? '#FFB3C1' : '#E6EDF5';
-      ctx.fillText(k.text, x0 + 6, y);
+      // species swatch dot + tinted text (alarms keep their red ring but still show who is calling)
+      ctx.fillStyle = captionSwatch(speciesId);
+      ctx.beginPath(); ctx.arc(x0 + 6 + dot / 2, y, dot / 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = alarmed ? '#FFB3C1' : captionTint(speciesId);
+      ctx.fillText(k.text, x0 + 6 + dot + dotGap, y);
     }
     ctx.restore();
   }
@@ -1431,7 +1437,41 @@ export class GameRenderer {
         ctx.ellipse(c.x, c.y, def.viewRadius * TILE_W / 2, def.viewRadius * TILE_H / 2, 0, 0, Math.PI * 2);
         ctx.fill(); ctx.stroke();
       }
+    } else if (this.overlay === 'lighting') {
+      this.drawLightingOverlay(ctx);
     }
+  }
+
+  // Lighting coverage: every path tile is tinted warm when a lamp reaches it. After dark the unlit
+  // path tiles turn cold blue (that is where guests lose comfort); by day they stay untinted so the
+  // overlay reads as a planning footprint. Lamp reach is outlined so gaps are easy to close.
+  drawLightingOverlay(ctx) {
+    const s = this.state;
+    const map = lightMap(s);
+    const night = isNight(s);
+    const on = lampsOn(s);
+    const warm = on ? 'rgba(255,179,71,0.26)' : 'rgba(255,179,71,0.16)';
+    const cold = 'rgba(96,132,255,0.22)';
+    for (let ti = 0; ti < map.length; ti++) {
+      if (!s.paths[ti]) continue;
+      const lit = map[ti] > 0;
+      if (!lit && !night) continue;
+      ctx.fillStyle = lit ? warm : cold;
+      this.diamondPath(ctx, ti % MAP_SIZE, Math.floor(ti / MAP_SIZE));
+      ctx.fill();
+    }
+    ctx.lineWidth = 1.2;
+    for (const b of playerLamps(s)) {
+      const def = BUILDINGS[b.type];
+      const r = LAMP_RADIUS[def.lamp] || 2;
+      const c = worldPx(b.x + 0.5, b.y + 0.5, s.heights[idx(b.x, b.y)] || 0);
+      ctx.strokeStyle = def.lamp === 'flood' ? 'rgba(221,243,255,0.55)' : 'rgba(255,179,71,0.6)';
+      ctx.setLineDash(on ? [] : [4, 4]);
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y, r * TILE_W / 2, r * TILE_H / 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
   }
 
   // ---------- tool previews / hover / selection ----------

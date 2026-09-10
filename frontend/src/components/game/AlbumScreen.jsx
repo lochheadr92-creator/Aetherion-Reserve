@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Images, Download, Trash2, ChevronLeft, Camera, RefreshCw, AlertTriangle, Pencil, Check, X } from 'lucide-react';
+import { Images, Download, Trash2, ChevronLeft, Camera, RefreshCw, AlertTriangle, Pencil, Check, X, LayoutGrid } from 'lucide-react';
+import { toast } from 'sonner';
 import { on } from '@/game/state';
-import { listPhotos, getPhoto, deletePhoto, updateCaption, stampedPhoto, photoFileName, CAPTION_MAX } from '@/game/album';
+import { game } from '@/game/controller';
+import { listPhotos, getPhoto, deletePhoto, updateCaption, stampedPhoto, photoFileName, CAPTION_MAX, buildContactSheet, sheetFileName } from '@/game/album';
 import { ScreenFrame } from '@/components/game/ScreenFrame';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { captionHint } from '@/components/game/tone';
 
 // ---- Photo Album: every photo-mode capture, browsable and re-downloadable (Ops Deck drawer 'album') ----
 // Read-only over the save service's per-player photo collection apart from captions and deletes.
@@ -76,7 +79,7 @@ function CaptionEditor({ meta, onSaved }) {
             className="nl-tool h-8 w-8 flex items-center justify-center text-[var(--text-2)]"><X size={13} /></button>
         </div>
         <div className="flex items-center justify-between mono text-[9px] text-[var(--text-3)]">
-          <span data-testid="album-caption-status" data-status={status}>{status === 'saving' ? 'Saving…' : status === 'failed' ? 'Could not save — try again' : 'Enter to save · Esc to cancel'}</span>
+          <span data-testid="album-caption-status" data-status={status}>{captionHint(status)}</span>
           <span>{draft.length}/{CAPTION_MAX}</span>
         </div>
       </div>
@@ -183,10 +186,47 @@ function AlbumError({ error, onRetry }) {
   );
 }
 
+// Whole-album export: one tall JPEG contact sheet (3 columns, caption + cycle under each frame).
+function useContactSheet(photos) {
+  const [status, setStatus] = useState('idle'); // idle | building | done | failed
+  const build = useCallback(async () => {
+    if (!photos?.length || status === 'building') return;
+    setStatus('building');
+    try {
+      const parkName = game.state?.parkName || photos[0]?.park_name || null;
+      const url = await buildContactSheet(photos, { parkName });
+      if (typeof window !== 'undefined') window.__albumDebug = { ...(window.__albumDebug || {}), lastSheet: url, sheetCount: photos.length };
+      const a = document.createElement('a');
+      a.href = url; a.download = sheetFileName(parkName);
+      document.body.appendChild(a); a.click(); a.remove();
+      setStatus('done');
+      toast.success(`Contact sheet exported — ${photos.length} photograph${photos.length === 1 ? '' : 's'}`, { duration: 2600 });
+    } catch (e) {
+      console.warn('[album] contact sheet failed:', e && e.message);
+      setStatus('failed');
+      toast.error('Could not build the contact sheet — try again', { duration: 2600 });
+    }
+  }, [photos, status]);
+  return { status, build };
+}
+
+const SHEET_LABEL = { idle: 'Contact sheet', building: 'Composing…', done: 'Contact sheet', failed: 'Retry contact sheet' };
+
 function AlbumGrid({ photos, onOpen }) {
+  const sheet = useContactSheet(photos);
   return (
-    <div className="grid grid-cols-2 gap-2" data-testid="album-grid">
-      {photos.map((p) => <Tile key={p.id} p={p} onOpen={onOpen} />)}
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="mono text-[9px] tracking-[0.15em] text-[var(--text-3)]">EXPORT THE WHOLE ALBUM</span>
+        <button type="button" data-testid="album-contact-sheet-button" onClick={sheet.build} disabled={sheet.status === 'building'}
+          data-status={sheet.status} title="One printable JPEG: every photograph in 3 columns with its caption and cycle"
+          className="nl-tool h-7 px-2.5 text-[10px] flex items-center gap-1.5 !text-[var(--accent-cyan)] disabled:opacity-60">
+          <LayoutGrid size={11} /> {SHEET_LABEL[sheet.status]}
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-2" data-testid="album-grid">
+        {photos.map((p) => <Tile key={p.id} p={p} onOpen={onOpen} />)}
+      </div>
     </div>
   );
 }

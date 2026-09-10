@@ -6,6 +6,7 @@ import { launchExpedition, expeditionProgress } from '@/game/expeditions';
 import { speciesById } from '@/game/data/species';
 import { fmtMoney, TICKS_PER_DAY } from '@/game/constants';
 import Portrait from '@/components/game/Portrait';
+import { logTone } from '@/components/game/tone';
 
 const RISK_LABEL = { 1: 'LOW', 2: 'MODERATE', 3: 'HIGH' };
 const RISK_COLOR = { 1: 'var(--success)', 2: 'var(--warning)', 3: 'var(--danger)' };
@@ -99,7 +100,7 @@ function ActiveExpedition({ exp, onClaimSpecimen }) {
         {exp.log.map((l, _unused) => (
           <div key={`${l.tick}-${l.msg}`} className="text-[10px] leading-snug flex items-start gap-1">
             {l.type === 'mishap' && <AlertTriangle size={9} className="text-[var(--warning)] mt-0.5 shrink-0" />}
-            <span style={{ color: l.type === 'find' ? 'var(--success)' : l.type === 'evidence' ? 'var(--accent-seaglass)' : l.type === 'mishap' ? 'var(--warning)' : 'var(--text-3)' }}>
+            <span style={{ color: logTone(l.type) }}>
               {l.msg}
             </span>
           </div>

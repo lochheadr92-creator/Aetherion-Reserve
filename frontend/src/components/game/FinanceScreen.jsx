@@ -1,4 +1,4 @@
-import { MoonStar } from 'lucide-react';
+import { MoonStar, Lightbulb } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { game } from '@/game/controller';
 import { setTicketPrice, setPolicy } from '@/game/state';
@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { useGameTick } from '@/components/game/useGame';
 import { fmtMoney } from '@/game/constants';
 import { parkValue } from '@/game/economy';
+import { lightingReport, NIGHT_LIT_BONUS, NIGHT_DARK_PENALTY } from '@/game/lighting';
 import { ScreenFrame } from '@/components/game/ScreenFrame';
 
 const INCOME_LABELS = { tickets: 'Entry tickets', tours: 'Tours & premiums', food: 'Food sales', drink: 'Drink sales', gift: 'Curio sales', grants: 'Grants & salvage', attractions: 'Attraction tickets', transport: 'Transport fares', lodging: 'Hotel lodging' };
@@ -80,6 +81,44 @@ function NightToursPanel({ s }) {
   );
 }
 
+// Why lamps matter: coverage of the walkways, last night's lit vs dark guest visits, and the rating carrot.
+function NightLightingPanel({ s }) {
+  const r = lightingReport(s);
+  const last = r.lastNight.lit + r.lastNight.dark;
+  const litShare = last ? Math.round((r.lastNight.lit / last) * 100) : null;
+  const coverage = Math.round(r.coverage * 100);
+  const coverageTone = coverage >= 70 ? 'var(--success)' : coverage >= 35 ? 'var(--warning)' : 'var(--danger)';
+  return (
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--panel-2)] p-3 mt-2" data-testid="night-lighting-panel">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Lightbulb size={14} className="text-[var(--accent-amber)]" />
+          <span className="mono text-[10px] tracking-[0.2em] text-[var(--text-2)]">NIGHT LIGHTING</span>
+        </div>
+        <span className="mono text-[10px]" data-testid="lighting-status" data-on={r.night ? 'true' : 'false'} style={{ color: r.night ? 'var(--accent-amber)' : 'var(--text-3)' }}>
+          {r.night ? 'LAMPS ON' : r.on ? 'DUSK' : 'DAYLIGHT'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] mt-2">
+        <span className="text-[var(--text-3)]">Lamps</span>
+        <span className="mono text-right" data-testid="lighting-lamps">{r.lamps} <span className="text-[var(--text-3)]">(◈{r.upkeep}/cycle)</span></span>
+        <span className="text-[var(--text-3)]">Walkway coverage</span>
+        <span className="mono text-right" data-testid="lighting-coverage" style={{ color: r.pathTiles ? coverageTone : undefined }}>{r.litPathTiles}/{r.pathTiles} tiles · {coverage}%</span>
+        <span className="text-[var(--text-3)]">Last night's visits</span>
+        <span className="mono text-right" data-testid="lighting-last-night">
+          {last ? <><span className="text-[var(--success)]">{r.lastNight.lit} lit</span> · <span className="text-[var(--danger)]">{r.lastNight.dark} dark</span></> : '—'}
+        </span>
+        <span className="text-[var(--text-3)]" title="Offsets breach and casualty marks on the rating's safety score (up to +5% at fully lit nights)">Safety mark offset</span>
+        <span className="mono text-right" data-testid="lighting-safety-bonus">+{(r.safetyBonus * 100).toFixed(1)}%</span>
+      </div>
+      <div className="text-[10px] text-[var(--text-3)] mt-1.5 leading-snug">
+        After dark, guests on lit paths gain +{(NIGHT_LIT_BONUS * 100).toFixed(1)}% comfort per check; guests in the dark lose {(NIGHT_DARK_PENALTY * 100).toFixed(1)}% and complain.
+        {litShare !== null && <> Last night {litShare}% of path visits were lit.</>} Use the Lighting overlay to find the gaps.
+      </div>
+    </div>
+  );
+}
+
 function NetHistoryChart({ chart }) {
   return (
     <div>
@@ -148,6 +187,7 @@ export default function FinanceScreen({ onClose }) {
         <TodayLedger t={t} incomeSum={incomeSum} expenseSum={expenseSum} />
         <TicketPricePanel s={s} />
         <NightToursPanel s={s} />
+        <NightLightingPanel s={s} />
       </div>
       <div className="col-span-2 space-y-4 min-w-0 drawer:col-span-1">
         <NetHistoryChart chart={chart} />

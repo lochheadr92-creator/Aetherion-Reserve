@@ -4,6 +4,7 @@ import { BUILDINGS } from './data/buildings';
 import { FENCES } from './constants';
 import { speciesById } from './data/species';
 import { STAFF_ROLES } from './data/staffRoles';
+import { lightingRollover } from './lighting';
 
 export function spend(state, amount, cat, label) {
   amount = Math.round(amount);
@@ -51,6 +52,8 @@ export function dailyRollover(state) {
   state.finances.today = emptyDay();
   // new cycle: reset keeper report cards
   for (const st of state.staff || []) st.report = {};
+  // dawn: freeze last night's lit/dark path visits and fold them into the rating's safety carrot
+  lightingRollover(state);
   state.day++;
 }
 

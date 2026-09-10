@@ -135,6 +135,37 @@ async def ui():
               await page.locator('[data-testid="album-grid"]').count() == 1
               and await page.locator('[data-testid="album-tile-caption"]').inner_text() == "Dawn patrol by the north fence")
 
+        # ---- contact sheet: the whole album as one tall 3-column JPEG (caption + cycle under each frame) ----
+        # seed two more frames straight into the service so the sheet has a second row
+        api = URL.rstrip('/') + "/api"
+        h = {"X-Player-Token": token}
+        seeded = []
+        for i, cap in enumerate(["Seeded frame A", ""]):
+            r = requests.post(f"{api}/photos", json={"park_name": "Aetherion Reserve", "day": 7 + i, "clock": f"0{i}:30", "width": 1280, "height": 720, "image": IMG, "thumb": IMG, "caption": cap}, headers=h, timeout=20)
+            seeded.append(r.json()["id"])
+        await page.click('[data-testid="album-close-button"]')
+        await page.click('[data-testid="dock-open-album-button"]')
+        await page.wait_for_selector('[data-testid="album-grid"]', timeout=10000)
+        n_photos = await page.locator('[data-testid^="album-photo-"]').count()
+        async with page.expect_download(timeout=20000) as dl:
+            await page.click('[data-testid="album-contact-sheet-button"]')
+        download = await dl.value
+        await page.wait_for_selector('[data-testid="album-contact-sheet-button"][data-status="done"]', timeout=10000)
+        sheet = await page.evaluate("(() => new Promise(r => { const i = new Image(); i.onload = () => r({ w: i.naturalWidth, h: i.naturalHeight, n: window.__albumDebug.sheetCount }); i.onerror = () => r(null); i.src = window.__albumDebug.lastSheet; }))()")
+        rows = -(-n_photos // 3)
+        expected_h = 132 + rows * (203 + 46) + (rows - 1) * 40 + 56 + 40   # sheetLayout(): header + rows*cell + gutters + footer
+        check("9a the contact sheet downloads as a JPEG named after the park",
+              download.suggested_filename.endswith("-contact-sheet.jpg") and "aetherion" in download.suggested_filename, download.suggested_filename)
+        check("9b one tall sheet: 1240px wide, 3 columns, height follows the photo count",
+              sheet and sheet["w"] == 1240 and sheet["h"] == expected_h and sheet["n"] == n_photos and n_photos >= 3, (sheet, n_photos, expected_h))
+        check("9c the sheet is a real JPEG data URL", await page.evaluate("window.__albumDebug.lastSheet.startsWith('data:image/jpeg')"))
+        for pid in seeded:
+            requests.delete(f"{api}/photos/{pid}", headers=h, timeout=10)
+        await page.click('[data-testid="album-close-button"]')
+        await page.click('[data-testid="dock-open-album-button"]')
+        await page.wait_for_selector('[data-testid="album-grid"]', timeout=10000)
+        tiles = page.locator('[data-testid^="album-photo-"]')
+
         await tiles.first.click()
         await page.wait_for_selector('[data-testid="album-delete-button"]', timeout=5000)
         await page.click('[data-testid="album-delete-button"]')

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Leaf, Zap, Eye } from 'lucide-react';
+import { Leaf, Zap, Eye, Lightbulb } from 'lucide-react';
 
 const toggles = [
   { id: 'habitat', icon: Leaf, label: 'Habitat suitability overlay' },
   { id: 'power', icon: Zap, label: 'Power coverage overlay' },
   { id: 'view', icon: Eye, label: 'Viewing range overlay' },
+  { id: 'lighting', icon: Lightbulb, label: 'Lighting coverage overlay — lit vs dark paths after dusk' },
 ];
 
 export default function OverlayToggles({ rendererRef }) {

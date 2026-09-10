@@ -1,3 +1,5 @@
+import { levelTone } from '@/components/game/tone';
+
 // Shared meter bar used by inspect panels.
 export default function Bar({ label, value, color, testId, cause }) {
   const v = Math.max(0, Math.min(1, value ?? 0));
@@ -10,7 +12,7 @@ export default function Bar({ label, value, color, testId, cause }) {
       <div className="nl-bar-track">
         <div
           className="nl-bar-fill"
-          style={{ width: `${v * 100}%`, background: color || (v > 0.65 ? 'var(--success)' : v > 0.4 ? 'var(--warning)' : 'var(--danger)') }}
+          style={{ width: `${v * 100}%`, background: color || levelTone(v) }}
         />
       </div>
     </div>

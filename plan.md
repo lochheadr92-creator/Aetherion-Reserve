@@ -13,9 +13,7 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- **Phase V — Quality-of-life + Immersion Extensions (Planner Shortcut, Album Captions, Vocal Subtitles, Lamp Placement)** ✅ COMPLETED + ✅ VERIFIED
-  - All four features implemented without compromising deterministic simulation.
-  - Independent testing sweep (`test_reports/iteration_31.json`): backend 36/36, frontend 19/19, zero bugs.
+- **Phase X — Night Comfort + Album Export + Subtitle Colours + HUD Readability** ✅ COMPLETED + ✅ VERIFIED (`test_reports/iteration_32.json`)
   - **Next:** await user feedback / new feature picks (see §6 backlog).
 
 ---
@@ -71,85 +69,32 @@ All four original new requirements are complete and independently validated.
   - `PhotoMode` auto-saves JPEG+thumb best-effort + status indicator (saved/failed/retry).
   - `AlbumScreen` Ops Deck drawer supports browse/detail/download/delete.
   - Ops Dock includes Album button.
-- Fix: `album` was missing from `DRAWER_IDS` in `useDrawer.js` → added.
-- Tests: `tests/photo_album_test.py` passes **9/9**.
+- Tests: `tests/photo_album_test.py` green.
 
 #### U2 — Pairing Planner ✅ COMPLETE + ✅ VERIFIED
-- New pure projection module: `frontend/src/game/pairing.js`
-  - `riskTier`: CLEAN / ELEVATED / SEVERE / CRITICAL
-  - `pairingChecklist`: mirrors `breedingTick` gates (research, same species, enclosure, juvenile/gestation/cooldown, welfare/stress, etc.)
-  - `morphOdds`: carrier model with spontaneous chance
-  - `projectPairing`: expected means + ±0.08 spread; inbreeding depression on fertility/resilience
-  - `recommendPartners`: scored list with reasons; `bestPairs`; `plannerRoster`
-- New UI: `frontend/src/components/game/PairingPlanner.jsx`
-  - two Radix Select slots (A/B), swap button
-  - risk banner + relation + inbreeding %
-  - readiness checklist + courtship odds
-  - morph outlook
-  - trait bars with parent ticks + expected range + depression badges
-  - likely-trait chips
-  - recommended partners (click sets B)
-  - best pairings (click sets A+B)
-- Integrated into `BloodlineLedger.jsx` between family tree and pairing outlook (also shown when ledger has no subject).
+- New pure projection module: `frontend/src/game/pairing.js`.
+- New UI: `frontend/src/components/game/PairingPlanner.jsx`.
+- Integrated into `BloodlineLedger.jsx`.
 - Debug/testing hooks exposed via `window.__gameDebug.projectPairing/recommendPartners/bestPairs`.
-- Tests:
-  - `tests/pairing_planner_test.py` passes **13/13**
-  - `tests/phase21_features_test.py` ledger regression remains green (**28/28**)
+- Tests: `tests/pairing_planner_test.py` and `tests/phase21_features_test.py` green.
 
 #### U3 — Creature Vocals ✅ COMPLETE + ✅ VERIFIED
-- New scheduler: `frontend/src/game/vocals.js`
-  - Runs from `GameRenderer.render()` for **both classic and 3D branches**
-  - Cues:
-    - alarmed: rising-edge threat/lunge
-    - feeding: rising-edge of eating/grazing/drinking/filterFeeding
-    - idle: ambient calls on 9–26s per-creature timers
-  - Off-screen animals stay quiet.
-  - Supports retry on global rate-limit and on the alarm-cut window.
-- Audio upgrades (`frontend/src/game/audio.js`):
-  - `voiceProfile(sheet, speciesId)` adds per-species signature (detune/syllables/rasp)
-  - `_spatialBus`: low-pass by proximity → PannerNode (or StereoPanner fallback) using normalized screen offsets
-  - `_tone`/`_noiseBurst` accept custom output
-  - `creatureVoice` supports events: `idle`, `feed`, `threat`, `lunge`
-  - Alarm cut-through: 400ms window returns `limited-self-retry`
-  - Call designs split into `_alarmCall`, `_idleCall`, `_feedCall`
-- Removed old 2D-only voice edge tracking (`renderer.voiceCue/_vox`) in favor of the scheduler.
-- Tests:
-  - `tests/creature_voices_test.py` passes **12/12** (legacy alarmed cues)
-  - `tests/creature_vocals_test.py` passes **15/15** (idle/feed/positional + forced 3D path)
+- New scheduler: `frontend/src/game/vocals.js`.
+- Audio upgrades (`frontend/src/game/audio.js`) with positional placement.
+- Tests: `tests/creature_vocals_test.py` green (classic + forced 3D).
 
 #### U4 — Night Lighting Pass ✅ COMPLETE + ✅ VERIFIED
-- New `frontend/src/game/three/lamps3d.js`:
-  - Deterministic path lamps along walkway edges (stride=4, offset to open side, capped)
-  - Building floodlights mounted on camera-facing roof corners
-  - Roof height resolved via downward Raycaster against merged building meshes (skips open platforms)
-  - Instanced geometry: posts/heads/bulbs + warm pools; flood masts/heads/lenses + cool oval pools
-  - Dusk curve: `lampSwitch = smoothstep(night, 0.12, 0.7)` + subtle hum flicker
-  - Pooled real PointLights by quality: low=0, medium=4, high=8 reassigned near camera focus
-- Wired into `EntityLayers` (`sync/invalidate/setQuality/dispose`).
-- Tests:
-  - `tests/render3d_test.py` extended with B22–B26 lamp assertions → **30/30 passed**
-  - SwiftShader robustness: STAGE evaluate budget increased to 180s; storm ease-in uses more frame polling.
+- New `frontend/src/game/three/lamps3d.js` for automatic path lamps + building floodlights.
+- Tests: `tests/render3d_test.py` extended; green.
 
-**Tooling note (local runs):**
-- Playwright expected `chromium_headless_shell v1234`; locally resolved by symlink:
-  - `/pw-browsers/chromium_headless_shell-1234 -> chromium_headless_shell-1208`
+### Phase V — Quality-of-life + Immersion Extensions ✅ COMPLETED + ✅ VERIFIED
+(Planner Shortcut, Vocal Subtitles, Lamp Placement Tool, Album Captions)
+- Verified by independent sweep: `test_reports/iteration_31.json`.
 
 ---
 
 ## 4) Phase U — New User Picks (DONE)
-The user picked 4 features; all are now complete.
-
-### U1) Photo Album (gallery + persistence) ✅ DONE
-- Captures auto-save and are browsable/downloadable/deletable in a dedicated drawer.
-
-### U2) Pairing Planner (projection + UI) ✅ DONE
-- Two-slot pairing planner with projected inbreeding risk, readiness gates, morph odds, trait outlook, recommendations.
-
-### U3) Creature Vocals (ambient life) ✅ DONE
-- Positioned calls for idle/alarmed/feeding; works in classic and 3D renderers; rate limited; no sim mutation.
-
-### U4) Night Lighting Pass (lamps + floodlights) ✅ DONE
-- Warm path lamps + building floodlights, dusk/night switching; pooled real lights by quality.
+The user picked 4 features; all are complete.
 
 ---
 
@@ -158,132 +103,182 @@ The user picked 4 features; all are now complete.
 ### U0–U5 ✅ complete
 - Phase U is completed and verified (see Status Summary).
 
-### V0) Phase V Prep (NEW)
-- Add a small navigation payload mechanism for opening drawers with context.
-  - **New requirement**: Bloodline Ledger currently keys on `creatureId` selection; Phase V requires opening it with a **species focus**.
-  - Introduce `ledgerFocus: { creatureId?: number, speciesId?: string }` or equivalent in the drawer host state.
+### V0–V5 ✅ complete
+- Phase V delivered and verified (see §3 and `test_reports/iteration_31.json`).
 
-### V1) Planner Shortcut (P0)
-**Goal:** Species Database species cards get a **“Plan pairing”** button.
-- Enabled when **≥ 1 resident** of that species exists in the park.
-- Click action:
-  - Open Bloodline Ledger drawer
-  - Set ledger focus to `{ speciesId }`
-  - Planner prefill:
-    - A = first resident creature id for that species (stable ordering)
-    - B = top recommendation for A
-- Files likely touched:
-  - `frontend/src/components/game/SpeciesDatabase.jsx`
-  - `frontend/src/components/game/Drawer.jsx` / drawer host state
-  - `frontend/src/components/game/BloodlineLedger.jsx` (accept species focus)
-- Tests:
-  - Extend a ledger/species UI test or add `tests/planner_shortcut_test.py`.
-
-### V4) Album Captions (P0)
-**Goal:** caption editing + stamped downloads.
-- Backend:
-  - Add `PATCH /api/photos/{photo_id}` with body `{ caption }` (owner-scoped), or equivalent additive update route.
-  - Validate caption length (e.g., 0–120 chars) and sanitize.
-- Frontend:
-  - Album detail view adds inline caption editor (Input + Save; Enter to save; Esc to cancel).
-  - Download action composes a **JPEG with a caption bar** (park name · day/clock · caption) via an offscreen `<canvas>`.
-- Tests:
-  - Extend `tests/photo_album_test.py` to:
-    - set caption, reload album, caption persists
-    - verify downloaded image differs from original (height includes caption bar)
-
-### V2) Vocal Subtitles (P1)
-**Decision:** subtitles **ON by default**, with a toggle.
-- Data flow:
-  - `vocals.js` records recent call events: `{ creatureId, speciesId, kind, event, t }`.
-  - `renderer.js` overlay draws a fading caption near the creature for ~1.6s.
-- Text generation:
-  - Verb table by `voice kind × event` (e.g., snarl: growls/snaps; keen: chirps/keens; bellow: bellows/booms).
-- Toggle:
-  - UI toggle in audio/settings menu.
-  - Stored in `localStorage['aetherion_subtitles']` (default **true**).
-- Tests:
-  - Add `tests/vocal_subtitles_test.py` or extend `tests/creature_vocals_test.py`:
-    - force a cue → caption list non-empty
-    - toggle off → captions not drawn/returned
-
-### V3) Lamp Placement Tool (P1)
-**Goal:** player-placeable lamps with running power cost.
-- UI:
-  - Facilities tab add placeables:
-    - **Path Lamp**: build ~$40, upkeep ~$0.5/day
-    - **Floodlight**: build ~$120, upkeep ~$2/day, must be adjacent to a building
-- Simulation (deterministic, saved additively):
-  - Add `state.lamps[]` (or similar) with `{ id, type, x, y, rot? }`.
-  - Costs:
-    - build cost at placement
-    - daily upkeep included in finances/power cost pass
-- Rendering:
-  - 2D: sprite/icon for lamps and night glow.
-  - 3D: `LampLayer` merges player lamps with auto-placed lamps and uses the same dusk switch.
-- Optional gameplay effect (default):
-  - **Cosmetic + cost only** (no guest comfort bonus unless a clean hook already exists and is requested later).
-- Tests:
-  - placement rules (floodlight adjacency), build cost deducted
-  - upkeep applied at day rollover
-  - save/load preserves lamps
-  - 3D smoke: lamp counts increase and lamps switch on at night
-
-### V5) Final verification sweep (for Phase V) ✅ COMPLETED
-1. **Automated tests** (all run sequentially, in isolation — SwiftShader suites starve each other if run concurrently):
-   - `tests/photo_album_test.py` **15/15** (captions persist; stamped download adds ≥44px caption bar; re-stamps on edit)
-   - `tests/pairing_planner_test.py` **15/15**
-   - `tests/creature_vocals_test.py` **19/19** (incl. subtitles SUB 1–4 + forced-3D Part B)
-   - `tests/render3d_test.py` **31/31** (incl. B23 lamp placement rules: path adjacency, floodlight adjacency rejection, costs, night switch)
-   - `tests/phase_v_test.py` **19/19** (added by testing agent: planner shortcut, subtitles toggle persistence, lighting group, save)
-2. **Testing agent sweep** → `test_reports/iteration_31.json`: backend **36/36**, frontend **19/19**, no bugs.
-3. **Test hardening (no product changes):**
-   - `ALARM 1` accepted only `threat`; when the lunge frame-cycle window is already open the scheduler correctly voices `lunge` first (both are alarms sharing the 400 ms cut-through in `audio.creatureVoice`). Test now accepts either.
-   - `SUB 3` read `caps[0]`, which could be another animal's idle caption. Test now waits for and checks the karrgan caption specifically.
-
-## Phase V — Status: ✅ COMPLETED
+### W0) Code Review Response ✅ complete
+- Behaviour-preserving refactors for complexity.
+- Added context logging to previously empty catches.
+- Added Python type hints to the flagged scripts.
+- Hardened forced-3D vocal test to poll frames.
 
 ---
 
-## Phase W — Code Review Response ✅ COMPLETED
-An automated code-quality report was triaged against the official tooling; findings were either fixed or documented as false positives.
+## Phase X — New User Picks ✅ COMPLETED + ✅ VERIFIED
+Independent sweep: `test_reports/iteration_32.json` — backend 11/11, frontend 52/52, zero bugs, no regressions.
+Status per item:
+- **X1 Lamp Comfort Bonus + Lighting overlay** ✅ — `game/lighting.js` (cached light map, `guestLightingTick`, tallies, `lightingRollover`, `safetyCarrot`, reports); wired in `guests.js`, `economy.js` (dawn), `sim.js` (rating), `state.js` (defaults); renderer `drawLightingOverlay`; `OverlayToggles` 4th toggle; `BuildingPanel` LampReport; `FinanceScreen` NightLightingPanel; dev hooks `spawnGuest`, `__gameDebug.lightingReport/lightAt/lampReport/guestLightingTick`. Tests: `tests/lighting_test.py` 13/13.
+- **X2 Album Contact Sheet** ✅ — `album.js` `buildContactSheet/sheetLayout/sheetOrder/sheetFileName`; `AlbumScreen` grid header button (`album-contact-sheet-button`, `data-status`), `window.__albumDebug.lastSheet`. Tests: `photo_album_test.py` 18/18 (9a–9c).
+- **X3 Species Caption Colours** ✅ — `vocals.js` `captionTint/captionSwatch` (accent lifted 42% toward white, memoised), captions carry `speciesId`; renderer draws swatch dot + tinted text, alarm ring stays red. Tests: `creature_vocals_test.py` 21/21 (SUB 1b, SUB 5).
+- **X4 Ternary Cleanup** ✅ — `components/game/tone.js` (`levelTone`, `hazardTone`, `scoreTone`, `dangerTone`, `tierNumeral`, `researchBorder`, `logTone`, `relationClass`, `registryChipClass`, `traitTone`, `captionHint`); 13 nested ternaries replaced across 10 files. Regression: species_filters 9/9, phase21 28/28, ops_deck 29/29, ui_integration ✅, determinism 8/8, save_compat 6/6, pairing_planner 15/15 ×3.
+- Test hardening: `pairing_planner_test.py` / `phase21_features_test.py` `select_creature` fallback now selects via `__gameInput.setSelection` (React inspect panel follows) — removed a random-seed flake where an overlapping sprite took the click.
 
-### Applied
-- **Complexity (#5):** behaviour-preserving extractions, all `data-testid`s and copy unchanged:
-  - `GameCanvas.jsx` mount effect (79 lines) → `createRuntime`, `wants3D`, `tryAttach3D`, `dropWorld`, `fitCanvases`, `startFrameLoop`, `pauseSimSafely`; the effect is now ~25 lines of orchestration. Frame-loop order preserved (`setState` → `input.frame` → `renderer.render` → `audio.update`); two-stage error recovery preserved.
-  - `PairingPlanner.jsx` → pure `derivePlan()` + `PlannerEmpty`.
-  - `BloodlineLedger.jsx` → `describeLedger()` (modes `tree | species | empty`) + `LedgerSubtitle` / `LedgerActions` / `LedgerBody`; header strip still `null` in empty mode (ScreenFrame gates on truthiness).
-  - `AlbumScreen.jsx` → `AlbumBody` state switch + `AlbumLoading` / `AlbumError` / `AlbumGrid`.
-- **Empty catch blocks (#4):** context logging (`console.debug`/`warn`) added at all 9 sites (world.js ×2, seed.js, audio.js, input.js, ErrorBoundary ×2, ScenarioTracker, PhotoMode, plus the new GameCanvas helpers).
-- **Type hints (#7):** `backend/tools/gen_textures.py` and `backend_test.py` fully annotated. `server.py` was already 100% annotated (the flagged defs are multi-line signatures).
-- **Test hardening:** `creature_vocals_test.py` Part B now polls rendered frames (per the §2 test constraint) instead of a fixed 15 s wall-clock wait.
+### Original Phase X spec (kept for reference)
+User picked four enhancements:
+1. **X1 Lamp Comfort Bonus + Lighting Overlay** (night penalty on unlit paths + bonus on lit paths + safety carrot + overlay)
+2. **X2 Album Contact Sheet Export** (one tall JPEG, 3 columns, all photos, caption + cycle under each, park name header)
+3. **X3 Species Caption Colours** (default: subtitle text uses species accent + a small swatch dot; alarm ring stays red)
+4. **X4 Ternary Cleanup** (default: top ~12 nested ternaries in HUD/drawers refactored into shared tone helpers)
 
-### Rejected as false positives (verified)
-- **Hook dependencies (#1, "60 instances"):** `eslint-plugin-react-hooks@5.2.0` `exhaustive-deps` reports **0** issues across all 162 source files (rule verified to fire on a deliberate violation). Every flagged name is a module-level constant/import (`increment`, `subscribeTicks`, `listeners`, `PLACE_HINTS`, `toast`, `game`, `hireStaff`, `navigateToTarget`, `handleHotkey`…) or declared inside the effect itself (`listener`, `index`) — never valid deps.
-- **"Direct state mutations" (#2):** `this.state` in `renderer.js` / `controller.js` is the deterministic **sim** state, not React state; `_terrainDirty` is a render-cache flag and lines 76/88 are the `__gameDebug.dev` test hooks. Routing through `setState` would break the sim/render separation (§2).
-- **localStorage (#3):** only UI preferences (gfx tier, edge-scroll, art flags, subtitles) and an anonymous client-minted save-scope UUID; no credentials, no login system → httpOnly cookies not applicable.
-- **Python `is` vs `==` (#6):** every flagged line is `is None` (PEP 8 idiom). `backend_test.py:237` contains no `is`.
+### X1) Lamp Comfort Bonus + Lighting Overlay (P0)
+**Goal:** Player-placed lamps earn their upkeep by improving night experience.
 
-### Verification
-- esbuild compile clean; ESLint hooks clean on refactored files.
-- `pairing_planner` 15/15 · `photo_album` 15/15 · `phase_v` 19/19 · `phase21_features` (ledger) 28/28 · `creature_vocals` 19/19 (incl. forced 3D) · `render3d` 31/31.
+**Simulation (deterministic, additive):**
+- Add `frontend/src/game/lighting.js`:
+  - `LAMP_RADIUS = { path: 2.5, flood: 4.0 }` (tile-distance).
+  - `lampsOn(state)` returns `true` when `getDayPhase(state.tick).phase` is `dusk|night`.
+  - `lightMap(state)`: cached `Uint8Array` keyed by (lamp placements + day-phase) stored under `state._light` (non-serialized, recomputed).
+  - `isLit(state, x, y)` returns whether a tile is lit when lamps are on.
+
+**Guest impact (carrot + stick):**
+- In `guestNeedsTick(state, g)`:
+  - When `phase === 'night'` and guest is on a path tile:
+    - If lit: `g.satisfaction += 0.006` (capped to 1).
+    - If unlit: `g.satisfaction -= 0.012` (floored to 0).
+  - One-off opinions:
+    - First time lit at night → positive opinion.
+    - First time unlit at night → negative opinion.
+- Aggregate statistics:
+  - `state.stats.lighting = { lit: 0, dark: 0 }` tallies guest path-steps at night.
+  - `state.stats.nightSafety` stores an EMA of `lit / (lit + dark)` (reset/updated on dawn edge).
+
+**Rating carrot:**
+- In `computeRating(state)` (`game/sim.js`):
+  - Add a small bonus: `safety = min(1, safety + 0.05 * (state.stats.nightSafety || 0))`.
+
+**UI & explainability:**
+- Add a new overlay toggle:
+  - `OverlayToggles.jsx` adds `{ id: 'lighting', icon: Lightbulb, label: 'Lighting coverage overlay' }`.
+  - `renderer.js drawOverlays` adds a `lighting` branch:
+    - At night/dusk: path tiles tinted warm when lit; cool/blue when dark.
+    - By day: show coverage footprint (neutral faint tint) for planning.
+- Add a small report surface:
+  - FinanceScreen: add a compact “Night Lighting” panel showing last-night coverage %, lit/dark visits, and the applied safety bonus.
+  - Optional: BuildingPanel for lamp objects shows type/radius and a small nightly impact summary.
+
+**Files likely touched:**
+- `frontend/src/game/lighting.js` (new)
+- `frontend/src/game/guests.js` (night comfort tick + opinions + tallies)
+- `frontend/src/game/sim.js` (rating safety bonus)
+- `frontend/src/components/game/OverlayToggles.jsx` (new toggle)
+- `frontend/src/game/renderer.js` (overlay rendering)
+- `frontend/src/game/state.js` (deserialize defaults for new stats)
+- `frontend/src/components/game/FinanceScreen.jsx` (+ panel)
+
+**Tests:**
+- Add `tests/lighting_test.py`:
+  - place path lamps, advance tick to night, spawn a guest on path tiles; assert satisfaction delta differs for lit vs dark.
+  - assert overlay toggle exists and doesn’t crash.
+  - assert rating safety component increases slightly when `nightSafety` improves.
+
+### X2) Album Contact Sheet Export (P0)
+**Goal:** Export the whole album as a printable, scrollable contact sheet.
+
+**Client-only (no backend change):**
+- Add `buildContactSheet(photos)` to `frontend/src/game/album.js`:
+  - Output: **one tall JPEG data URL**.
+  - Layout: fixed width ~1240px, **3 columns**, uses stored `thumb` images.
+  - Header: park name + photo count + cycle range.
+  - Each cell: thumbnail + `CYCLE d · clock` + caption.
+- Album UI:
+  - `AlbumScreen` grid view adds a button (e.g. top actions row): `data-testid="album-contact-sheet-button"`.
+  - Click builds and downloads the JPEG. Show toast progress (“Building contact sheet…”, “Downloaded”).
+  - Expose debug hook: `window.__albumDebug.lastSheet` for tests.
+
+**Files likely touched:**
+- `frontend/src/game/album.js`
+- `frontend/src/components/game/AlbumScreen.jsx`
+
+**Tests:**
+- Extend `tests/photo_album_test.py`:
+  - generate ≥ 3 photos, click contact sheet, decode downloaded data URL dimensions and assert:
+    - width fixed, height larger than a single tile,
+    - header text stamped (non-empty pixels in header band),
+    - captions appear (optional heuristic).
+
+### X3) Species Caption Colours (P1)
+**Default decision:** subtitle text uses species accent tint + small swatch dot; alarm ring remains red.
+
+**Implementation:**
+- Add `captionTint(speciesId)` helper (likely in `vocals.js` or a small `uiColors.js`):
+  - Derive from `speciesById(speciesId).colors.accent`.
+  - Adjust for contrast (lighten/darken) so text is readable over the dark chip.
+- Update `renderer.drawVocalCaptions(ctx)`:
+  - Draw a 4px dot/swatch at the left of the caption.
+  - Set text fill style to the tint (or near-white mixed with tint), while keeping alarm stroke ring red.
+
+**Files likely touched:**
+- `frontend/src/game/vocals.js` (helper)
+- `frontend/src/game/renderer.js` (caption rendering)
+
+**Tests:**
+- Extend `tests/creature_vocals_test.py`:
+  - evaluate `captionTint('skitter')` returns a valid CSS hex and differs between two species.
+
+### X4) Ternary Cleanup (P1)
+**Default scope:** top ~12 truly nested ternaries in HUD/drawer components.
+
+**Implementation approach:**
+- Add `frontend/src/components/game/tone.js`:
+  - helpers: `levelTone(v)`, `dangerTone(d)`, `scoreTone(v)`, `hazardTone(v)`, plus small maps.
+- Replace the densest nested ternaries (target list):
+  - `AcquisitionScreen.jsx:61`
+  - `SpeciesDatabase.jsx:120, 203`
+  - `fieldops/ExpeditionsTab.jsx:102`
+  - `AlbumScreen.jsx:79` (caption status)
+  - `BloodlineLedger.jsx:91`
+  - `PairingPlanner.jsx:133`
+  - `ResearchScreen.jsx:70`
+  - `panels/Bar.jsx:13`
+  - `panels/BuildingPanel.jsx:54`
+  - `panels/EnclosurePanel.jsx:70, 82, 169`
+
+**Tests:**
+- No new tests required; rely on existing UI suites + smoke run.
+
+### X5) Final verification sweep (for Phase X)
+1. Run targeted suites:
+   - `tests/photo_album_test.py` (extended)
+   - `tests/creature_vocals_test.py` (extended)
+   - new `tests/lighting_test.py`
+2. Run UI integration suites:
+   - `tests/comprehensive_test.py` (or the project’s normal full pass)
+3. Forced 3D smoke:
+   - `tests/render3d_test.py` remains green; lighting overlay must not affect 3D pipeline.
+4. Run `testing_agent_v3` for an independent sweep and produce `test_reports/iteration_32.json`.
 
 ---
 
 ## 6) Next Actions (updated backlog)
-1. **Phase V** ✅ done and verified.
-2. **Polish (P1)** — candidates for the next user pick:
-   - Small UX refinements (tooltips, keyboard shortcuts, minor layout improvements).
-   - Lamp gameplay hook (optional): guest comfort / safety bonus near lit paths at night.
-   - Album: share/export whole album as a contact sheet.
-   - Subtitles: per-species caption colour or icon glyph.
+1. **Phase X implementation (P0/P1)**
+   - **Order:** X1 → X2 → X3 → X4
+2. **Stabilization & QA (P0)**
+   - Full regression (classic + forced 3D) + `testing_agent_v3`.
+3. **Polish (P1)**
+   - Tooltips / small UX refinements after Phase X is stable.
 
 ---
 
 ## 7) Success Criteria
-- All Phase R/S/U acceptance criteria remain true.
-- **Planner Shortcut:** users can open the Pairing Planner from the Species Database without selecting a creature first.
-- **Album Captions:** captions persist server-side and are stamped into downloaded images.
-- **Vocal Subtitles:** captions appear by default, fade cleanly, toggle off/on reliably, and never affect sim determinism.
-- **Lamp Placement Tool:** player lamps are deterministic sim entities with correct build/upkeep costs, save/load stability, and dusk/night switching in 3D.
+- All Phase R/S/U/V acceptance criteria remain true.
+- **X1 Lighting:**
+  - Unlit path tiles at night apply a satisfaction penalty; lit path tiles apply a bonus.
+  - A **Lighting overlay** exists and clearly differentiates lit vs unlit path tiles.
+  - A small safety carrot is reflected in the park rating computation.
+- **X2 Contact Sheet:**
+  - One tall JPEG export exists, 3 columns, includes header + cycle + caption under each photo.
+- **X3 Subtitle Colours:**
+  - Vocal subtitles remain readable and gain species accent identity; alarm styling remains clearly alarmed.
+- **X4 Ternary Cleanup:**
+  - Targeted nested ternaries replaced with readable helpers; UI output unchanged.
 - Full automated regression stays green (classic and forced 3D).

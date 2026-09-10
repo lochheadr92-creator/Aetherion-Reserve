@@ -114,3 +114,106 @@ export function stampedPhoto(imageDataUrl, meta) {
 }
 
 export const photoFileName = (p, ext = 'jpg') => `aetherion-${(p.park_name || 'park').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-cycle${p.day}-${(p.clock || '').replace(':', '')}.${ext}`;
+
+// ---- contact sheet: the whole album as one tall, printable JPEG ----
+export const SHEET = { width: 1240, cols: 3, gutter: 40, thumbW: 360, cellText: 46, header: 132, footer: 56 };
+
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+/** Chronological order for the sheet (oldest cycle first; same cycle by clock, then by save time). */
+export function sheetOrder(photos) {
+  return [...photos].sort((a, b) => (a.day - b.day) || String(a.clock || '').localeCompare(String(b.clock || '')) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
+}
+
+/** Sheet geometry for n photos (pure; tests compare the exported image against it). */
+export function sheetLayout(n) {
+  const { width, cols, gutter, thumbW, cellText, header, footer } = SHEET;
+  const thumbH = Math.round(thumbW * 9 / 16);
+  const cellH = thumbH + cellText;
+  const rows = Math.max(1, Math.ceil(n / cols));
+  const height = header + rows * cellH + (rows - 1) * gutter + footer + gutter;
+  return { width, height, cols, rows, gutter, thumbW, thumbH, cellH, header, footer };
+}
+
+/** Draw the whole album onto one canvas: header, 3 columns of thumbnails, caption + cycle under each. */
+export async function buildContactSheetCanvas(photos, { parkName = null, now = new Date() } = {}) {
+  const list = sheetOrder(photos);
+  const L = sheetLayout(list.length);
+  const imgs = await Promise.all(list.map((p) => loadImage(p.thumb)));
+  const c = document.createElement('canvas');
+  c.width = L.width; c.height = L.height;
+  const ctx = c.getContext('2d');
+  // page
+  ctx.fillStyle = '#070A0F';
+  ctx.fillRect(0, 0, L.width, L.height);
+  ctx.textBaseline = 'alphabetic';
+  // header: eyebrow, park name, provenance line
+  const park = parkName || list[0]?.park_name || 'Aetherion Reserve';
+  const days = list.map((p) => p.day).filter((d) => Number.isFinite(d));
+  const range = days.length ? (Math.min(...days) === Math.max(...days) ? `Cycle ${days[0]}` : `Cycles ${Math.min(...days)}–${Math.max(...days)}`) : '';
+  ctx.fillStyle = 'rgba(45,226,230,0.9)';
+  ctx.font = `600 13px ${FONT_MONO}`;
+  ctx.fillText('AETHERION INITIATIVE · FIELD PHOTOGRAPHS', L.gutter, 44);
+  ctx.fillStyle = '#EAF1F8';
+  ctx.font = `700 34px ${FONT_UI}`;
+  ctx.fillText(ellipsize(ctx, park, L.width - L.gutter * 2 - 260), L.gutter, 86);
+  ctx.fillStyle = '#8A9BB2';
+  ctx.font = `13px ${FONT_MONO}`;
+  ctx.textAlign = 'right';
+  ctx.fillText(`${list.length} PHOTOGRAPH${list.length === 1 ? '' : 'S'}${range ? ` · ${range.toUpperCase()}` : ''}`, L.width - L.gutter, 60);
+  ctx.fillText(`CONTACT SHEET · ${now.toISOString().slice(0, 10)}`, L.width - L.gutter, 82);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(45,226,230,0.55)';
+  ctx.fillRect(L.gutter, L.header - 22, L.width - L.gutter * 2, 2);
+  // cells
+  list.forEach((p, i) => {
+    const col = i % L.cols, row = Math.floor(i / L.cols);
+    const x = L.gutter + col * (L.thumbW + L.gutter);
+    const y = L.header + row * (L.cellH + L.gutter);
+    // frame
+    ctx.fillStyle = '#0C121B';
+    ctx.fillRect(x, y, L.thumbW, L.thumbH);
+    const img = imgs[i];
+    if (img) {
+      // letterbox the thumbnail into the 16:9 slot
+      const sc = Math.min(L.thumbW / img.width, L.thumbH / img.height);
+      const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+      ctx.drawImage(img, x + Math.round((L.thumbW - w) / 2), y + Math.round((L.thumbH - h) / 2), w, h);
+    } else {
+      ctx.fillStyle = '#4E5D72';
+      ctx.font = `italic 12px ${FONT_UI}`;
+      ctx.fillText('image unavailable', x + 12, y + L.thumbH / 2);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, L.thumbW - 1, L.thumbH - 1);
+    // provenance + caption
+    ctx.fillStyle = '#8A9BB2';
+    ctx.font = `11px ${FONT_MONO}`;
+    ctx.fillText(`CYCLE ${p.day} · ${p.clock || ''}`.trim(), x, y + L.thumbH + 18);
+    const caption = (p.caption || '').trim();
+    ctx.fillStyle = caption ? '#EAF1F8' : '#4E5D72';
+    ctx.font = caption ? `600 13px ${FONT_UI}` : `italic 12px ${FONT_UI}`;
+    ctx.fillText(ellipsize(ctx, caption || 'Field photograph', L.thumbW), x, y + L.thumbH + 38);
+  });
+  // footer
+  ctx.fillStyle = '#4E5D72';
+  ctx.font = `11px ${FONT_MONO}`;
+  ctx.fillText('AETHERION RESERVE · SITE-04 · PRINTED FROM THE PHOTO ALBUM', L.gutter, L.height - L.gutter + 8);
+  return c;
+}
+
+/** JPEG data URL of the contact sheet (see buildContactSheetCanvas). */
+export async function buildContactSheet(photos, opts) {
+  const c = await buildContactSheetCanvas(photos, opts);
+  return c.toDataURL('image/jpeg', 0.9);
+}
+
+export const sheetFileName = (parkName) => `aetherion-${(parkName || 'park').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-contact-sheet.jpg`;

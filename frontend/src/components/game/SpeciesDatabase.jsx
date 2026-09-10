@@ -7,6 +7,7 @@ import { getSpeciesView, EVIDENCE_THRESHOLD, attrLabel } from '@/game/knowledge'
 import { hasResearch } from '@/game/state';
 import Portrait from '@/components/game/Portrait';
 import { ScreenFrame, useScreenHost } from '@/components/game/ScreenFrame';
+import { tierNumeral, dangerTone } from '@/components/game/tone';
 
 const tierUnlocked = (s, tier) => tier === 1 || (tier === 2 && hasResearch(s, 'ops_field2')) || (tier === 3 && hasResearch(s, 'ops_field3')) || (tier === 4 && hasResearch(s, 'ops_field4'));
 // The archive catalogues a species once its acquisition tier is researched OR the park has ever
@@ -117,7 +118,7 @@ function SpeciesListRow({ s, species, selected, onSelect, compact }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium truncate" style={{ color: unlocked ? 'var(--text-1)' : 'var(--text-3)' }}>{unlocked ? species.name : 'SIGNAL DETECTED'}</div>
-        <div className="mono text-[9px] text-[var(--text-3)] truncate">{unlocked ? `${species.family} · T${species.tier}` : `Requires Field Operations ${species.tier === 2 ? 'II' : species.tier === 3 ? 'III' : 'IV'}`}</div>
+        <div className="mono text-[9px] text-[var(--text-3)] truncate">{unlocked ? `${species.family} · T${species.tier}` : `Requires Field Operations ${tierNumeral(species.tier)}`}</div>
       </div>
       {unlocked && (
         <div className="mono text-[9px] shrink-0" style={{ color: lvl.pct === 1 ? 'var(--success)' : 'var(--text-3)' }}>{(lvl.pct * 100).toFixed(0)}%</div>
@@ -200,7 +201,7 @@ function SpeciesHeader({ sp, view, owned, onPlanPairing }) {
       <div className="flex gap-1.5 flex-wrap self-start drawer:col-span-2">
         <span className={CHIP}>{sp.family}</span>
         <span className={CHIP}>{sp.rarity}</span>
-        <span className={CHIP} style={{ color: sp.danger >= 4 ? 'var(--danger)' : sp.danger >= 3 ? 'var(--warning)' : undefined }}>Danger {sp.danger}/5</span>
+        <span className={CHIP} style={{ color: dangerTone(sp.danger) }}>Danger {sp.danger}/5</span>
         <span className={CHIP}>Appeal {sp.appeal}</span>
         <span className={CHIP}>In park: {owned}</span>
       </div>

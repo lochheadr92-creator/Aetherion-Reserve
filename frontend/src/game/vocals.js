@@ -39,6 +39,36 @@ export function captionText(c, sheet, event) {
   return `${sp?.name || c.name} ${verb}`;
 }
 
+// ---- species caption tint: each species' accent colour, lifted toward white so it reads on the dark chip ----
+const CAPTION_DEFAULT = '#E6EDF5';
+const TINT_LIFT = 0.42;            // 0 = raw accent, 1 = white
+const tintCache = new Map();
+
+function hexToRgb(hex) {
+  const h = String(hex || '').replace('#', '');
+  if (h.length !== 6) return null;
+  const n = parseInt(h, 16);
+  if (Number.isNaN(n)) return null;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+const toHex = (v) => Math.round(v).toString(16).padStart(2, '0');
+
+/** Readable caption colour for a species (memoised): accent (or glow) lifted toward white; default when unknown. */
+export function captionTint(speciesId) {
+  if (tintCache.has(speciesId)) return tintCache.get(speciesId);
+  const sp = speciesById(speciesId);
+  const rgb = hexToRgb(sp?.colors?.accent || sp?.colors?.glow);
+  const tint = rgb ? `#${rgb.map((v) => toHex(v + (255 - v) * TINT_LIFT)).join('')}` : CAPTION_DEFAULT;
+  tintCache.set(speciesId, tint);
+  return tint;
+}
+
+/** The raw species swatch colour drawn as the caption's leading dot (accent, else glow, else muted). */
+export function captionSwatch(speciesId) {
+  const sp = speciesById(speciesId);
+  return sp?.colors?.accent || sp?.colors?.glow || '#5C6B80';
+}
+
 // pure: which cue (if any) an organism raises this frame given its previous edge memory
 export function vocalEvent(c, sheet, mem, frame, now) {
   const moving = !!(c.path && c.path.length > 0);
@@ -81,7 +111,7 @@ export class VocalScheduler {
     if (!audio.subtitles) return;
     // one caption per animal at a time; newest cue replaces it
     this.captions = this.captions.filter((k) => k.id !== c.id && now - k.t <= CAPTION_MS);
-    this.captions.push({ id: c.id, text: captionText(c, sheet, event), t: now, event });
+    this.captions.push({ id: c.id, speciesId: c.speciesId, text: captionText(c, sheet, event), t: now, event });
     if (this.captions.length > CAPTION_MAX) this.captions.splice(0, this.captions.length - CAPTION_MAX);
   }
 
@@ -131,4 +161,4 @@ export class VocalScheduler {
 }
 
 export const vocals = new VocalScheduler();
-if (typeof window !== 'undefined') window.__vocals = vocals; // debug/testing access
+if (typeof window !== 'undefined') { window.__vocals = vocals; window.__vocals.captionTint = captionTint; window.__vocals.captionSwatch = captionSwatch; } // debug/testing access

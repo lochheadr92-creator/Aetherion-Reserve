@@ -120,7 +120,7 @@ export function createNewGame({ parkName = 'Aetherion Reserve', mode = 'manageme
     rating: { overall: 0.5, comp: {} },
     entrance: { x: Math.floor(S / 2), y: S - 1 },
     weather: { type: 'clear', ticksLeft: 900 },
-    stats: { guestsTotal: 0, discoveries: 0, breaches: 0, guestSat: 0.7, captures: 0, buzz: 0, deaths: 0 },
+    stats: { guestsTotal: 0, discoveries: 0, breaches: 0, guestSat: 0.7, captures: 0, buzz: 0, deaths: 0, lighting: { lit: 0, dark: 0, lastLit: 0, lastDark: 0 }, nightSafety: 0 },
     security: { units: [] },
     expeditions: [],
     contracts: { available: [], active: [], completed: 0, nextRefreshDay: 0 },
@@ -205,6 +205,9 @@ export function deserialize(data) {
   if (!state.tension.encCooldown) state.tension.encCooldown = {};
   if (!state.tension.alertAt) state.tension.alertAt = {};
   if (state.stats && state.stats.deaths === undefined) state.stats.deaths = 0;
+  // ---- Phase X (night lighting): guest lit/dark tallies + the rating's safety carrot ----
+  if (state.stats && !state.stats.lighting) state.stats.lighting = { lit: 0, dark: 0, lastLit: 0, lastDark: 0 };
+  if (state.stats && state.stats.nightSafety === undefined) state.stats.nightSafety = 0;
   // ---- H2: defensive backfills for saves written by an older build ----
   // species added after the save was written need a knowledge slot (every accessor assumes one)
   if (!state.knowledge) state.knowledge = {};

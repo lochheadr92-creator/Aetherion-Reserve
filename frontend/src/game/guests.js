@@ -10,6 +10,7 @@ import { wasteNear } from './staff';
 import { synergyScore } from './attractions';
 import { activeEvents, hottestEvent } from './events';
 import { geneAppealMult } from './genetics';
+import { guestLightingTick } from './lighting';
 
 // 7 visitor archetypes with distinct interests: what they seek, what they pay
 const ARCHETYPES = [
@@ -456,6 +457,8 @@ export function guestNeedsTick(state, g) {
   // rolling satisfaction pressure from unmet needs
   const unmet = Math.min(g.needs.hunger, g.needs.thirst, g.needs.restroom);
   if (unmet < 0.15) g.satisfaction = Math.max(0, g.satisfaction - 0.01);
+  // night lighting: lit paths comfort, dark paths unsettle (lamps earn their upkeep here)
+  guestLightingTick(state, g);
   // ready to chase the next dramatic event once the park quiets down
   if (g._chasedEvent && !activeEvents(state).length) g._chasedEvent = false;
 }

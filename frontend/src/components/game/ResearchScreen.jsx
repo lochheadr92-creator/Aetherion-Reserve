@@ -6,6 +6,7 @@ import { RESEARCH_LIST, RESEARCH } from '@/game/data/research';
 import { startResearch } from '@/game/sim';
 import { fmtMoney } from '@/game/constants';
 import { ScreenFrame } from '@/components/game/ScreenFrame';
+import { researchBorder } from '@/components/game/tone';
 
 // ---------- pure helpers ----------
 
@@ -67,7 +68,7 @@ function ResearchCard({ s, r, active, hasLab, onBegin }) {
     <div data-testid={`research-card-${r.id}`}
       className="rounded-lg border p-3 space-y-1.5"
       style={{
-        borderColor: state.done ? 'rgba(62,226,138,0.35)' : state.isActive ? 'rgba(45,226,230,0.45)' : 'var(--line)',
+        borderColor: researchBorder(state),
         background: 'var(--panel-2)',
         opacity: state.locked ? 0.65 : 1,
       }}>

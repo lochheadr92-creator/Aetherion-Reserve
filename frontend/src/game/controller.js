@@ -9,6 +9,7 @@ import { applyScenario } from './scenarios';
 import { ensureGenes, inheritGenes } from './genetics';
 import { ensureLineage } from './lineage';
 import { projectPairing, recommendPartners, bestPairs } from './pairing';
+import { lightingReport, lightAt, lampReport, guestLightingTick } from './lighting';
 import { clearUndo } from './terrain';
 import { parkValue } from './economy';
 import { placeFenceRect, damageFence, placeBuilding, canPlaceBuilding, demolishBuilding } from './construction';
@@ -59,6 +60,11 @@ class GameController {
         projectPairing: (aId, bId) => { const cs = this.state?.creatures || []; return projectPairing(this.state, cs.find((c) => c.id === aId), cs.find((c) => c.id === bId)); },
         recommendPartners: (id, limit) => recommendPartners(this.state, (this.state?.creatures || []).find((c) => c.id === id), limit),
         bestPairs: (speciesId, limit) => bestPairs(this.state, speciesId, limit),
+        // night lighting model (read-only reports + the per-guest tick for deterministic staging)
+        lightingReport: () => lightingReport(this.state),
+        lightAt: (x, y) => lightAt(this.state, x, y),
+        lampReport: (id) => { const b = (this.state?.buildings || []).find((q) => q.id === id); return b ? lampReport(this.state, b) : null; },
+        guestLightingTick: (guestId) => { const g = (this.state?.guests || []).find((q) => q.id === guestId); return g ? guestLightingTick(this.state, g) : null; },
       };
     }
     // Deterministic setup harness for tests / debug tooling: scripted world building through the
@@ -86,6 +92,15 @@ class GameController {
       enclosures: () => computeEnclosures(this.state).enclosures.map((e) => ({ id: e.id, area: e.area, tiles: e.tiles.length })),
       damageFence: (key, amount) => damageFence(this.state, key, amount),
       grant: (amount) => { this.state.cash += amount; return this.state.cash; },
+      // a guest standing at (x, y) with full needs and neutral satisfaction (night-lighting tests)
+      spawnGuest: (x, y, opts = {}) => {
+        const g = {
+          id: this.state.nextId++, x: x + 0.5, y: y + 0.5, path: [], target: null, dwell: 0, archetype: opts.archetype || 'family', nightTour: false,
+          needs: { hunger: 1, thirst: 1, restroom: 1, fun: 0.5 }, satisfaction: opts.satisfaction ?? 0.6, opinions: [], ticksInPark: 0, leaving: false, seen: 0,
+        };
+        this.state.guests.push(g);
+        return g;
+      },
       // tension pass: bloodline + death hooks so tests can stage lineage / DECEASED states deterministically
       offspring: (motherId, fatherId, x, y, juvenile = false) => {
         const m = this.state.creatures.find((c) => c.id === motherId);

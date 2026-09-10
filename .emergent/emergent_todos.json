@@ -1,30 +1,22 @@
 [
   {
-    "content": "#5 Refactor GameCanvas mount effect into named helpers (runtime, 3D attach, resize, frame loop)",
+    "content": "X1: Lamp Comfort Bonus (sim, rating, overlay, panels)",
     "status": "completed"
   },
   {
-    "content": "#5 Refactor PairingPlanner: extract derivePlan() + PlannerEmpty",
+    "content": "X2: album.js buildContactSheet + AlbumScreen export button",
     "status": "completed"
   },
   {
-    "content": "#5 Refactor BloodlineLedger: extract describeLedger() + header/body components",
+    "content": "X3: species caption tint + swatch dot in drawVocalCaptions",
     "status": "completed"
   },
   {
-    "content": "#5 Refactor AlbumScreen: extract AlbumBody/AlbumLoading/AlbumError",
+    "content": "X4: tone.js helpers + replace ~12 nested ternaries",
     "status": "completed"
   },
   {
-    "content": "#4 Add context logging to empty catch blocks (9 sites)",
-    "status": "completed"
-  },
-  {
-    "content": "#7 Add type hints to backend/tools/gen_textures.py and backend_test.py",
-    "status": "completed"
-  },
-  {
-    "content": "Verify: esbuild compile, ESLint hooks, run regression suites (pairing, album, phase_v, vocals, render3d)",
+    "content": "Tests: lighting_test.py, extend album + vocals tests; run suites; testing agent",
     "status": "completed"
   }
 ]

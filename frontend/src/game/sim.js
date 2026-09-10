@@ -18,6 +18,7 @@ import { contractTick } from './contracts';
 import { scenarioTick } from './scenarios';
 import { eventsTick } from './events';
 import { rivalryTick } from './rivalry';
+import { safetyCarrot } from './lighting';
 import { transportTick } from './transport';
 import { conflictTick, breachTick } from './tension';
 import { rnd } from './state';
@@ -130,7 +131,9 @@ function computeRating(state) {
   const discoveries = Math.min(1, state.stats.discoveries / 12);
   const rarity = Math.min(1, state.creatures.reduce((s, c) => s + speciesById(c.speciesId).tier, 0) / 20);
   // safety: live escapes weigh most, breaches and deaths leave a lasting mark (tension pass)
-  const safety = Math.max(0, 1 - state.creatures.filter((c) => c.escaped).length * 0.4 - Math.min(0.4, state.stats.breaches * 0.05) - Math.min(0.3, (state.stats.deaths || 0) * 0.06));
+  const safetyBase = Math.max(0, 1 - state.creatures.filter((c) => c.escaped).length * 0.4 - Math.min(0.4, state.stats.breaches * 0.05) - Math.min(0.3, (state.stats.deaths || 0) * 0.06));
+  // lit night paths add a small carrot on top (lamps earn their upkeep in the rating too)
+  const safety = Math.min(1, safetyBase + safetyCarrot(state));
   const comp = { diversity, welfare, guestSat, discoveries, rarity, safety };
   const overall = diversity * 0.18 + welfare * 0.22 + guestSat * 0.2 + discoveries * 0.15 + rarity * 0.1 + safety * 0.15;
   state.rating = { overall, comp };

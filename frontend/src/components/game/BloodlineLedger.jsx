@@ -7,6 +7,7 @@ import { useGameTick } from '@/components/game/useGame';
 import { ScreenFrame, useScreenHost } from '@/components/game/ScreenFrame';
 import { PairingPlanner } from '@/components/game/PairingPlanner';
 import { plannerRoster } from '@/game/pairing';
+import { registryChipClass } from '@/components/game/tone';
 
 // ---- Bloodline Ledger: family tree + pairing outlook for one organism ----
 // Read-only view over state.lineage (permanent registry) and living creatures.
@@ -88,7 +89,7 @@ function ChipList({ label, entries, onLocate, testId }) {
       {entries.map((e) => (
         <button key={e.id} type="button" disabled={e.status !== 'park'} onClick={() => onLocate(e.id)}
           data-status={e.status}
-          className={`text-[10px] px-2 py-0.5 rounded-full border ${e.status === 'park' ? 'border-[var(--line-2)] text-[var(--text-2)] hover:border-[var(--accent-cyan)]' : e.status === 'deceased' ? 'border-[rgba(255,77,109,0.4)] text-[var(--text-3)] line-through decoration-[var(--danger)]' : 'border-[var(--line)] text-[var(--text-3)]'}`}>
+          className={`text-[10px] px-2 py-0.5 rounded-full border ${registryChipClass(e.status)}`}>
           {e.name}{e.status !== 'park' ? (AWAY_SUFFIX[e.status] || ' · away') : ''}
         </button>
       ))}

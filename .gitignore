@@ -98,3 +98,6 @@ frontend/node_modules/.cache/default-development/4.pack
 frontend/node_modules/.cache/default-development/8.pack
 frontend/node_modules/.cache/default-development/12.pack
 frontend/node_modules/.cache/default-development/10.pack
+
+# Keep the documented example env files (they hold no secrets); '.env.*' above would swallow them
+!.env.example

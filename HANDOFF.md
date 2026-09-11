@@ -46,7 +46,7 @@ Content counts: **19 species** (`veyra skitter thornback hollowcrest mirefin sil
 
 - `backend/.env`: `MONGO_URL`, `DB_NAME`, `CORS_ORIGINS`, `EMERGENT_LLM_KEY` (used **only** by the offline texture tool `backend/tools/gen_textures.py`, not by the running server).
 - `frontend/.env`: `REACT_APP_BACKEND_URL` (**never modify**), `WDS_SOCKET_PORT`, `ENABLE_HEALTH_CHECK`, plus (added today) `CHOKIDAR_USEPOLLING=true`, `WATCHPACK_POLLING=1000`.
-- `.env` files are gitignored; nothing secret is committed.
+- `.env` files are gitignored; nothing secret is committed. The documented `backend/.env.example` and `frontend/.env.example` **are** tracked (`.gitignore` ends with `!.env.example` — the earlier `.env.*` rule used to swallow them, which broke `cp .env.example .env` on fresh clones).
 
 ### 2.3 Fresh-container fixes applied today (environment, not code)
 

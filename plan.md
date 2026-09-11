@@ -13,9 +13,14 @@
 - Keep systems real (no dead UI), data-driven (species/buildings/research), and **save/load reproduces authoritative state**.
 
 **Current objective (top priority):**
-- **Phase Y — Night Mood Icons + Lamp Auto-Suggest + Floodlight Power Link + Contact Sheet Filters** ✅ IMPLEMENTED + ✅ LOCALLY VERIFIED
+- **Phase Y — Night Mood Icons + Lamp Auto-Suggest + Floodlight Power Link + Contact Sheet Filters** ✅ COMPLETED + ✅ VERIFIED
   - Local sweeps green: `lighting_test.py` 19/19 (incl. F1–F6), `photo_album_test.py` 20/20 (incl. 9d/9e filters), `render3d_test.py` 31/31 (B22–B27 unaffected), `determinism_test.py` 8/8, `save_compat_test.py` 6/6, `phase_v_test.py` 19/19.
-  - **Next:** independent `testing_agent_v3` sweep, then await user feedback.
+  - Independent sweep: `test_reports/iteration_33.json` — **117/117**, zero bugs, no regressions.
+  - **Status:** no open bugs, no pending tasks. Awaiting the user's next feature pick (backlog in `HANDOFF.md` §13).
+
+**Handoff refresh (this session):**
+- `/app/HANDOFF.md` rewritten as the complete, current technical handoff (stack, ops, API, code map, sim/render architecture, feature inventory through Phase Y, debug surface, tests, caveats, conventions, backlog).
+- Fresh-container environment fixes (no product code touched): frontend crash-looped with `ENOSPC` (node-wide inotify budget exhausted, `sysctl` read-only) → `CHOKIDAR_USEPOLLING=true` + `WATCHPACK_POLLING=1000` appended to `frontend/.env` (gitignored); Playwright chromium re-installed. Re-verified: backend suite ✅, `determinism_test` 8/8, `lighting_test` 19/19.
 
 ### Phase Y — details (this session)
 - **Y1 Guest Night Mood Icons** — renderer draws a warm lamp glyph over guests who feel safe on a lit path and a cool crescent-moon glyph over guests caught in the dark. New `renderer.drawGuestMoodIcons` + `moodLampGlyph`/`moodMoonGlyph`, wired into both the 2D and 3D overlay passes; reads the existing `g.lit` tag (only shows at night, skips panicked/riding). Debug: `__gameDebug.guestMoods()` and `lighting.guestMoodCounts`.

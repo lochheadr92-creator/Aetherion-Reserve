@@ -1,239 +1,356 @@
-# Aetherion Reserve — Technical & Product Handoff
+# Aetherion Reserve — Complete Technical & Product Handoff
 
-_Last updated after Phase F (Phase 21). Verified state: testing_agent iteration_19 = 100%._
+_Last updated after **Phase Y** (Night Mood Icons · Lamp Auto-Suggest · Floodlight Power Link · Contact Sheet Filters)._
+_Verified state: `testing_agent_v3` iteration_33 = **117/117 (100%)**; re-verified on a fresh container today: backend suite ✅, `determinism_test` 8/8, `lighting_test` 19/19._
 
 Preview: https://discovery-bio.preview.emergentagent.com
 
 ---
 
-## 1. What this is
+## 0. TL;DR for the next engineer
 
-A desktop **creature-containment / park-management game** ("Night-Lab Containment OS" visual identity).
-Players build a reserve for 19 fictional species whose biology is **unknown at first** and must be discovered by observation. Systems include terrain sculpting, fences/enclosures, creature AI with needs and welfare, guests and economy, research, staff, genetics and breeding, weather/day-night, scenarios, and a polish layer (audio, game-feel, photo mode).
+| | |
+|---|---|
+| **What** | Desktop creature-containment / park-management game. 19 fictional species with **unknown biology** discovered by observation. Terrain, fences/enclosures, creature AI, guests/economy, research, staff, genetics/breeding, weather/day-night, tension/escapes, scenarios, photo album, night lighting. |
+| **Stack** | React 19 (CRA + craco) · Tailwind + Shadcn/UI · **Three.js 0.185 WebGL world** with a **Canvas-2D pixel-art fallback** · Web Audio synth · FastAPI + Motor · MongoDB (2 collections). **All simulation runs client-side**, deterministic, 100 ms fixed timestep. |
+| **Backend** | Thin persistence only: `/api/saves` CRUD + `/api/photos` CRUD, scoped per browser by `X-Player-Token`. |
+| **State of play** | **Zero open bugs. Zero pending tasks.** Every user-requested phase (1–21, A–H, J–O, R, S, U, V, W, X, Y) is shipped and independently verified. Awaiting the user's next feature pick. |
+| **Hard rules** | UI/renderer **never** mutates sim state · sim RNG only via `rnd()` · save schema changes are **additive only** · Ops Deck is the only HUD (56 px dock + 320 px drawer) · every interactive element has a kebab-case `data-testid` · run browser suites **one at a time**. |
+| **Fresh-container checklist** | (1) `playwright install chromium` if suites say the binary is missing. (2) If the frontend crash-loops with `ENOSPC … file watchers`, the polling env vars in `frontend/.env` (added today, see §2.3) fix it. |
 
-**Stack**
-- Frontend: React 19 (CRA / react-scripts), Tailwind + Shadcn/UI, `lucide-react`, `sonner`. Rendering is a **hand-written isometric Canvas 2D engine** with procedurally baked pixel-art sprites (no image assets, no audio assets).
-- Backend: FastAPI (`/app/backend/server.py`) — only a **save-slot CRUD service** over MongoDB (motor).
-- DB: MongoDB, single collection `saves`.
-- All simulation runs **client-side**, deterministic, fixed-timestep (100 ms tick), decoupled from rendering.
+---
+
+## 1. Product overview
+
+Players run a research reserve ("Night-Lab Containment OS" identity) for organisms humanity does not understand. They sculpt terrain, fence enclosures, release creatures, and **learn each species' hidden biology by watching behaviour** (evidence → hypothesis → field-study research → breakthrough + grant). Guests arrive when there is something to see; the economy, research tree, staff, security, expeditions, contracts, genetics/breeding and a tension/escape loop layer on top. Three modes: **Management** (◈150 000 budget, progression, unknown biology), **Sandbox** (everything unlocked), **Scenarios** (6 hand-crafted missions with goals/fail states/mastery).
+
+Content counts: **19 species** (`veyra skitter thornback hollowcrest mirefin silttitan shardling mosswarden rhoak vantha karrgan lumen umbra voltari emberoot` + Tier-4 apex `nyxarr zephyrmaw aurox sylvarr`), **~48 buildings** (incl. `path_lamp` and `floodlight` lamps), **26 research projects**, **6 scenarios** (`first_light skitter_bloom containment_crisis night_bloom sovereign_containment sovereign_bloodline`), 4 expedition zones, 5 contract templates, 3 staff roles.
 
 ---
 
 ## 2. Running / operating
 
+### 2.1 Services & commands
+
 | Thing | How |
 |---|---|
-| Services | `supervisorctl status` (backend :8001, frontend :3000, mongodb) |
-| Restart | `supervisorctl restart backend` / `frontend` (hot reload is on; restart only after dep/.env changes) |
+| Services | `supervisorctl status` → `backend` (:8001, uvicorn --reload), `frontend` (:3000, craco/CRA), `mongodb` |
+| Restart | `supervisorctl restart backend` / `frontend` — hot reload is on; restart only after dependency or `.env` changes |
 | Logs | `tail -n 50 /var/log/supervisor/backend.*.log /var/log/supervisor/frontend.*.log` |
-| Frontend compile check | `cd /app/frontend && esbuild src/ --loader:.js=jsx --bundle --outfile=/dev/null` |
-| Env (never edit) | `backend/.env`: `MONGO_URL`, `DB_NAME`, `CORS_ORIGINS` · `frontend/.env`: `REACT_APP_BACKEND_URL` |
-| Package mgmt | `yarn add …` (never npm); `pip install … && pip freeze > requirements.txt` |
-| Browser tests | `cd /app/tests && python <test>.py` — **run one at a time** (parallel browsers make frame-based tests flaky). If chromium is missing: `playwright install chromium` |
-| Local run | See `README.md` (docker mongo + uvicorn :8001 + yarn start :3000). `frontend/.env.example`, `backend/.env.example` document the variables. |
-| Test target | All suites read `AETHERION_URL` (default: hosted preview). Backend suites append `/api`. Use a separate `DB_NAME` for tests. |
+| Frontend compile check | `cd /app/frontend && npx esbuild src/ --loader:.js=jsx --bundle --outfile=/dev/null` (clean as of today) |
+| Package mgmt | `yarn add …` (never npm) · `pip install … && pip freeze > requirements.txt` |
+| Health | `curl $REACT_APP_BACKEND_URL/api/` → `{"status":"ok"}` |
+| Local dev outside the container | See `README.md` (docker mongo + uvicorn + yarn start); `backend/.env.example` documents variables |
 
-Backend API (all under `/api`):
-```
-GET    /api/                 health
-GET    /api/saves?limit=50&skip=0   list SaveMeta (limit 1..200)
-GET    /api/saves/{id}       full save (meta + state)
-POST   /api/saves            create {name, park_name, mode, day, cash, rating, creatures, state}
-PUT    /api/saves/{id}       overwrite (a legacy ownerless save is adopted by the first writer)
-DELETE /api/saves/{id}
-```
-Saves use UUID ids; `state` is the full serialized game state (JSON). `SaveMeta` uses `extra="ignore"`.
-**Save scoping (Phase H):** the browser mints a UUID once (`localStorage.aetherion_player_token`) and sends it as
-`X-Player-Token` (axios interceptor in `controller.js`). The backend stores it as `owner`; list/get/put/delete only
-see the caller's saves. Saves with no owner (written before Phase H) stay visible to everyone. Indexes: `id` (unique),
-`(owner, updated_at)` created at startup.
+### 2.2 Environment variables (never rewrite the files; only append)
 
----
+- `backend/.env`: `MONGO_URL`, `DB_NAME`, `CORS_ORIGINS`, `EMERGENT_LLM_KEY` (used **only** by the offline texture tool `backend/tools/gen_textures.py`, not by the running server).
+- `frontend/.env`: `REACT_APP_BACKEND_URL` (**never modify**), `WDS_SOCKET_PORT`, `ENABLE_HEALTH_CHECK`, plus (added today) `CHOKIDAR_USEPOLLING=true`, `WATCHPACK_POLLING=1000`.
+- `.env` files are gitignored; nothing secret is committed.
 
-## 3. Code map
+### 2.3 Fresh-container fixes applied today (environment, not code)
 
-### Frontend — `/app/frontend/src`
-```
-App.js                         shell: menu <-> game screen, Sonner toaster, audio.install()
-components/game/
-  MainMenu.jsx                 mode picker (Management / Sandbox / Scenarios), save slots
-  GameScreen.jsx               composes HUD, canvas, toolbar, inspect panel, modals, trackers, photo mode
-  GameCanvas.jsx               rAF loop: input.frame() -> renderer.render() -> audio.update(state)
-  HudBar.jsx                   cash/day/clock/weather, pause/speed, alerts feed, settings popover (audio + edge scroll), photo, save, exit
-  BuildToolbar.jsx             terrain/paint/water/veg/path/fence/gate/buildings/creature-release tools
-  InspectPanel.jsx + panels/   CreaturePanel, EnclosurePanel, BuildingPanel, FencePanel
-  BloodlineLedger.jsx          family tree + pairing outlook dialog (portal)
-  StaffScreen.jsx              hire/fire, keeper assignment, report card, radio-chatter switch
-  ScenarioTracker.jsx          goals/fails/mastery, progress chips, victory/defeat dialogs
-  ResearchScreen / FinanceScreen / AcquisitionScreen (+fieldops/) / SpeciesDatabase / ObjectivesPanel
-  PhotoMode.jsx                letterbox capture -> PNG download
-  TutorialOverlay.jsx, EmergencyBanner.jsx, OverlayToggles.jsx (habitat/power/view)
-  hooks/                       useGameScreenActions (tool + result toasts + audio), useGameAlerts (alert->toast routing),
-                               useHotkeys, useNavigateTarget (alert/ledger click -> camera + selection)
-game/                          PURE simulation + rendering (no React)
-  state.js                     createNewGame, serialize/deserialize (+ additive backfills), pushAlert, logCause, seeded rnd, event bus (on/emit)
-  controller.js                GameController singleton `game`: newGame/loadGame/saveGame, loop, setPaused/setSpeed, stepTicks(n) [test helper]
-  sim.js                       tickOnce(state): ordered subsystem ticks (see §4)
-  terrain.js, construction.js, enclosures.js, pathfind.js
-  creatures.js                 needs, state machine, welfare, fence pressure, cohab, abilities, breeding, waste
-  genetics.js, lineage.js      heritable genes/morphs/inbreeding · permanent bloodline registry + tree/pairing queries
-  guests.js, economy.js, attractions.js, transport.js
-  knowledge.js                 unknown-biology gating: discovered/evidence/hypotheses
-  staff.js                     keepers: roles, task selection (assigned pen first), report card, radio chatter
-  security.js, events.js, rivalry.js, expeditions.js, contracts.js, weather.js, scenarios.js
-  input.js                     mouse/wheel tools, drag-pan, right-click cancel, edge scrolling
-  renderer.js                  isometric draw pipeline, overlays, keeper pins, idle life, creature frame selection
-                               (walk / lunge bursts / threat / idle+blink by pace), predator eye-glow + crimson halo, selection/hover
-  fx.js                        render-only: zoom easing, pan inertia, screen shake, placement pops, dust, footprints,
-                               species auras (emitAura: ember/spore/spark/mote/wisp/glint; night-gated; capped; reduced-motion aware)
-  audio.js                     Web Audio synth: ambience beds + one-shots + stingers, settings
-  data/                        species.js (19), buildings.js (46), research.js (19), scenarios.js (6), staffRoles.js, expeditions.js
-  art/                         pixel.js painter core + crisp toolkit (line/poly/band/eye/fang/claw/spike/rim, stride/bobc/breathe,
-                               LUNGE_KIN, PAD_X/PAD_TOP), rig.js (legs/tail/ridge/jaw/plates/stripes), creatures_a/b/c.js (19 painters,
-                               scale 1, modes idle 6 / walk 8 / threat 4 / lunge 4), creatures.js (sheet baker: padding, lunge kinematics,
-                               per-mode eye rects `eyesBy`, exact blink frames, `bounds`, `menace`, `pace`, `aura`), buildings.js, flora.js,
-                               staff.js, guests.js, terrain_tex.js
-components/game/ErrorBoundary.jsx   render-crash panel (retry / back to menu) wrapped around GameScreen in App.js
-components/game/Portrait.jsx        species portrait canvas at 2x backing store; renderPortrait fits sheet.bounds
+1. **Frontend crash-loop `ENOSPC: System limit for number of file watchers reached`.** Root cause: the kernel's per-UID inotify budget (`fs.inotify.max_user_watches = 12288`) is shared node-wide and was exhausted by other tenants — only 4 watches were in use inside this container, and `sysctl` is read-only here. Fix: CRA's chokidar (public/ watcher) and webpack's watchpack now poll (`CHOKIDAR_USEPOLLING=true`, `WATCHPACK_POLLING=1000` in `frontend/.env`). Hot reload still works (~1 s latency). If a future container has a healthy inotify budget these two lines can simply be removed.
+2. **Playwright chromium binary missing** (`/pw-browsers/chromium_headless_shell-1234`) → `python3 -m playwright install chromium`. Recurs whenever Playwright is upgraded by the testing agent.
+
+### 2.4 Tests (Playwright / requests, Python 3.11, async)
+
+```bash
+cd /app
+python3 tests/backend_regression_test.py       # save service CRUD (fast)
+python3 tests/backend_comprehensive_test.py    # saves + photos + token validation
+python3 tests/determinism_test.py              # seeded replay + save/continue equality (8 checks)
+python3 tests/lighting_test.py                 # Phase X/Y night lighting (19 checks)
+python3 tests/photo_album_test.py              # album, captions, contact sheet + filters (20 checks)
+python3 tests/render3d_test.py                 # forced-3D under SwiftShader (31 checks) — SLOW, run alone
 ```
 
-**Creature sprite pipeline (Phase G):** painters draw facing right at 1 art px = 1 device px into `Px`; the baker pads the
-canvas (`PAD_X` 8 each side, `PAD_TOP` 6), applies `LUNGE_KIN` whole-body offsets for lunge frames via `P.shift()`, inks the
-outline, records `P.eyes` per frame. Renderer picks frames per creature: moving → walk (cadence 4·pace); stationary + escaped /
-stress>0.8 / predator eating → lunge burst every `LUNGE_CYCLE`=96 frames then threat; stress>0.55 / hungry / flee → threat;
-else idle/blink. Predators (`menace` colour) get eye-glow at dusk/night or while displaying, painted on the recorded eye rects.
-Review sheets: `python tests/art_gallery.py a|b|c [night]` → `/app/artifacts/gallery_*.png`.
-
-### Backend — `/app/backend`
-- `server.py` — FastAPI app, Mongo via motor, CORS from env, router prefix `/api`.
-- `backend_test.py` — pytest-style API tests (also a copy at `/app/backend_test.py` created by the testing agent).
-
-### Tests — `/app/tests` (Playwright, Python, async)
-`smoke_game.py`, `scenario_discovery.py`, `fence_drag_test.py`, `phase5_test.py`, `phase6a/6b_test.py`, `phase7_*`, `phase8_staff_test.py`, `phase9_scenarios_test.py`, `phase16_visual.py`, `phase17_sovereign_test.py`, `phase19_photo_test.py`, `keeper_priorities_test.py`, `input_ux_test.py`, `gamefeel_test.py`, `phase20_features_test.py`, `phase21_features_test.py`, `weather_detailed_test.py`, `placement_alignment_test.py`, backend/determinism tests. Helpers in `phase6_helpers.py` (`click_tile`, `tile_screen`, boot helpers). Also `creature_art_test.py` (Phase G sheets + in-world day/night screenshots), `assessment_fixes_test.py` (Phase H: H1/H2/H3/M3/H4/H5), `art_gallery.py`, `perf_probe.py`. Reports: `/app/test_reports/iteration_1..21.json`.
+- All suites read `AETHERION_URL` (`tests/config.py`; default = hosted preview). Backend suites append `/api`.
+- **Run browser suites one at a time** — they count rendered frames; concurrency starves the headless renderer and produces timing flakes. SwiftShader 3D suites especially.
+- Every save-creating suite deletes its saves in `finally` (`tests/save_cleanup.py`). Use a separate `DB_NAME` when pointing at a real DB.
+- Testing-agent reports: `/app/test_reports/iteration_{1..33}.json` (+ `pytest/`, `local/`, `phase_mn_testing_report.md`).
 
 ---
 
-## 4. Simulation architecture (key concepts)
+## 3. Backend — `/app/backend/server.py` (360 lines)
 
-- **Authoritative state object** (`game.state`) — plain JSON-able data; UI reads it, sim mutates it. UI refresh via `emit('uiRefresh')` every ~400 ms (`useGameTick`).
-- **Fixed timestep**: 100 ms/tick; speed 1x/3x; `TICKS_PER_DAY = 1800` (3 min/cycle). Day phases from `weather.getDayPhase(tick)` (dawn/day/dusk/night).
-- **Determinism**: seeded LCG `rnd()` in `state.js`. The cursor is owned by the state: `createNewGame({seed})` seeds it (default 12345 → reproducible starts; pass a seed for variety), `serialize()` snapshots it into `state.rng`, `deserialize()` restores it — so two loads of one save replay identically (verified by `tests/assessment_fixes_test.py`). Render-only effects use `Math.random`. `game.stepTicks(n)` advances synchronously for tests; `window.__gameDebug` exposes `adjacentOpenTile/serialize/deserialize/getRngState/getRngCursor/playerToken`. Save keys: `seed` (null for pre-seed saves) and `rngState` (cursor at save time; legacy `rng` still read). Tests: `tests/config.py` (`AETHERION_URL`), `tests/save_cleanup.py` (every save-creating suite deletes in `finally`), `determinism_test.py`, `save_compat_test.py`, `birth_boundary_test.py`.
-- **Load hardening (H2)**: `deserialize` backfills `knowledge` for species added after a save was written, drops unknown research ids / active research, unknown building types and unknown species (with `console.warn('[load] …')`).
-- **Newborn placement (H1)**: `adjacentOpenTile` rejects tiles across a fence edge, so births on an enclosure boundary tile never land outside containment.
-- **Tick order** (`sim.js`): creatures (needs/decide every 20, welfare 40, fence pressure 150, cohab 100, abilities 120, breeding 200, waste 400 — staggered by id) → staff → guests (spawn/cull every 25) → weather (25) + storm fence damage → security → expeditions (10) / contracts (60) → events (30) / rivalry (45) → transport → research (10) → objectives (50) / rating (100) / **scenario (T%100===30)** → daily rollover (1800).
-- **Map**: 72×72 tiles, flat arrays `heights/materials/water/veg/paths`, `idx(x,y)=y*72+x`. Iso projection: `worldPx = ((x-y)*32, (x+y)*16 - h*10)`. Fences are edge-keyed (`"x,y,E|S"`) with tiers/hp. Enclosures = flood-fill regions bounded by fences (cached; `state._encDirty`).
-- **Unknown biology**: species have `hiddenAttrs`; `knowledge[speciesId].discovered` gates both UI text and habitat cause explanations. Evidence accumulates from behaviour → hypothesis alert → dynamic Field Study research → breakthrough + grant.
-- **Genetics**: `genes {size, hue, glow, fertility, hardiness, gen, parents{mId,mName,fId,fName}, ancestors[], inbreed, morph, carrier}`. Inbreeding = shared members of {self ∪ ancestors} / 3 (≥0.25 = "inbred"). Breeding requires research `bio_breeding`, welfare ≥ 0.72, stress ≤ 0.45, kin in same enclosure; **capacity counts adults only** (blocked when adults > `social.max` or ≥ space cap). Gestation 1000 ticks, cooldown 3600, juveniles mature in ~2350 ticks.
-- **Lineage registry** (`state.lineage`, additive): every organism ever in the park; statuses `park | transferred | unknown` (stub). Backfilled on load.
-- **Staff**: roles warden/biomedical/xenobiologist; two-pass task selection (assigned enclosure first via `assignedAnchor` → global). Per-cycle `report` tallies. Radio chatter batching state on `st.radio`.
-- **Alerts**: `pushAlert(state, {type, title, msg, target})`; types `danger|warning|success|breakthrough|info|radio`. `useGameAlerts` toasts all except `radio`; `useNavigateTarget` handles targets `creature|tile|enclosure|species|research|finances`.
-- **Save format**: `state.version = 1`; all new fields are **additive with backfill in `deserialize`/`ensureX()`** (`policies.keeperRadio`, `lineage`, `stats.*BySpecies`, staff `assignedAnchor/report/radio`). Never remove fields.
+FastAPI + Motor. Router prefix `/api`. CORS from `CORS_ORIGINS`. Indexes created at startup (each independently, failures logged, never blocking): `saves.id` unique, `saves.updated_at`, `saves.(owner, updated_at)`, `photos.id` unique, `photos.(owner, created_at)`.
 
----
+### 3.1 Ownership model (`X-Player-Token`)
+The browser mints a UUID once (`localStorage.aetherion_player_token`) and an axios interceptor in `game/controller.js` sends it on every request. Token must be ≤64 chars of `[A-Za-z0-9-]` (else **400**). Documents store it as `owner`. Callers see their own docs **plus legacy ownerless docs**; a legacy save is *adopted* by the first player who `PUT`s it. Photos are always written with an owner (unscoped callers see only ownerless photos). This is a stopgap, **not authentication** — clearing localStorage orphans saves.
 
-## 5. Feature inventory (all COMPLETE and verified)
+### 3.2 Endpoints
 
-**Core (Phases 1–3)** — iso engine, camera, terrain sculpt/paint/water/veg with undo + costs, paths, 46 buildings incl. power radius, fences/gates + enclosure detection, creature AI/pathfinding, habitat evaluation with explainable factors, unknown-biology discovery loop, guests + viewing occlusion, research tree (19) + dynamic field studies, acquisition, park rating, objectives/tutorial, alerts + cause log, save/load.
-
-**Construction UX (4–5A)** — drag-to-line fences with live cost preview, rectangle mode, drag-remove.
-
-**Drama & progression (5B–5C, 6)** — escapes/breaches, security response units, guest panic, expeditions board, contracts, night tours policy, breeding, creature abilities (burrow/camouflage/surge).
-
-**Visual (7, 11, 16)** — pixel-art cohesion pass, high-end asset redesign, ~30 attractions/amenities, elevated transport car that arcs over fences.
-
-**Systems (8, 9, 12–15, 17)** — keeper staff, 6 scenarios (`first_light`, `skitter_bloom`, `containment_crisis`, `night_bloom`, `sovereign_containment`, `sovereign_bloodline`) with goals/fails/mastery, apex Tier-4 species, genetics & morphs, park events + rival rumbles, guest interest system.
-
-**Photo Mode (19)** — letterbox, thirds grid, freeze, PNG capture with watermark/caption, download.
-
-**Post-19 polish**
-- **A** Code-quality remediation (hooks deps, memoization, complexity, art API config objects).
-- **B** Keeper Priorities (assign keeper → enclosure; flexible fallback).
-- **C** Staff Report Card + Input UX (left-drag pan, right-click cancel, wheel zoom, toolbar sync).
-- **D** Game-feel (eased zoom to cursor, pan inertia, breach shake, placement pop + dust; reduced-motion aware).
-- **E (20)** Ambient Audio (synth wind/rain/night hum, clicks, place/deny/impact, per-type stingers, mute+volume), **Sovereign Bloodline** scenario (BRUTAL, breeding under a Cycle-16 deadline; nyxarr now "Solitary · Pair-Tolerant" max 2), Creature Idle Life (auto-derived blink frames, breathing, tail-flick, fading footprints), Keeper Markers (role-tinted pins over assigned pens).
-- **F (21)** Edge Scrolling (canvas-only band, arming delay, map clamp, toggle), Bloodline Ledger (registry + tree + pairing outlook), Keeper Radio Chatter (batched feed-only pings, policy switch, chirp).
-- **G (22) Creature Art Rework** — all 19 species repainted at 1 art px = 1 device px with a crisp cel-shaded toolkit (`pixel.js` + `rig.js`): idle 6 / walk 8-frame gait / threat 4 / lunge 4 frames; predators menacing (fanged jaw engines, slit eyes, hackles, hunched prowl), herbivores powerful (muscle lines, horn/plate emphasis, charge poses); exact blink frames from recorded eye rects; predator night eye-glow + crimson threat halo; species aura particles; portraits fit trimmed silhouettes.
-- **H Assessment fixes** — H1 newborn placement respects fences; H2 load backfills (knowledge / unknown research / buildings / species); H3 ErrorBoundary + M3 load-error toast; H4 RNG cursor in state (seeded new games, exact replay on load); H5 backend per-player save scoping (`X-Player-Token`), indexes, paginated list; `.env.example` files, README run guide, `AETHERION_URL` in all tests.
-
----
-
-## 6. Controls & UX reference
-
-- Left click select · left-drag pan (Select mode) · right-click cancel tool / clear selection · right-drag pan · wheel zoom to cursor · **edge glide** when pointer rests within 28 px of the canvas edge (toggle in HUD speaker popover).
-- Hotkeys: `Space` pause · `1`/`3` speed · `Esc` cancel to Select · `Ctrl/Cmd+Z` undo terrain · Photo mode: `Space` capture, `Esc` exit.
-- localStorage keys: `aetherion_tutorial_done`, `aetherion_scenarios_done`, `aetherion_audio_enabled`, `aetherion_audio_volume`, `aetherion_edge_scroll`.
-- Debug/test hooks on `window`: `__game` (controller: `.state`, `.stepTicks(n)`), `__gameRenderer` (`.cam`, `.selection`, `.centerOn(x,y)`, `.fx`, `._keeperPins`, `.sheetFor(id)`, `.idleLife()`), `__gameInput` (`.edge`, `.pointer`), `__audio` (`.log`, `.bedTargets(state)`, `.stinger(type)`).
-
-## 7. Design system
-
-Dark "Night-Lab" palette (CSS variables in `index.css`): bg `#070A0E/#0B1018`, panels `#0C121B/#101A26`, text `#E7EEF8/#B7C4D6/#7F93AD`, lines `#1B2A3D`, accents cyan `#2DE2E6`, seaglass `#6EF3C5`, violet `#8AA4FF`, amber `#F2C14E`, rose `#FF5C7A`; semantic success/warning/danger/info. Fonts: **Space Grotesk** (UI) + **IBM Plex Mono** (data). Utility classes `nl-panel`, `nl-panel-header`, `nl-tool`, `nl-scroll`. Full spec: `/app/design_guidelines.md` (JSON). Every interactive/critical element has a kebab-case `data-testid`.
-
----
-
-## 8. Testing status & baselines
-
-| Iteration | Scope | Result |
+| Method | Path | Notes |
 |---|---|---|
-| 17 | Game-feel pass | 100% |
-| 18 | Phase E (audio, bloodline scenario, idle life, markers) | 100% (backend 6/6, frontend 39/39) |
-| 19 | Phase F (edge scroll, ledger, radio) | 100% (backend 19/19, frontend 28/28) |
-| 20 | Phase G (creature art rework) | 100% (backend 12/12, creature_art 17/17, all regressions) |
-| 21 | Phase H (assessment fixes) | 100% (backend 12/12, assessment_fixes 25/25, all regressions) |
-| 22 | Stabilisation pass (review items 1–8: knowledge backfill, fence-aware births, ErrorBoundary + rAF guard, load failures, contracts render purity, seed/rngState determinism, test config + cleanup, backend cap/indexes) | 100% (determinism 8/8, save_compat 6/6, birth_boundary 7/7, all regressions; DB clean) |
+| GET | `/api/` | health |
+| GET | `/api/saves?limit=1..200&skip=0..10000` | `List[SaveMeta]` (no `state`), newest first |
+| GET | `/api/saves/{id}` | full save (meta + `state`) — 404 if not owned |
+| POST | `/api/saves` | body `SaveCreate {name, park_name, mode, day, cash, rating, creatures, state}` → `SaveMeta` |
+| PUT | `/api/saves/{id}` | overwrite; adopts ownerless legacy saves |
+| DELETE | `/api/saves/{id}` | `{deleted}` |
+| GET | `/api/photos?limit=1..200&skip` | `List[PhotoMeta]` (thumb only, never the full image) |
+| GET | `/api/photos/{id}` | `PhotoFull` incl. `image` data URL |
+| POST | `/api/photos` | `PhotoCreate {park_name, mode, day, clock, caption, width, height, image, thumb}`; image ≤ 6 MB, thumb ≤ 400 KB, must match `^data:image/(jpeg|png|webp);base64,…` (**413 / 400**) |
+| PATCH | `/api/photos/{id}` | `{caption}` → sanitised (single line, no control chars, ≤140) |
+| DELETE | `/api/photos/{id}` | |
 
-Local suites last run green (sequentially): `smoke_game`, `input_ux_test`, `keeper_priorities_test`, `gamefeel_test`, `phase8_staff_test`, `phase6b_test`, `phase9_scenarios_test`, `phase16_visual`, `phase17_sovereign_test`, `phase20_features_test` (39/39), `phase21_features_test` (28/28), `creature_art_test` (17/17), `assessment_fixes_test` (25/25), `backend_api_test`, `backend_regression_test`, `determinism_backend_test`.
+### 3.3 Collections
 
----
+```
+saves : { id (uuid), name, park_name, mode, day, cash, rating, creatures, state (full serialized game), updated_at (ISO UTC), owner }
+photos: { id (uuid), park_name, mode, day, clock, caption, width, height, image (data URL), thumb (data URL), created_at, owner }
+```
+All ids are UUID strings; `_id` is always projected out. Datetimes are `datetime.now(timezone.utc).isoformat()`.
 
-## 9. Known issues, caveats & gotchas
-
-**No open bugs.** Items below are caveats to be aware of:
-
-1. **Flaky-by-design test checks** — `smoke_game.py` TEST F ("creature panel", labelled SOFT-FAIL on click precision) clicks a moving creature; `comprehensive_test.py`/`focused_test.py` have SOFT-FAIL toast checks. `gamefeel_test.py` inertia/settle checks and `phase17` TEST 6a (at-large timer race) fail only under CPU contention (parallel browsers). Run suites one at a time.
-2. **Headless rAF is ~30 fps** — frame-based TTLs (footprints 210 frames, pops 22 frames) take longer in wall-clock than at 60 fps; tests poll instead of fixed sleeps.
-3. **Playwright chromium binary** occasionally disappears after the testing agent updates Playwright → `playwright install chromium`.
-4. **Blink frames** are exact for all 19 species (painters register eyes via `P.eye()`; the legacy highlight heuristic remains as a fallback).
-5. **Audio autoplay** — the AudioContext is created on the first pointerdown/keydown (browser policy). Before that, one-shots are logged but silent.
-6. **Sovereign Bloodline balance** — organic pairing can happen within the first cycle if welfare starts high; pressure comes from water/terrain needs, dual apex fence testing, adult-capacity (must transfer matured offspring), the Cycle-16 deadline and the inbred-birth fail. Not yet play-balanced with real players.
-7. **Nyxarr social change is global** — `social.max` 1→2 and "adults-only capacity" in `breedingTick` apply to all species (loosens breeding by at most one birth at exactly max group size). Existing scenario tests still pass.
-8. **Radio chatter** counts only feeds/cleans/treats/repairs completed **inside the keeper's assigned pen**; observation tasks don't ping. Batches: 30-tick gather, 300-tick quiet.
-9. **Popovers** (alerts, settings) don't close on outside click — consistent with existing pattern.
-10. **Backend is a thin save service** — saves are scoped by a per-browser token (not real auth: clearing localStorage orphans your saves, and anyone who knows the token can use it). Legacy ownerless saves are visible to everyone until a player writes to one (adoption). Add real accounts before a public multi-user deployment.
-12. **World seed** — `createNewGame` defaults to seed 12345 (every fresh Management/Sandbox start has the same terrain, as before); pass `{ seed }` for variety (no UI yet — see backlog).
-13. **CRA dev overlay** — in dev builds the webpack error overlay iframe sits above the ErrorBoundary; tests remove it before clicking. Production builds have no overlay.
-11. **Deprecation warnings** in frontend logs (`DEP_WEBPACK_COMPILATION_ASSETS`) come from react-scripts/webpack; harmless.
+### 3.4 Offline tooling
+`backend/tools/gen_textures.py` — one-off PBR texture pipeline (Gemini image model via `emergentintegrations`, then Pillow/numpy seamless-ify + normal/roughness derivation) writing `frontend/public/textures/<key>_{albedo,normal,rough}.jpg` + `manifest.json`. Idempotent (reuses `texture_src/`). Not part of the runtime.
 
 ---
 
-## 10. What's next (prioritised backlog)
+## 4. Frontend code map — `/app/frontend/src`
 
-**P1 – Player-facing**
-- **Photo Album** — persist captured photos (IndexedDB or backend) and add an in-game gallery with re-download.
-- **Pairing Planner** — pick two creatures on the map to see projected inbreeding before moving them; "recommended pairings" sort in the ledger.
-- **Sovereign Bloodline balance pass** — tune deadline/damage/cash after playtesting; consider a Cycle-16 "extension" contract.
+### 4.1 Shell & React layer (`components/`)
+```
+App.js                          menu <-> game; Sonner toaster (dark theme); audio.install(); load-error toast
+components/ErrorBoundary.jsx    render-crash panel (retry / back to menu) around GameScreen
+components/game/
+  MainMenu.jsx                  park name, world-seed picker (SeedField), mode cards, save slots (list/load/delete)
+  GameScreen.jsx                composes HUD, canvas, toolbar, inspect panel, Ops Deck, banners, trackers, photo mode
+  GameCanvas.jsx                two stacked canvases (WebGL world under, 2D overlay on top); rAF loop; 3D fallback logic
+  HudBar.jsx                    identity, pause/1x/3x, day/clock/weather chip, cash/guests/rating, drawer buttons,
+                                alerts popover, audio popover (volume, edge scroll, subtitles), Photo, Save, Help, Menu
+  OpsDock.jsx + Drawer.jsx      the ONLY HUD: 56px left dock (Field Ops, Staff, Species, Research, Finances, Photo Album)
+                                + 320px drawer; DRAWER_IDS = fieldops|staff|db|research|finances|ledger|album
+  ScreenFrame.jsx               host-aware chrome (drawer host = single header + screen's own close button)
+  BuildToolbar.jsx              Select/Pan/Demolish/Undo, brush 1-3, tabs Terrain|Ground|Water|Flora|Paths|Fences|
+                                Habitat|Facilities|Attractions; Facilities lighting group has "Light the gaps" (Y2)
+  InspectPanel.jsx + panels/    CreaturePanel (condition, health, genes, ledger link), EnclosurePanel (habitat factors,
+                                TENSION section, breach banners), BuildingPanel (LampReport w/ power state), FencePanel, Bar
+  SpeciesDatabase.jsx           roster (search + family/tier chips) + dossier gated by knowledge; "Plan pairing" shortcut
+  BloodlineLedger.jsx           registry + family tree + PairingPlanner.jsx (projected inbreeding, recommendations)
+  ResearchScreen / FinanceScreen (chart, ticket slider, Night Tours switch, Night Lighting panel) / StaffScreen /
+  AcquisitionScreen (+fieldops/ExpeditionsTab, ContractsTab) / ObjectivesPanel / ScenarioTracker
+  AlbumScreen.jsx               grid/detail, captions, download, delete, contact sheet export + From/To cycle & captioned filters (Y4)
+  PhotoMode.jsx                 letterbox capture -> JPEG + thumb auto-saved to /api/photos (status: saved/failed/retry)
+  OverlayToggles.jsx            habitat | power | view | lighting
+  EmergencyBanner.jsx           escapes, stampede, BARRIER DOWN gap chips, PERIMETER OPEN variant
+  TutorialOverlay.jsx, Portrait.jsx (live portraits, shared ticker), tone.js (shared colour-tone helpers)
+  hooks/                        useGame (uiRefresh subscription), useDrawer, useGameScreenActions, useGameAlerts,
+                                useHotkeys, useNavigateTarget
+components/ui/                  Shadcn primitives (always prefer these over raw HTML)
+```
 
-**P2 – Polish**
-- **Ambient Mix** — separate sliders for UI / ambience / stingers; optional reverb bus.
-- **Keeper Voices** — call signs + per-keeper phrase pools for radio chatter.
-- **Popover dismissal** on outside click / Esc for alerts + settings.
+### 4.2 Simulation core (`game/`, pure JS, no React) — ~9.6k lines
+```
+constants.js     MAP_SIZE 72, TICK_MS 100, TICKS_PER_DAY 1800, palette/tiles/materials/veg/fences/costs
+state.js         createNewGame({parkName, mode, seed, seedLabel}), serialize/deserialize (+ additive backfills),
+                 seeded LCG rnd()/getRngState/setRngState, pushAlert, event bus on/emit, setTimeControls, setTicketPrice, setPolicy
+controller.js    GameController singleton `game`: newGame/loadGame/saveGame/listSaves/deleteSave, fixed-step loop,
+                 stepTicks(n) [tests], window.__game + window.__gameDebug + game.dev harness
+sim.js           tickOnce(state) — ordered subsystem ticks (see §5.2), OBJECTIVES (13), research, computeRating
+terrain.js       raise/lower/flatten/smooth/paint/water/veg/path + costs + undo stack
+construction.js  buildings/fences/gates/repair/demolish, power radius (isPowered), destroyFence/gaps/rebuildGap,
+                 fenceLineEdges/fenceRectEdges, placeFenceLine/Rect
+enclosures.js    flood-fill enclosure detection (cached, _encDirty), evaluateHabitat w/ explainable + masked causes
+pathfind.js      A* with fence-edge blocking
+creatures.js     needs, AI state machine, welfare (fast/slow channels), fence pressure, cohab, abilities
+                 (camouflage/burrow/surge), breeding, killCreature, adjacentOpenTile (fence-aware births)
+genetics.js / lineage.js / pairing.js   heritable genes+morphs+inbreeding · permanent bloodline registry · pure pairing projections
+knowledge.js     unknown-biology gating: evidence -> hypothesis -> discovery; getSpeciesView is the ONLY UI read path
+guests.js        spawn/BFS paths/needs/viewing visibility/opinions/spending/panic; footfall bump (Y2)
+economy.js       spend/income, dailyRollover (lightingRollover + footfallDecay at dawn), parkValue
+lighting.js      night lighting model (§6.6): lightMap cache, guestLightingTick, lightingRollover, safetyCarrot,
+                 relayPowered/lampPowered (Y3), reports, footfall + suggestLampSpots (Y2), guestMoodCounts (Y1)
+staff.js         wardens/biomedical/xenobiologists: two-pass task selection, report card, radio chatter, gap rebuilds
+security.js      response posts: dispatch/capture/holding/release, incident separation
+tension.js + tensionProfile.js   conflicts (aggression, severity), breach risk -> breach, degradation multipliers
+events.js / rivalry.js / expeditions.js / contracts.js / scenarios.js / weather.js / transport.js / attractions.js
+vocals.js        creature call scheduler + species voice signatures + subtitle captions (captionTint/captionSwatch)
+audio.js         Web Audio synth: ambience beds, one-shots, stingers, PannerNode positional voices, settings
+album.js         client-only: buildContactSheet/sheetLayout/sheetOrder/sheetFileName, filterPhotos/photoDays (Y4)
+renderer.js      (1740 lines) 2D isometric pipeline + the authoritative overlay: selection/hover/previews, overlays
+                 (habitat/power/view/lighting), tension markers, gap markers, keeper pins, vocal captions,
+                 guest mood glyphs (Y1), lamp suggestion markers (Y2), unpowered flood rings (Y3)
+input.js         tools, edge snapping, drag-to-line/rect fences, drag-pan, right-click cancel, edge scrolling
+fx.js            render-only: zoom easing, pan inertia, shake, pops, dust, footprints, species auras
+seed.js          parseSeed(text): blank->null, digits->int, phrase->FNV-1a
+data/            species.js (19), buildings.js (~48), research.js (26), scenarios.js (6), expeditions.js (4), staffRoles.js (3)
+art/             procedural pixel painters: pixel.js toolkit, rig.js, creatures_a/b/c.js (19 painters), creatures.js (sheet
+                 baker), juvenile.js (derived cub/young sheets), buildings.js, flora.js, guests.js, staff.js, terrain_tex.js,
+                 flags.js (ART_V2, RENDER_3D, RENDER_3D_FORCED)
+```
 
-**P2.5 – From the assessment (deferred, measure first)**
-- Renderer culling (skip entities/veg outside the camera rect) + dirty-rect terrain repaint — only after profiling on real hardware (`tests/perf_probe.py` is the baseline: 60 fps day / ~49 night baseline, 24-creature crowd ≥ 56 day / ≥ 41 night in headless).
-- Balance items (breeding cooldown, Sovereign difficulty) after human playtests.
-- World-seed picker on the new-game screen (plumbing exists: `createNewGame({ seed })`).
-
-**P3 – Platform**
-- Real accounts if the app is ever multi-user (token scoping is a stopgap).
-- Bundle-size review (framer-motion, recharts, react-query, swr are installed but lightly/unused).
-- Optional: offscreen-canvas caching for footprints/pins if creature counts grow beyond ~100.
+### 4.3 3D world (`game/three/`, ~3.2k lines, **visuals only**)
+```
+world.js        World3D: WebGL2 renderer, orthographic 2:1 dimetric camera (yaw 45°, pitch 30°) locked to the 2D cam,
+                quality tiers low|medium|high (?gfx=, localStorage aetherion.gfx, adaptive drop when avg frame > 34 ms),
+                webglAvailable()/softwareRenderer() detection
+iso.js          projection helpers matching renderer.worldPx exactly (picking stays in 2D)
+terrain.js      heightfield + splat PBR (textures from /public/textures), shoreline beach profile, wetness
+water.js        depth from bed, chop, rain rings          lighting.js  LightRig: sun/moon/hemi, day-phase curves
+materials.js / textures.js   PBR material registry + generated/loaded texture sets, studio env map
+flora3d.js / fences3d.js / buildings3d.js / props3d.js   instanced procedural kits (shader wind, energy-field fences, lit windows)
+creatures3d.js  rigs for 9 body plans, skin PBR, gene/morph tints, state animation
+people3d.js     instanced guests/staff/security with walk cycles
+lamps3d.js      automatic path lamps + roof-corner floodlights + PLAYER lamps gated by power (Y3); dusk->night switch; 0/4/8 real point lights by tier
+weather3d.js / post.js   storm gusts, rain splashes / post stack
+entities.js     EntityLayers orchestrator
+```
 
 ---
 
-## 11. How to add things safely (conventions)
+## 5. Simulation architecture
 
-- New sim state → add default in `createNewGame` **and** a backfill in `deserialize`/`ensureX()`; never rename/remove fields.
-- New alert type → add colour in `HudBar.ALERT_COLORS`, decide toast routing in `useGameAlerts.routeAlert`, add a stinger case in `audio.stinger`.
-- New building/species/research/scenario → data files under `game/data/`; painters in `game/art/`; scenario goals may expose `progress(s)` for tracker chips; setup supports `research, discovered, policies, starterEnclosure, buildings, creatures, staff, cash`.
-- Render-only effects belong in `fx.js`/`renderer.js` and must never touch `game.state`.
-- Every new interactive element gets a unique kebab-case `data-testid`; add a `tests/phaseNN_*.py` suite and run `testing_agent_v3` for an `iteration_NN.json` before declaring a phase complete.
-- Keep `/app/plan.md` current (phases, decisions, verification baselines).
+### 5.1 Core invariants
+- **Authoritative state object** `game.state` — plain JSON-able data. UI reads it; **only sim code mutates it** (UI goes through controlled mutators: `setTimeControls`, `setTicketPrice`, `setPolicy`, construction/terrain functions, `input.js` tool application). Renderer/three/fx **never** write to state or call `rnd()`.
+- **Fixed timestep**: `TICK_MS = 100`; speeds pause/1x/3x; `TICKS_PER_DAY = 1800` (3 min per "Cycle" at 1x). Loop: `setInterval(TICK_MS/2)` accumulator, max 8 steps per interval, spiral-of-death guard. UI refresh via `emit('uiRefresh')` every 400 ms.
+- **Determinism**: single seeded LCG `rnd()` in `state.js`. `createNewGame({seed})` seeds it (clock-derived when blank; `seedLabel` keeps what the player typed). `serialize()` snapshots the cursor into `state.rngState`; `deserialize()` restores it → *continue-to-N equals load-then-run-to-N* (`determinism_test.py`). Render-only randomness uses `Math.random`. Transient caches are `_`-prefixed (`_light`, `_footfall`, `_encDirty`, `_guestFeed`, …) and are stripped on save.
+- **Save format**: `state.version = 1`. **Every** new field must have a default in `createNewGame` **and** a backfill in `deserialize`/`ensureX()`. Never rename or remove fields. Load hardening drops unknown species/buildings/research with `console.warn('[load] …')`.
+
+### 5.2 Tick order (`sim.js tickOnce`)
+1. Enclosure cache refresh when dirty (T%5)
+2. Creatures (snapshot loop; `c._dead` skip): movement every tick; needs+decide T%20; welfare T%40; fence pressure + breachTick T%150; cohab T%100; abilities T%120; breeding T%200; waste T%400 — all staggered by `id`
+3. `conflictTick` T%90===45 (≤1 incident park-wide)
+4. `staffTick`
+5. Guests: movement every tick (bumps footfall); needs (incl. `guestLightingTick`) + decide T%20; spawn/cull T%25
+6. Weather T%25; storm fence damage T%200 (50 %)
+7. Security units every tick; `securityTick` T%40
+8. Expeditions T%10; contracts T%60
+9. Events T%30; rivalry T%45===15
+10. Transport every tick
+11. Research T%10; dynamic projects refresh T%60
+12. Objectives T%50; rating T%100; scenario T%100===30
+13. `dailyRollover` at T%1800 (finances, lightingRollover, footfallDecay, contract refresh, etc.)
+
+### 5.3 World & geometry
+- 72×72 tiles; flat arrays `heights/materials/water/veg/paths`, `idx(x,y) = y*72+x`.
+- Iso projection: `worldPx = ((x-y)*32, (x+y)*16 - h*10)`; tiles centred on `(x+0.5, y+0.5)`.
+- Fences are **edge-keyed** `"x,y,E|S"` (E = boundary with x+1, S = with y+1) with tier (1–4) and hp. Gates are edges too. Enclosures = flood-fill regions bounded by fences (region ids renumber on every fence edit — never persist them; `gaps` are matched geometrically).
+- Power: `power` relays with `powerRadius`; `offlineUntil` when surge-damaged (Voltari).
+
+### 5.4 Unknown biology
+Species define `hiddenAttrs`. `knowledge[speciesId].discovered` gates both UI text (via `getSpeciesView`) and habitat-cause explanations (masked causes). Evidence accrues from behaviour → hypothesis alert → dynamic Field Study research → `discover()` → BREAKTHROUGH toast + grant. Sandbox starts fully discovered.
+
+### 5.5 Tension / escape loop (Phase O)
+Degradation multiplier = volatility(danger) × tierFactor, halved-ish by assigned keepers. Stress ≥.6 radio callout; ≥.75 aggression possible; ≥.7 + weak/undersized fence → BREACH RISK warning → breach (`destroyFence` → `state.gaps[key]`) → escaped → security capture → HOLDING if the pen is still open → warden rebuild → release. Deaths are permanent (`stats.deaths`, ledger DECEASED). All UI feedback lives in EnclosurePanel TENSION, EmergencyBanner and CreaturePanel CONDITION.
+
+### 5.6 Night lighting model (Phases X + Y)
+- `lampsOn` = dusk|night; `isNight` = night only. `lightMap(state)` is a `Uint8Array` cache keyed by lamp placements **and floodlight power state** (`:p`/`:x`) — `LIT_PATH=1` (r 2.5), `LIT_FLOOD=2` (r 4.0). **Unpowered floodlights contribute nothing** (`relayPowered` mirrors `construction.isPowered` incl. `offlineUntil`, kept local to avoid an import cycle).
+- `guestLightingTick`: on a path tile at night → lit `+0.006` satisfaction / dark `−0.012`, tallies `stats.lighting.{lit,dark}`, one-off praise/gripe opinions (25 %), sets `g.lit = 'lit'|'dark'|null` (renderer reads this for Y1 glyphs).
+- Dawn: `lightingRollover` folds the lit share into `stats.nightSafety` EMA (0.6/0.4); `safetyCarrot = 0.05 × nightSafety` added to rating safety.
+- Y2: `state._footfall` (Float32Array, transient) bumped per guest step, ×0.7 at dawn; `suggestLampSpots(state,{max})` scores unlit path tiles (footfall ×0.02 dominant, +entrance proximity, +attraction approaches), spaces picks by path-lamp radius.
+- Reports: `lightingReport` (coverage, floodsOffline, tonight/lastNight, guestsLit/Dark, safetyBonus), `lampReport(b)` (`needsPower/powered/lit`).
+
+### 5.7 Alerts & navigation
+`pushAlert(state, {type, title, msg, target})`; types `danger|warning|success|breakthrough|info|radio` (state caps at 60; `game.dev.watchAlerts()` keeps an unbounded log). `useGameAlerts` toasts everything except `radio`; `useNavigateTarget` handles `creature|tile|enclosure|species|research|finances|objectives`.
+
+---
+
+## 6. Rendering architecture
+
+- **Two stacked canvases** (`GameCanvas.jsx`): WebGL `World3D` underneath; the classic 2D canvas on top as a transparent **authoritative overlay** (input, picking `screenToTile/edgeFromPointer/vertexFromPointer`, selection rings, hover, tool previews, HUD markers, overlays, captions, mood glyphs). In classic mode the 2D canvas draws the whole pixel-art world.
+- **Mode selection**: `RENDER_3D` (default on; off via `?classic=1` or `localStorage['aetherion.render3d']='off'`) **and** WebGL2 available **and** (not software GL **or** `?render3d=1`). Headless Chromium/SwiftShader therefore runs **classic** by default → fast, stable tests; `render3d_test.py` forces 3D with `?render3d=1&gfx=low` and polls frames. `window.__renderMode` reports `'3d'|'classic'`. A 3D init failure or dropped context falls back to classic at runtime (`onWorldDropped`).
+- **Camera**: isometric 2:1 dimetric, yaw 45°, pitch 30°, orthographic; zoom/pan mirror the 2D cam exactly. Picking math is unchanged from the 2D engine.
+- **Quality tiers** `low|medium|high` (`?gfx=`, persisted in `aetherion.gfx`, adaptive downgrade unless pinned). Point-light budget for lamps 0/4/8.
+- **Classic art** (ART_V2 default on): 1 art px = 1 device px sprite sheets baked at load (idle 6 / walk 8 / threat 4 / lunge 4), cel/rim/halo post-passes, exact blink frames from recorded eye rects, juvenile sheets derived from adult bakes. Review: `python tests/art_gallery.py a|b|c [night]` → `artifacts/`.
+- **Audio** (`audio.js`): AudioContext unlocks on first gesture; ambience beds by weather/phase; stingers per alert type; creature voices/vocals positioned with PannerNode; settings in localStorage.
+
+---
+
+## 7. Feature inventory (all COMPLETE and verified)
+
+| Phase | Delivered |
+|---|---|
+| 1–3 Core | Iso engine, camera, terrain sculpt/paint/water/veg (+undo, costs), paths, buildings + power radius, fences/gates + enclosure detection, creature AI/A*, explainable habitat evaluation, unknown-biology loop, guests + viewing occlusion, research tree + dynamic field studies, acquisition, rating, 13 objectives, alerts + cause log, save/load |
+| 4–5 | Drag-to-line + rectangle fences w/ live cost preview, security response posts, guest panic/stampede, expeditions board, contracts, Night Tours policy, breeding, abilities (burrow/camouflage/surge) |
+| 6–9, 11–17 | Pixel-art cohesion + asset redesign, ~30 attractions/amenities, elevated transport, keeper staff (3 roles, priorities, report card, radio), 6 scenarios w/ mastery, Tier-4 apex species, genetics/morphs/inbreeding, park events + rival rumbles, guest interest |
+| 19 Photo Mode | Letterbox, thirds grid, freeze, capture w/ watermark/caption |
+| A–H | Code-quality remediation, keeper priorities, input UX (drag-pan, right-click cancel, wheel zoom), game-feel (eased zoom, inertia, shake, pops), ambient audio, Sovereign Bloodline scenario, idle life, keeper markers, edge scrolling, Bloodline Ledger, radio chatter, **creature art rework** (19 painters), assessment fixes (fence-aware births, load backfills, ErrorBoundary, RNG cursor in save, per-player save scoping, `.env.example`s, README) |
+| J–K | ART_V2 post-passes; **Ops Deck** dock + drawer shell |
+| L | Juvenile art, world-seed picker + HUD seed chip, live portraits, creature voices |
+| M–N | Native drawer panels (ScreenFrame host-aware chrome, `drawer:` Tailwind variant), HUD fits 1366–1700, QA pass |
+| O | **Creature tension pass**: needs degradation, aggression/conflicts, breach risk → breach → holding → rebuild, deaths, full UI feedback, dev harness |
+| R | **Cinematic 3D world**: Three.js pipeline, PBR terrain/water/lighting/post, flora/fences/buildings/props/transport, 9 creature body-plan rigs, instanced people |
+| S | Shoreline softening, legacy HUD retired (deck-only), living weather (gusts/chop/wetness/splashes), Species Database filters |
+| U | **Photo Album** (backend `/api/photos`, auto-save, drawer gallery), **Pairing Planner**, **Creature Vocals** (3D-positioned, species signatures), **Night Lighting Pass** (`lamps3d.js`) |
+| V | Planner shortcut in Species DB, vocal subtitles (toggle `aetherion_subtitles`), **Lamp placement tool** (`path_lamp`, `floodlight` in Facilities), album captions stamped on downloads |
+| W | Code-review response (complexity refactors, logged catches, type hints, hardened forced-3D test) |
+| X | **Lamp comfort bonus + Lighting overlay** (`lighting.js`, 4th overlay toggle, LampReport, Night Lighting finance panel), **Album contact sheet** (one tall 3-column JPEG), species caption colours, ternary cleanup (`tone.js`) |
+| **Y (latest)** | **Y1 Guest Night Mood Icons** — warm lamp glyph over safe guests, cool crescent over guests in the dark (night only, skips panicked/riding; `drawGuestMoodIcons`, `__gameDebug.guestMoods()`). **Y2 Lamp Auto-Suggest** — Facilities `lamp-suggest-button` ("Light the gaps") arms pulsing on-map markers for the darkest busy walkway tiles and selects the Path Lamp tool; markers self-expire and drop the instant a lamp covers them (`renderer.setLampSuggestions/drawLampSuggestions`, `__gameDebug.suggestLampSpots(max)`). **Y3 Floodlight Power Link** — floodlights only shine while an online Power Relay covers them; surge-knocked relays black them out; red-dashed NO POWER ring in the 2D lighting overlay, `BuildingPanel` power state, 3D fixture keeps pole/head but loses lens glow/pool/light; placement rules unchanged. **Y4 Contact Sheet Filters** — From/To cycle Selects + Captioned-only Switch scope both the grid preview and the exported sheet, live `album-sheet-count` ("Exports X of N"); defaults = whole album. |
+
+---
+
+## 8. Controls, hotkeys, flags & debug surface
+
+- **Mouse**: left click select · left-drag pan (Select mode) · right-click cancel tool / clear selection · right-drag pan · wheel zoom to cursor · edge glide within 28 px of the canvas edge (toggle in audio popover).
+- **Hotkeys**: `Space` pause · `1`/`3` speed · `Esc` cancel-everything (tool → Select, clear selection, close drawer) · `Ctrl/Cmd+Z` undo terrain · Photo mode: `Space` capture, `Esc` exit.
+- **URL params**: `?classic=1` (force 2D) · `?render3d=1` (force 3D even on software GL) · `?gfx=low|medium|high`.
+- **localStorage**: `aetherion_player_token`, `aetherion_tutorial_done`, `aetherion_scenarios_done`, `aetherion_audio_enabled`, `aetherion_audio_volume`, `aetherion_edge_scroll`, `aetherion_subtitles`, `aetherion.gfx`, `aetherion.artV2`, `aetherion.render3d`. Tests set `aetherion_tutorial_done` before starting a game.
+- **Window hooks** (tests/debug only): `__game` (controller: `.state`, `.stepTicks(n)`, `.newGame({mode, seed})`, `.dev.*` harness — `fenceRect, addCreature, offspring, kill, spawnBuilding, placeBuilding, canPlaceBuilding, demolishBuilding, hireStaff, assignStaff, enclosureAt, enclosures, damageFence, grant, flatten, spawnGuest, watchAlerts/alerts/clearAlerts`), `__gameDebug` (pure: `serialize/deserialize/getRngState/getRngCursor/playerToken/adjacentOpenTile/projectPairing/recommendPartners/bestPairs/lightingReport/lightAt/lampReport/guestLightingTick/suggestLampSpots/guestMoods`), `__gameRenderer` (`.cam .selection .centerOn .fx ._keeperPins .sheetFor .idleLife .setLampSuggestions`), `__gameInput` (`.setSelection .edge .pointer`), `__audio` (`.log .voices .stinger`), `__vocals`, `__albumDebug.lastSheet`, `__portraitLive`, `__renderMode`, `__world`.
+
+---
+
+## 9. Design system
+
+Dark "Night-Lab" palette as CSS variables in `index.css`: bg `#070A0E / #0B1018 / #0F1724`, panels `#0C121B / #101A26 / #0A0F16`, text `#E7EEF8 / #B7C4D6 / #7F93AD`, lines `#1B2A3D / #24384F`, accents cyan `#2DE2E6`, seaglass `#6EF3C5`, violet `#8AA4FF`, amber `#F2C14E`, rose `#FF5C7A`; semantic success `#3EE28A`, warning `#F2C14E`, danger `#FF4D6D`, info `#4DB6FF`. Fonts **Space Grotesk** (UI) + **IBM Plex Mono** (data/labels). Utility classes `nl-panel`, `nl-panel-header`, `nl-tool`, `nl-scroll`; Tailwind variant `drawer:` = `[data-host="drawer"] &`. Icons: `lucide-react` only. Toasts: Sonner themed via `TOAST_OPTIONS`. Full specs: `/app/design_guidelines.md` (UI) and `/app/design_guidelines_3d.md` (3D materials/lighting/texture prompts). Ops Deck geometry is fixed: **56 px dock + 320 px drawer (≤376 px)**; left overlays shift to `left-[376px]` when a drawer is open.
+
+---
+
+## 10. Test suites (`/app/tests`, 60+ files)
+
+**Backend**: `backend_api_test`, `backend_regression_test`, `backend_comprehensive_test`, `backend_ownerless_test`, `remediation_backend_test`, `determinism_backend_test`.
+**Core/determinism**: `determinism_test`, `save_compat_test`, `birth_boundary_test`, `assessment_fixes_test`, `smoke_game`, `scenario_discovery`.
+**Systems by phase**: `phase5_test` (rect fences, security, expeditions, contracts), `phase6a/6b_test` (panic, night tours, breeding, abilities), `phase8_staff_test`, `phase9_scenarios_test`, `phase17_sovereign_test`, `phase19_photo_test`, `phase20_features_test`, `phase21_features_test`, `keeper_priorities_test`, `fence_drag_test`, `input_ux_test`, `gamefeel_test`, `weather_detailed_test`, `placement_alignment_test`, `tension_test` (48 checks), `seed_picker_test`, `species_filters_test`, `pairing_planner_test`, `phase_v_test`, `lighting_test` (19), `photo_album_test` (20).
+**Art/visual**: `creature_art_test`, `art_v2_test` (+`art_v2_baseline.json`), `juvenile_art_test`, `live_portraits_test`, `creature_voices_test`, `creature_vocals_test` (classic + forced 3D), `phase7_*`, `phase16_visual`, `visual_v2`, galleries (`art_gallery`, `juvenile_gallery`).
+**HUD**: `ops_deck_test`, `ops_deck_native_test`, `hud_responsiveness_test`, `ui_integration_test`, `comprehensive_test`, `focused_test`, `phase_mn_manual_test`.
+**3D**: `render3d_test` (31 checks, SwiftShader, run alone), `_dbg_3d.py/_dbg_quality.py/_dbg_shader.py` (debug helpers), `perf_probe`.
+Helpers: `config.py` (URL), `save_cleanup.py`, `phase6_helpers.py` (`click_tile`, `tile_screen`, boot helpers).
+
+**Baselines**: iteration_31 (Phase V) → 36/36 + 19/19 · iteration_32 (Phase X) → 11/11 + 52/52 · **iteration_33 (Phase Y) → 117/117**. Local Phase Y sweeps: lighting 19/19, photo_album 20/20, render3d 31/31, determinism 8/8, save_compat 6/6, phase_v 19/19.
+
+---
+
+## 11. Known caveats & gotchas (no open bugs)
+
+1. **Headless = classic renderer.** 3D lighting/lamps can only be *seen* on hardware WebGL; screenshot tooling shows the 2D world. Use `?render3d=1&gfx=low` + frame polling for 3D assertions.
+2. **Browser suites must run sequentially** (frame-counting; SwiftShader 3D suites especially). Headless rAF ≈ 30 fps — poll rather than sleep for frame-based TTLs.
+3. **Playwright chromium** disappears when the testing agent bumps Playwright → `python3 -m playwright install chromium`.
+4. **inotify budget** may be exhausted node-wide → keep the polling env vars in `frontend/.env` (§2.3). Symptom: `ENOSPC … file watchers` crash-loop, `supervisorctl status frontend` stuck at STARTING.
+5. **Save scoping is not auth**: token in localStorage; legacy ownerless saves visible to all until adopted. Add real accounts before any public multi-user deployment.
+6. **Audio autoplay**: AudioContext is created on the first pointerdown/keydown; before that one-shots are logged but silent.
+7. **Soft-fail checks** by design: `smoke_game` TEST F (clicking a moving creature), toast checks in `comprehensive_test`/`focused_test`; `gamefeel_test` inertia and `phase17` 6a can fail only under CPU contention.
+8. **Region ids renumber** after every fence edit — never persist an enclosure id as identity; `gaps` are matched geometrically.
+9. **CRA dev overlay** iframe sits above the ErrorBoundary in dev builds; tests remove it before clicking. `DEP_WEBPACK_COMPILATION_ASSETS` warnings are harmless.
+10. **Balance not human-playtested**: Sovereign Bloodline difficulty, breeding cooldown, tension rates, lighting deltas — all tuned by simulation only.
+11. **Floodlight placement does not require power** (deliberate, keeps render3d B27 green); an unpowered flood simply stays dark and is reported as such.
+12. `frontend/yarn.lock` shows as modified in `git status` — touched by the platform's install step; safe to commit or ignore.
+
+---
+
+## 12. Conventions — how to add things safely
+
+- **New sim state** → default in `createNewGame` **and** backfill in `deserialize`/`ensureX()`; `_`-prefix transient caches so `serialize` strips them. Never rename/remove fields.
+- **New alert type** → colour in `HudBar.ALERT_COLORS`, routing in `useGameAlerts.routeAlert`, stinger case in `audio.stinger`.
+- **New building/species/research/scenario** → data files in `game/data/`; 2D painter in `game/art/`; 3D kit in `game/three/*3d.js`; scenario goals may expose `progress(s)`.
+- **Render-only effects** belong in `renderer.js` / `fx.js` / `three/*` and must never touch `game.state` or `rnd()`. Cross-module lookups that would create import cycles (lighting ↔ construction ↔ economy) are mirrored locally with a comment.
+- **UI** → Shadcn primitives, lucide icons, design tokens, `tone.js` helpers instead of nested ternaries, unique kebab-case `data-testid` on every interactive/critical element, `drawer:` variant for narrow layouts. Ops Deck is the only HUD — do not resurrect modals.
+- **Testing** → add/extend a `tests/*_test.py` suite with the feature, run it in isolation, then run `testing_agent_v3` for an `iteration_NN.json` before marking a phase complete; add debug hooks under `window.__gameDebug`/`game.dev` (pure/read-only) rather than reaching into React.
+- **Docs** → keep `/app/plan.md` (phases, decisions, verification) and `/app/memory/PRD.md` current; refresh this handoff at phase boundaries.
+
+---
+
+## 13. Backlog (nothing in progress — awaiting user pick)
+
+**P1 — natural follow-ons to Phase Y**
+- **Auto-Suggest Auto-Place**: click a suggested marker to build the lamp immediately (spend + placement through `construction.placeBuilding`).
+- **Surge Alert UI**: flash a warning / banner chip when a relay goes offline so players know why floodlights went dark (`offlineUntil` edge → `pushAlert` + EmergencyBanner chip).
+- **Contact Sheet Themes**: dark "night edition" layout for the exported sheet (`album.sheetLayout` theme param).
+
+**P2 — polish**
+- Ambient mix sliders (UI / ambience / stingers), keeper call-signs, popover dismissal on outside click, tooltips pass.
+- Incident timeline per enclosure; "assign nearest idle keeper" one-click from the TENSION section.
+- Balance pass after human playtests (Sovereign Bloodline, breeding cooldown, tension, lighting deltas).
+
+**P3 — platform**
+- Real accounts replacing token scoping; bundle-size review (framer-motion, recharts, react-query, swr lightly used); renderer culling / dirty-rect only after profiling on real hardware (`tests/perf_probe.py` baseline).
